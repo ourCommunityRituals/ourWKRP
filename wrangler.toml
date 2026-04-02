@@ -1,0 +1,69 @@
+# ============================================
+# ourWKRP — Cloudflare Worker Configuration
+# ============================================
+# Staging: wrangler deploy
+# Production: wrangler deploy --env production
+# Local dev: wrangler dev
+# ============================================
+
+name = "ourwkrp-staging"
+main = "src/index.ts"
+compatibility_date = "2024-06-01"
+
+# Import HTML templates as text strings
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
+[vars]
+WORKER_ENV = "staging"
+WORKER_VERSION = "0.1.0"
+SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
+SPOTIFY_REDIRECT_URI = "http://localhost:8787/auth/callback"
+APP_URL = "http://localhost:8787"
+
+# KV Namespace for auth/session state
+[[kv_namespaces]]
+binding = "WKRP_KV"
+id = "PLACEHOLDER_KV_STAGING"
+preview_id = "PLACEHOLDER_KV_PREVIEW"
+
+# D1 Database for catalog data
+[[d1_databases]]
+binding = "WKRP_DB"
+database_name = "ourwkrp-staging"
+database_id = "PLACEHOLDER_D1_STAGING"
+
+# ============================================
+# Production environment
+# ============================================
+[env.production]
+name = "ourwkrp-production"
+routes = [
+  { pattern = "ourwkrp.com/*", zone_name = "ourwkrp.com" },
+  { pattern = "www.ourwkrp.com/*", zone_name = "ourwkrp.com" }
+]
+
+[env.production.vars]
+WORKER_ENV = "production"
+WORKER_VERSION = "0.1.0"
+SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
+SPOTIFY_REDIRECT_URI = "https://ourwkrp.com/auth/callback"
+APP_URL = "https://ourwkrp.com"
+
+[[env.production.kv_namespaces]]
+binding = "WKRP_KV"
+id = "PLACEHOLDER_KV_PROD"
+
+[[env.production.d1_databases]]
+binding = "WKRP_DB"
+database_name = "ourwkrp-production"
+database_id = "PLACEHOLDER_D1_PROD"
+
+# ============================================
+# Staging routes (uncomment when DNS is ready)
+# ============================================
+# routes = [
+#   { pattern = "stg.ourwkrp.com/*", zone_name = "ourwkrp.com" }
+# ]

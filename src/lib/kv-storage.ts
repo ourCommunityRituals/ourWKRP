@@ -1,0 +1,77 @@
+/**
+ * KV storage helpers for wkrp:* keys
+ * Handles auth state, sessions, and tokens
+ */
+
+import type { AuthState, SessionData, StoredTokens } from '../types';
+import { log } from './logger';
+
+// Auth state (PKCE verifier + contributor info) — 10 min TTL
+export async function storeAuthState(kv: KVNamespace, state: string, data: AuthState): Promise<void> {
+  const key = `wkrp:auth:${state}`;
+  await kv.put(key, JSON.stringify(data), { expirationTtl: 600 });
+  log('KV_WRITE', { key, ttl: 600 });
+}
+
+export async function getAuthState(kv: KVNamespace, state: string): Promise<AuthState | null> {
+  const key = `wkrp:auth:${state}`;
+  const raw = await kv.get(key);
+  if (!raw) {
+    log('KV_MISS', { key });
+    return null;
+  }
+  log('KV_HIT', { key });
+  return JSON.parse(raw) as AuthState;
+}
+
+export async function deleteAuthState(kv: KVNamespace, state: string): Promise<void> {
+  await kv.delete(`wkrp:auth:${state}`);
+}
+
+// Session (maps session token -> contributor) — 30 day TTL
+export async function storeSession(kv: KVNamespace, token: string, data: SessionData): Promise<void> {
+  const key = `wkrp:session:${token}`;
+  await kv.put(key, JSON.stringify(data), { expirationTtl: 2592000 });
+  log('KV_WRITE', { key, ttl: 2592000 });
+}
+
+export async function getSession(kv: KVNamespace, token: string): Promise<SessionData | null> {
+  const key = `wkrp:session:${token}`;
+  const raw = await kv.get(key);
+  if (!raw) {
+    log('KV_MISS', { key });
+    return null;
+  }
+  log('KV_HIT', { key });
+  return JSON.parse(raw) as SessionData;
+}
+
+// Spotify tokens — no TTL (refresh handled in code)
+export async function storeTokens(kv: KVNamespace, userId: string, tokens: StoredTokens): Promise<void> {
+  const key = `wkrp:tokens:${userId}`;
+  await kv.put(key, JSON.stringify(tokens));
+  log('KV_WRITE', { key, expires_at: new Date(tokens.expires_at).toISOString() });
+}
+
+export async function getTokens(kv: KVNamespace, userId: string): Promise<StoredTokens | null> {
+  const key = `wkrp:tokens:${userId}`;
+  const raw = await kv.get(key);
+  if (!raw) {
+    log('KV_MISS', { key });
+    return null;
+  }
+  log('KV_HIT', { key });
+  return JSON.parse(raw) as StoredTokens;
+}
+
+// Last sync timestamp
+export async function storeLastSync(kv: KVNamespace, userId: string): Promise<void> {
+  const key = `wkrp:last_sync:${userId}`;
+  const now = new Date().toISOString();
+  await kv.put(key, now);
+  log('KV_WRITE', { key, value: now });
+}
+
+export async function getLastSync(kv: KVNamespace, userId: string): Promise<string | null> {
+  return await kv.get(`wkrp:last_sync:${userId}`);
+}
