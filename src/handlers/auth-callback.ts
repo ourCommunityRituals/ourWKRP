@@ -21,22 +21,29 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
   const state = url.searchParams.get('state');
   const error = url.searchParams.get('error');
 
+  // Validate APP_URL is a safe redirect target (prevent open redirect)
+  const appUrl = validateRedirectTarget(env.APP_URL);
+  if (!appUrl) {
+    logError('AUTH_CALLBACK_UNSAFE_REDIRECT', new Error(`Unsafe APP_URL: ${env.APP_URL}`));
+    return Response.json({ ok: false, error: 'Server misconfiguration' }, { status: 500 });
+  }
+
   // Spotify denied or user cancelled
   if (error) {
     log('AUTH_CALLBACK_DENIED', { error });
-    return Response.redirect(`${env.APP_URL}/?error=spotify_denied`, 302);
+    return Response.redirect(`${appUrl}/?error=spotify_denied`, 302);
   }
 
   if (!code || !state) {
     log('AUTH_CALLBACK_INVALID', { has_code: !!code, has_state: !!state });
-    return Response.redirect(`${env.APP_URL}/?error=invalid_callback`, 302);
+    return Response.redirect(`${appUrl}/?error=invalid_callback`, 302);
   }
 
   // Retrieve and validate auth state from KV
   const authState = await getAuthState(env.WKRP_KV, state);
   if (!authState) {
     log('AUTH_CALLBACK_STATE_MISS', { state: state.substring(0, 8) + '...' });
-    return Response.redirect(`${env.APP_URL}/?error=invalid_state`, 302);
+    return Response.redirect(`${appUrl}/?error=invalid_state`, 302);
   }
 
   // Clean up used state
@@ -99,11 +106,32 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
     log('AUTH_CALLBACK_SUCCESS', { contributorId, name: authState.name, gen: authState.gen });
 
     // Redirect to app with session
-    return Response.redirect(`${env.APP_URL}/?session=${sessionToken}`, 302);
+    return Response.redirect(`${appUrl}/?session=${sessionToken}`, 302);
 
   } catch (err) {
     logError('AUTH_CALLBACK_ERROR', err);
-    return Response.redirect(`${env.APP_URL}/?error=auth_failed`, 302);
+    return Response.redirect(`${appUrl}/?error=auth_failed`, 302);
+  }
+}
+
+/** Validate redirect target is an allowed domain — prevents open redirect */
+const ALLOWED_REDIRECT_HOSTS = new Set([
+  'ourwkrp.com',
+  'www.ourwkrp.com',
+  'stg.ourwkrp.com',
+  'localhost',
+  '127.0.0.1',
+]);
+
+function validateRedirectTarget(urlString: string): string | null {
+  try {
+    const url = new URL(urlString);
+    if (!ALLOWED_REDIRECT_HOSTS.has(url.hostname)) return null;
+    // Only allow http for localhost, https for everything else
+    if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1' && url.protocol !== 'https:') return null;
+    return url.origin;
+  } catch {
+    return null;
   }
 }
 

@@ -27,10 +27,20 @@ vi.mock('../../src/handlers/pages', () => ({
 import { route } from '../../src/router';
 import type { Env } from '../../src/types';
 
-const mockEnv = {} as Env;
+const mockEnv: Env = {
+  WKRP_KV: {} as KVNamespace,
+  WKRP_DB: {} as D1Database,
+  WORKER_ENV: 'staging',
+  WORKER_VERSION: '0.1.0',
+  SPOTIFY_CLIENT_ID: 'test-client-id',
+  SPOTIFY_REDIRECT_URI: 'http://localhost:8787/auth/callback',
+  APP_URL: 'http://localhost:8787',
+};
 
-function makeRequest(path: string, method = 'GET'): Request {
-  return new Request(`http://localhost${path}`, { method });
+function makeRequest(path: string, method = 'GET', origin?: string): Request {
+  const headers: Record<string, string> = {};
+  if (origin) headers['Origin'] = origin;
+  return new Request(`http://localhost:8787${path}`, { method, headers });
 }
 
 describe('Router', () => {
@@ -87,14 +97,23 @@ describe('Router', () => {
   });
 
   it('handles OPTIONS (CORS preflight) with 204', async () => {
-    const res = await route(makeRequest('/health', 'OPTIONS'), mockEnv);
+    const res = await route(makeRequest('/health', 'OPTIONS', 'http://localhost:8787'), mockEnv);
     expect(res.status).toBe(204);
-    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
   });
 
-  it('adds CORS headers to all responses', async () => {
+  it('adds CORS headers for allowed origins', async () => {
+    const res = await route(makeRequest('/health', 'GET', 'http://localhost:8787'), mockEnv);
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:8787');
+  });
+
+  it('does NOT add CORS headers for unknown origins', async () => {
+    const res = await route(makeRequest('/health', 'GET', 'https://evil.com'), mockEnv);
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('adds security headers to all responses', async () => {
     const res = await route(makeRequest('/health'), mockEnv);
-    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
-    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('GET');
+    expect(res.headers.get('X-Frame-Options')).toBe('DENY');
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
   });
 });

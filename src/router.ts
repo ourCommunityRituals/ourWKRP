@@ -23,6 +23,7 @@ import { handleAuthSession } from './handlers/auth-session';
 import { handleSync } from './handlers/sync';
 import { handlePages } from './handlers/pages';
 import { addCorsHeaders } from './lib/cors';
+import { addSecurityHeaders } from './lib/security-headers';
 import { log } from './lib/logger';
 
 export async function route(request: Request, env: Env): Promise<Response> {
@@ -34,7 +35,7 @@ export async function route(request: Request, env: Env): Promise<Response> {
 
   // CORS preflight
   if (method === 'OPTIONS') {
-    return addCorsHeaders(new Response(null, { status: 204 }));
+    return addCorsHeaders(new Response(null, { status: 204 }), request, env);
   }
 
   let response: Response;
@@ -69,5 +70,7 @@ export async function route(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  return addCorsHeaders(response);
+  response = addSecurityHeaders(response);
+  response = addCorsHeaders(response, request, env);
+  return response;
 }

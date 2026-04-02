@@ -46,7 +46,6 @@ describe('Input Validation', () => {
     });
 
     it('escapeHtml uses textContent (safe) not innerHTML', () => {
-      // The escapeHtml function should use textContent to escape
       expect(catalogContent).toContain('div.textContent = str');
     });
   });
