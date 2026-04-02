@@ -137,6 +137,69 @@ Configs: `dev`, `stg`, `prd`
 
 No client_secret needed — PKCE flow.
 
+---
+
+## 7. Linear Integration
+
+**Team**: ourWKRP (`WKRP2`)
+**Board**: https://linear.app/oursharedevents/team/WKRP2
+**CCR Document**: https://linear.app/oursharedevents/document/ourwkrp-ccr-assessment-product-vision-1ab0b3ea0a41
+
+Stories use dual IDs: `WKRP-N` (story ID in STORIES.md) and `WKRP2-N` (Linear issue ID).
+See STORIES.md for the full mapping table.
+
+### Current Sprint (Sprint 2)
+- **WKRP-6** (WKRP2-6) Mobile Auth — Deep Link + Universal Links — **URGENT, In Progress**
+- WKRP-7 (WKRP2-7) Session Management — Secure HttpOnly Cookies
+- WKRP-8 (WKRP2-8) Rate Limiting + Abuse Prevention
+- WKRP-9 (WKRP2-9) Input Validation — Zod Schemas
+- WKRP-10 (WKRP2-10) Spotify Search API
+- WKRP-11 (WKRP2-15) Track Discovery + Search UI
+
+---
+
+## 8. Story Lifecycle
+
+1. Pick next unstarted story from STORIES.md (or Linear board)
+2. Move to **In Progress** in Linear
+3. Implement: routes, handlers, tests, migrations
+4. All tests pass (`npm test` + `npm run test:e2e`)
+5. Commit with `WKRP-N:` prefix in message
+6. Push to feature branch, create PR
+7. Move to **Done** in Linear after merge
+8. Update STORIES.md status
+
+---
+
+## 9. CCR Assessment Summary
+
+**Compliance**: Mobile auth broken (WKRP-6), no CSRF (WKRP-7), ad-hoc validation (WKRP-9)
+**Catalog**: Manual URI paste only, no search UI (WKRP-10/11)
+**Reliability**: No rate limiting (WKRP-8), no backups (WKRP-24), no load tests (WKRP-27)
+
+Full assessment in the Linear CCR document linked above.
+
+---
+
+## 10. Dependencies + Blockers
+
+| Story | Blocked By | Reason |
+|-------|-----------|--------|
+| WKRP-11 | WKRP-10 | Search UI needs Search API endpoint |
+| WKRP-12 | WKRP-3 | WebSocket collab needs playlist CRUD |
+| WKRP-30 | WKRP-3, WKRP-5 | Bridge needs playlist + export |
+
+---
+
+## 11. Bridge — ourSharedEvents
+
+WKRP-30 links ourWKRP playlists to ourSharedEvents events via `event_playlists` junction table.
+- API: `POST /events/:id/playlists`, `GET /events/:id/playlists`
+- ourSharedEvents embeds playlist widget
+- Export includes event metadata in Spotify playlist description
+
+---
+
 ### Doppler Setup
 ```bash
 # First time

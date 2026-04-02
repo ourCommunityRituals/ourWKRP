@@ -1,120 +1,86 @@
-# STORIES.md — ourWKRP Story Backlog
+# STORIES.md — ourWKRP Story Index
+
+> **Source of truth**: [Linear — ourWKRP team](https://linear.app/oursharedevents/team/WKRP2)
+> **CCR Assessment**: [Linear document](https://linear.app/oursharedevents/document/ourwkrp-ccr-assessment-product-vision-1ab0b3ea0a41)
 
 ---
 
-### WKRP-1: Project Scaffold + Worker Entry
-**Status:** ✅ DONE
-**Sprint:** 1
+## Sprint 1 — Done
 
-**PO Acceptance Criteria:**
-- [x] Worker boots and responds to /health
-- [x] TypeScript strict mode, ESLint, Vitest configured
-- [x] Wrangler.toml with KV + D1 bindings (staging + prod)
-- [x] D1 migration for contributors, playlists, tracks, playlist_tracks
+| Story | Linear | Title | Status |
+|-------|--------|-------|--------|
+| WKRP-1 | WKRP2-1 | Project Scaffold + Worker Entry | Done |
+| WKRP-2 | WKRP2-2 | Spotify OAuth PKCE + Token Vault | Done |
+| WKRP-3 | WKRP2-3 | Playlist CRUD — D1 Read/Write | Done |
+| WKRP-4 | WKRP2-4 | Track Submission + Spotify Metadata Fetch | Done |
+| WKRP-5 | WKRP2-5 | Export to Spotify — Playlist Push | Done |
 
----
+## Sprint 2 — In Progress
 
-### WKRP-2: Spotify OAuth + PKCE Auth Flow
-**Status:** ✅ DONE
-**Prerequisite:** WKRP-1
-**Sprint:** 1
+| Story | Linear | Title | Status |
+|-------|--------|-------|--------|
+| WKRP-6 | WKRP2-6 | Mobile Auth — Deep Link + Universal Links | In Progress |
+| WKRP-7 | WKRP2-7 | Session Management — Secure HttpOnly Cookies | Backlog |
+| WKRP-8 | WKRP2-8 | Rate Limiting + Abuse Prevention | Backlog |
+| WKRP-9 | WKRP2-9 | Input Validation — Zod Schemas + Error Responses | Backlog |
+| WKRP-10 | WKRP2-10 | Spotify Search API — Track/Artist/Album Lookup | Backlog |
+| WKRP-11 | WKRP2-15 | Track Discovery + Search UI | Backlog |
 
-**PO Acceptance Criteria:**
-- [x] GET /auth/start validates name + generation, generates PKCE, redirects to Spotify
-- [x] GET /auth/callback exchanges code, stores tokens in KV, creates contributor in D1
-- [x] GET /auth/session/:token returns contributor profile
-- [x] Token refresh logic auto-refreshes before Spotify API calls
-- [x] No tokens leak to frontend (security tests verify)
+## Backlog — Collaboration
 
----
+| Story | Linear | Title |
+|-------|--------|-------|
+| WKRP-12 | WKRP2-11 | Real-time Collaboration — Durable Objects + WebSocket |
+| WKRP-13 | WKRP2-12 | Contributor Roles + Permissions |
+| WKRP-14 | WKRP2-13 | Activity Feed — Playlist History Log |
 
-### WKRP-3: Spotify Sync Engine
-**Status:** ✅ DONE
-**Prerequisite:** WKRP-2
-**Sprint:** 1
+## Backlog — UI/UX
 
-**PO Acceptance Criteria:**
-- [x] POST /spotify/sync/:userId pulls playlists -> tracks -> audio features
-- [x] Uses snapshot_id for change detection (skip unchanged playlists)
-- [x] Batch audio features (100 per request)
-- [x] Rate limit retry with Retry-After header
-- [x] Sync completes 20 playlists x 50 tracks under 5 seconds
+| Story | Linear | Title |
+|-------|--------|-------|
+| WKRP-15 | WKRP2-14 | Responsive Mobile Layout + PWA Shell |
+| WKRP-16 | WKRP2-16 | Playlist Cover Art Generation |
+| WKRP-17 | WKRP2-17 | Dark Mode Theme Support |
 
----
+## Backlog — Analytics
 
-### WKRP-4: Mobile-First Frontend
-**Status:** ✅ DONE
-**Prerequisite:** WKRP-3
-**Sprint:** 1
+| Story | Linear | Title |
+|-------|--------|-------|
+| WKRP-18 | WKRP2-18 | Playlist Analytics Dashboard |
+| WKRP-19 | WKRP2-19 | Contributor Leaderboard |
 
-**PO Acceptance Criteria:**
-- [x] connect.html: name + generation form, Spotify button, error handling
-- [x] catalog.html: loading state, search, filter chips, range sliders, bottom nav
-- [x] create.html: playlist name/desc, audio feature filters, public toggle
-- [x] Mobile-first CSS (390px breakpoint), dark theme, 44px+ touch targets
-- [x] test-id attributes on all interactive elements
+## Backlog — Integration
 
----
+| Story | Linear | Title |
+|-------|--------|-------|
+| WKRP-20 | WKRP2-20 | Apple Music Cross-Platform Support |
+| WKRP-21 | WKRP2-21 | Social Sharing — OG Tags + Deep Links |
 
-### WKRP-5: Testing Pyramid
-**Status:** ✅ DONE
-**Prerequisite:** WKRP-4
-**Sprint:** 1
+## Backlog — Infrastructure
 
-**PO Acceptance Criteria:**
-- [x] 65 tests across unit, integration, contract, security, performance
-- [x] All pass in < 2 seconds
-- [x] E2E tests for connect flow + catalog browse (Playwright, mobile viewport)
-- [x] k6 load test scripts (health, session, sync scenarios)
-- [x] GitHub Actions CI pipeline (lint, typecheck, test, security)
+| Story | Linear | Title |
+|-------|--------|-------|
+| WKRP-22 | WKRP2-22 | CI/CD Pipeline — GitHub Actions |
+| WKRP-23 | WKRP2-23 | Staging Environment + Preview Deploys |
+| WKRP-24 | WKRP2-24 | Database Backup + Recovery |
 
----
+## Backlog — Testing
 
-### WKRP-6: Catalog API Endpoints
-**Status:** 📋 BACKLOG
-**Prerequisite:** WKRP-5
+| Story | Linear | Title |
+|-------|--------|-------|
+| WKRP-25 | WKRP2-25 | E2E Test Suite — Playwright |
+| WKRP-26 | WKRP2-26 | Integration Test Suite — Vitest + MSW |
+| WKRP-27 | WKRP2-27 | Load Testing — k6 Scripts |
 
-**PO Acceptance Criteria:**
-- [ ] GET /api/tracks?energy_min=0.7&valence_min=0.5 — filtered track list from D1
-- [ ] GET /api/playlists/:contributorId — contributor's playlists
-- [ ] GET /api/stats — catalog stats (total tracks, contributors, top genres)
-- [ ] Pagination support (offset + limit)
+## Backlog — Documentation
 
----
+| Story | Linear | Title |
+|-------|--------|-------|
+| WKRP-28 | WKRP2-28 | API Documentation — OpenAPI Spec |
+| WKRP-29 | WKRP2-29 | Contributor Onboarding Guide |
 
-### WKRP-7: Create Playlist Flow
-**Status:** 📋 BACKLOG
-**Prerequisite:** WKRP-6
+## Bridge
 
-**PO Acceptance Criteria:**
-- [ ] POST /spotify/create-playlist/:userId with filter params
-- [ ] Query D1 for matching tracks based on audio feature filters
-- [ ] Create playlist on Spotify via API
-- [ ] Add matching tracks to new playlist
-- [ ] Return playlist URL to frontend
-
----
-
-### WKRP-8: Multi-Tenant Brand Support
-**Status:** 📋 BACKLOG
-**Prerequisite:** WKRP-7
-
-**PO Acceptance Criteria:**
-- [ ] brand_id routing (e.g. bronzeville.ourwkrp.com, reckless.ourwkrp.com)
-- [ ] Per-brand catalog isolation
-- [ ] Cross-brand contributor discovery for OurRecordStories join
-- [ ] Brand-specific theming (CSS custom properties)
-
----
-
-### WKRP-9: Infrastructure Deployment
-**Status:** 📋 BACKLOG
-**Prerequisite:** WKRP-5
-
-**PO Acceptance Criteria:**
-- [ ] Provision D1 database (staging + prod)
-- [ ] Provision KV namespace (staging + prod)
-- [ ] Configure ourwkrp.com DNS in Cloudflare
-- [ ] Add redirect URIs in Spotify Developer Dashboard
-- [ ] Deploy Worker to staging
-- [ ] Smoke test full auth flow on staging
+| Story | Linear | Title |
+|-------|--------|-------|
+| WKRP-30 | WKRP2-30 | ourSharedEvents Integration — Event Playlist Linking |
