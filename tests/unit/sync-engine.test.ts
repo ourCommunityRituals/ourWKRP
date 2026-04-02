@@ -63,6 +63,7 @@ describe('Sync Engine', () => {
           all: vi.fn(async () => ({ results: [] })),
         })),
       })),
+      batch: vi.fn(async (stmts: unknown[]) => stmts.map(() => ({ success: true }))),
     };
 
     const mockKV = {

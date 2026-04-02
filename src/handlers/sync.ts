@@ -4,13 +4,18 @@
  * Triggers a full sync for a contributor:
  * playlists → tracks → audio features → D1
  *
- * Requires valid session. Returns sync results.
+ * Requires valid session cookie. Verifies caller matches userId.
+ * Rate limited: 1 sync per 5 minutes per contributor.
  */
 
 import type { Env } from '../types';
 import { getValidAccessToken } from '../auth/token-refresh';
 import { syncContributor } from '../spotify/sync-engine';
+import { getSession, getLastSync } from '../lib/kv-storage';
 import { log, logError } from '../lib/logger';
+import { getSessionToken } from '../lib/session-cookie';
+
+const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function handleSync(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -21,6 +26,48 @@ export async function handleSync(request: Request, env: Env): Promise<Response> 
       { ok: false, error: 'Invalid user ID' },
       { status: 400 },
     );
+  }
+
+  // --- Session authentication ---
+  const sessionToken = getSessionToken(request);
+  if (!sessionToken) {
+    log('SYNC_NO_SESSION', { userId });
+    return Response.json(
+      { ok: false, error: 'Authentication required' },
+      { status: 401 },
+    );
+  }
+
+  const session = await getSession(env.WKRP_KV, sessionToken);
+  if (!session) {
+    log('SYNC_INVALID_SESSION', { userId });
+    return Response.json(
+      { ok: false, error: 'Session expired. Please reconnect.' },
+      { status: 401 },
+    );
+  }
+
+  // Verify caller owns this userId
+  if (session.userId !== userId) {
+    log('SYNC_USER_MISMATCH', { sessionUser: session.userId, requestedUser: userId });
+    return Response.json(
+      { ok: false, error: 'Not authorized to sync this account' },
+      { status: 403 },
+    );
+  }
+
+  // --- Rate limiting ---
+  const lastSync = await getLastSync(env.WKRP_KV, userId);
+  if (lastSync) {
+    const elapsed = Date.now() - new Date(lastSync).getTime();
+    if (elapsed < SYNC_COOLDOWN_MS) {
+      const retryAfter = Math.ceil((SYNC_COOLDOWN_MS - elapsed) / 1000);
+      log('SYNC_RATE_LIMITED', { userId, retry_after: retryAfter });
+      return Response.json(
+        { ok: false, error: `Sync rate limited. Try again in ${retryAfter} seconds.` },
+        { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+      );
+    }
   }
 
   // Verify contributor exists

@@ -2,16 +2,30 @@
  * GET /auth/session/:token
  *
  * Frontend calls this on load to get contributor profile.
+ * Accepts session token from:
+ *   1. Cookie (preferred — :token = "me")
+ *   2. URL path (legacy fallback — :token = actual token)
+ *
  * Returns contributor data if session is valid, 401 otherwise.
+ * Never returns Spotify tokens.
  */
 
 import type { Env } from '../types';
 import { getSession } from '../lib/kv-storage';
+import { getSessionToken } from '../lib/session-cookie';
 import { log } from '../lib/logger';
 
 export async function handleAuthSession(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
-  const token = url.pathname.split('/auth/session/')[1];
+  const pathToken = url.pathname.split('/auth/session/')[1];
+
+  // Determine session token: cookie (if path is "me") or path param
+  let token: string | null;
+  if (pathToken === 'me') {
+    token = getSessionToken(request);
+  } else {
+    token = pathToken || null;
+  }
 
   if (!token || token.length < 10) {
     return Response.json(

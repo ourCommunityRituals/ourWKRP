@@ -20,13 +20,25 @@ const SCOPES = [
 ].join(' ');
 
 /**
- * Generate a cryptographic random string for PKCE code_verifier
+ * Generate a cryptographic random string for PKCE code_verifier.
+ * Uses rejection sampling to avoid modulo bias (charset length 66
+ * does not evenly divide 256).
  */
 export function generateCodeVerifier(length = 64): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-  const array = new Uint8Array(length);
-  crypto.getRandomValues(array);
-  return Array.from(array, (byte) => chars[byte % chars.length]).join('');
+  // Largest multiple of 66 that fits in a byte: 66 * 3 = 198
+  const maxUnbiased = 198;
+  const result: string[] = [];
+  while (result.length < length) {
+    const array = new Uint8Array(length * 2); // over-sample to reduce loops
+    crypto.getRandomValues(array);
+    for (const byte of array) {
+      if (byte < maxUnbiased && result.length < length) {
+        result.push(chars[byte % chars.length]);
+      }
+    }
+  }
+  return result.join('');
 }
 
 /**

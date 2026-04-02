@@ -16,7 +16,8 @@ import createHtml from '../templates/create.html';
 
 const HTML_HEADERS = {
   'Content-Type': 'text/html;charset=UTF-8',
-  'Cache-Control': 'no-cache',
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+  'Pragma': 'no-cache',
 };
 
 export async function handlePages(request: Request, _env: Env): Promise<Response> {

@@ -3,7 +3,7 @@
  *
  * Sync order: playlists → tracks → audio features
  * Uses snapshot_id for change detection (skip unchanged playlists)
- * Batches D1 writes for performance
+ * Batches D1 writes via db.batch() for performance
  */
 
 import type { Env } from '../types';
@@ -54,7 +54,7 @@ export async function syncContributor(
 
   const allTrackIds = new Set<string>();
 
-  // Step 2: For each playlist, upsert metadata and sync tracks
+  // Step 2: For each playlist, batch upsert metadata and sync tracks
   for (const playlist of spotifyPlaylists) {
     const existing = existingSnapshots.get(playlist.id);
 
@@ -97,43 +97,59 @@ export async function syncContributor(
         'DELETE FROM playlist_tracks WHERE playlist_id = ?'
       ).bind(playlist.id).run();
 
-      for (let i = 0; i < playlistTracks.length; i++) {
-        const item = playlistTracks[i];
-        const track = item.track;
+      // Batch upsert tracks + playlist_track links
+      // D1 batch() supports up to ~100 statements per batch
+      const BATCH_SIZE = 50; // 2 statements per track (upsert + link)
+      for (let i = 0; i < playlistTracks.length; i += BATCH_SIZE) {
+        const batch = playlistTracks.slice(i, i + BATCH_SIZE);
+        const statements: D1PreparedStatement[] = [];
 
-        // Upsert track
-        await env.WKRP_DB.prepare(`
-          INSERT INTO tracks (id, name, artist, album, duration_ms, preview_url, image_url, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            name = excluded.name,
-            artist = excluded.artist,
-            album = excluded.album
-        `).bind(
-          track.id,
-          track.name,
-          track.artists.map((a) => a.name).join(', '),
-          track.album.name,
-          track.duration_ms,
-          track.preview_url,
-          track.album.images?.[0]?.url ?? null,
-          new Date().toISOString(),
-        ).run();
+        for (let j = 0; j < batch.length; j++) {
+          const item = batch[j];
+          const track = item.track;
 
-        // Insert playlist_track link
-        await env.WKRP_DB.prepare(`
-          INSERT OR REPLACE INTO playlist_tracks (playlist_id, track_id, position, added_at, added_by)
-          VALUES (?, ?, ?, ?, ?)
-        `).bind(
-          playlist.id,
-          track.id,
-          i,
-          item.added_at,
-          contributorId,
-        ).run();
+          // Upsert track
+          statements.push(
+            env.WKRP_DB.prepare(`
+              INSERT INTO tracks (id, name, artist, album, duration_ms, preview_url, image_url, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                artist = excluded.artist,
+                album = excluded.album
+            `).bind(
+              track.id,
+              track.name,
+              track.artists.map((a) => a.name).join(', '),
+              track.album.name,
+              track.duration_ms,
+              track.preview_url,
+              track.album.images?.[0]?.url ?? null,
+              new Date().toISOString(),
+            )
+          );
 
-        allTrackIds.add(track.id);
-        result.tracks_synced++;
+          // Insert playlist_track link
+          statements.push(
+            env.WKRP_DB.prepare(`
+              INSERT OR REPLACE INTO playlist_tracks (playlist_id, track_id, position, added_at, added_by)
+              VALUES (?, ?, ?, ?, ?)
+            `).bind(
+              playlist.id,
+              track.id,
+              i + j,
+              item.added_at,
+              contributorId,
+            )
+          );
+
+          allTrackIds.add(track.id);
+          result.tracks_synced++;
+        }
+
+        if (statements.length > 0) {
+          await env.WKRP_DB.batch(statements);
+        }
       }
 
       log('SYNC_PLAYLIST_TRACKS', {
@@ -145,24 +161,31 @@ export async function syncContributor(
     }
   }
 
-  // Step 3: Fetch audio features for all new tracks
+  // Step 3: Batch fetch audio features for all new tracks
   const trackIdsArray = Array.from(allTrackIds);
   if (trackIdsArray.length > 0) {
     try {
       const features = await getAudioFeatures(trackIdsArray, accessToken);
 
-      for (const f of features) {
-        await env.WKRP_DB.prepare(`
-          UPDATE tracks SET
-            energy = ?, danceability = ?, valence = ?,
-            tempo = ?, acousticness = ?, instrumentalness = ?
-          WHERE id = ?
-        `).bind(
-          f.energy, f.danceability, f.valence,
-          f.tempo, f.acousticness, f.instrumentalness,
-          f.id,
-        ).run();
-        result.audio_features_synced++;
+      // Batch update audio features — 1 statement per track
+      const FEATURE_BATCH_SIZE = 100;
+      for (let i = 0; i < features.length; i += FEATURE_BATCH_SIZE) {
+        const batch = features.slice(i, i + FEATURE_BATCH_SIZE);
+        const statements = batch.map((f) =>
+          env.WKRP_DB.prepare(`
+            UPDATE tracks SET
+              energy = ?, danceability = ?, valence = ?,
+              tempo = ?, acousticness = ?, instrumentalness = ?
+            WHERE id = ?
+          `).bind(
+            f.energy, f.danceability, f.valence,
+            f.tempo, f.acousticness, f.instrumentalness,
+            f.id,
+          )
+        );
+
+        await env.WKRP_DB.batch(statements);
+        result.audio_features_synced += batch.length;
       }
 
       log('SYNC_AUDIO_FEATURES', { total: features.length });

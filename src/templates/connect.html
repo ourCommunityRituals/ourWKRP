@@ -241,13 +241,16 @@
         window.history.replaceState({}, '', '/');
       }
 
-      // Check for existing session
-      const session = params.get('session');
-      if (session) {
-        // Redirect to catalog with session
-        window.location.href = '/catalog?session=' + encodeURIComponent(session);
-        return;
-      }
+      // Check for existing session (cookie-based — call session endpoint)
+      fetch('/auth/session/me', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok && data.contributor) {
+            console.log('[WKRP] Session active, redirecting to catalog');
+            window.location.href = '/catalog';
+          }
+        })
+        .catch(function() { /* no session, stay on connect */ });
 
       form.addEventListener('submit', function(e) {
         e.preventDefault();

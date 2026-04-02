@@ -377,40 +377,22 @@
       'use strict';
 
       let allTracks = [];
-      let session = null;
       let contributor = null;
 
-      // Get session from URL or localStorage
-      const params = new URLSearchParams(window.location.search);
-      session = params.get('session') || localStorage.getItem('wkrp_session');
-
-      if (!session) {
-        console.log('[WKRP] No session found, redirecting to connect');
-        window.location.href = '/';
-        return;
-      }
-
-      // Store session
-      localStorage.setItem('wkrp_session', session);
-      // Clean URL
-      if (params.get('session')) {
-        window.history.replaceState({}, '', '/catalog');
-      }
-
+      // Session is in HttpOnly cookie — no localStorage, no URL params
       init();
 
       async function init() {
         try {
           updateLoading('Verifying session...');
-          console.log('[WKRP] Fetching session:', session.substring(0, 8) + '...');
+          console.log('[WKRP] Checking session via cookie...');
 
-          // Fetch session/contributor data
-          const sessionRes = await fetch('/auth/session/' + encodeURIComponent(session));
+          // Fetch session/contributor data (cookie sent automatically)
+          const sessionRes = await fetch('/auth/session/me', { credentials: 'same-origin' });
           const sessionData = await sessionRes.json();
 
           if (!sessionData.ok) {
             console.error('[WKRP] Session invalid:', sessionData.error);
-            localStorage.removeItem('wkrp_session');
             window.location.href = '/?error=invalid_state';
             return;
           }
@@ -419,11 +401,14 @@
           console.log('[WKRP] Contributor loaded:', contributor.name, contributor.generation);
           updateLoading(contributor.name + ' connected \u2014 syncing library...');
 
-          // Trigger sync
+          // Trigger sync (cookie authenticates the request)
           updateSync('Pulling playlists from Spotify...');
           console.log('[WKRP] Starting sync for:', contributor.id);
 
-          const syncRes = await fetch('/spotify/sync/' + contributor.id, { method: 'POST' });
+          const syncRes = await fetch('/spotify/sync/' + contributor.id, {
+            method: 'POST',
+            credentials: 'same-origin',
+          });
           const syncData = await syncRes.json();
 
           if (syncData.ok) {

@@ -5,14 +5,15 @@
  * 1. Validates state matches KV (CSRF protection)
  * 2. Exchanges auth code for access + refresh tokens
  * 3. Fetches Spotify user profile
- * 4. Upserts contributor in D1
- * 5. Creates session token
- * 6. Redirects to app with session
+ * 4. Upserts contributor by spotify_user_id (returning users merge)
+ * 5. Creates session token in HttpOnly cookie
+ * 6. Redirects to app (clean URL, no token in query string)
  */
 
 import type { Env, SpotifyUserProfile, StoredTokens } from '../types';
 import { exchangeCodeForTokens } from '../auth/spotify-oauth';
 import { getAuthState, deleteAuthState, storeSession, storeTokens } from '../lib/kv-storage';
+import { buildSessionCookie } from '../lib/session-cookie';
 import { log, logError } from '../lib/logger';
 
 export async function handleAuthCallback(request: Request, env: Env): Promise<Response> {
@@ -27,6 +28,8 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
     logError('AUTH_CALLBACK_UNSAFE_REDIRECT', new Error(`Unsafe APP_URL: ${env.APP_URL}`));
     return Response.json({ ok: false, error: 'Server misconfiguration' }, { status: 500 });
   }
+
+  const isProduction = env.WORKER_ENV === 'production';
 
   // Spotify denied or user cancelled
   if (error) {
@@ -46,7 +49,7 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
     return Response.redirect(`${appUrl}/?error=invalid_state`, 302);
   }
 
-  // Clean up used state
+  // Clean up used state (single-use — prevents replay)
   await deleteAuthState(env.WKRP_KV, state);
 
   try {
@@ -65,29 +68,12 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
       display_name: profile.display_name,
     });
 
-    // Generate contributor ID and session token
-    const contributorId = crypto.randomUUID();
-    const sessionToken = crypto.randomUUID();
+    // Upsert contributor by spotify_user_id — returning users merge, not duplicate
+    const contributorId = await upsertContributor(env, profile, authState.name, authState.gen);
 
-    // Upsert contributor in D1
-    await env.WKRP_DB.prepare(`
-      INSERT INTO contributors (id, name, generation, brand_id, spotify_user_id, spotify_display_name, created_at)
-      VALUES (?, ?, ?, 'wkrp', ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        spotify_user_id = excluded.spotify_user_id,
-        spotify_display_name = excluded.spotify_display_name
-    `).bind(
-      contributorId,
-      authState.name,
-      authState.gen,
-      profile.id,
-      profile.display_name ?? authState.name,
-      new Date().toISOString(),
-    ).run();
+    log('AUTH_CALLBACK_CONTRIBUTOR_UPSERTED', { contributorId, name: authState.name });
 
-    log('AUTH_CALLBACK_CONTRIBUTOR_CREATED', { contributorId, name: authState.name });
-
-    // Store tokens in KV
+    // Store tokens in KV (keyed by our contributor ID)
     const storedTokens: StoredTokens = {
       access_token: tokenResponse.access_token,
       refresh_token: tokenResponse.refresh_token ?? '',
@@ -95,7 +81,8 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
     };
     await storeTokens(env.WKRP_KV, contributorId, storedTokens);
 
-    // Create session
+    // Create session — stored in KV, delivered via HttpOnly cookie
+    const sessionToken = crypto.randomUUID();
     await storeSession(env.WKRP_KV, sessionToken, {
       userId: contributorId,
       name: authState.name,
@@ -105,13 +92,73 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
 
     log('AUTH_CALLBACK_SUCCESS', { contributorId, name: authState.name, gen: authState.gen });
 
-    // Redirect to app with session
-    return Response.redirect(`${appUrl}/?session=${sessionToken}`, 302);
+    // Redirect to catalog — session is in the cookie, NOT in the URL
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': `${appUrl}/catalog`,
+        'Set-Cookie': buildSessionCookie(sessionToken, isProduction),
+      },
+    });
 
   } catch (err) {
     logError('AUTH_CALLBACK_ERROR', err);
     return Response.redirect(`${appUrl}/?error=auth_failed`, 302);
   }
+}
+
+/**
+ * Upsert contributor by spotify_user_id.
+ * If this Spotify account already exists, update it (returning user).
+ * If new, insert with a fresh UUID.
+ * Returns the contributor ID.
+ */
+async function upsertContributor(
+  env: Env,
+  profile: SpotifyUserProfile,
+  name: string,
+  gen: string,
+): Promise<string> {
+  // Check if this Spotify user already exists
+  const existing = await env.WKRP_DB.prepare(
+    'SELECT id FROM contributors WHERE spotify_user_id = ?'
+  ).bind(profile.id).first();
+
+  if (existing) {
+    // Returning user — update their record, keep existing ID
+    await env.WKRP_DB.prepare(`
+      UPDATE contributors SET
+        name = ?,
+        generation = ?,
+        spotify_display_name = ?
+      WHERE id = ?
+    `).bind(
+      name,
+      gen,
+      profile.display_name ?? name,
+      existing.id as string,
+    ).run();
+
+    log('AUTH_CONTRIBUTOR_UPDATED', { id: existing.id, spotify_id: profile.id });
+    return existing.id as string;
+  }
+
+  // New user — insert
+  const contributorId = crypto.randomUUID();
+  await env.WKRP_DB.prepare(`
+    INSERT INTO contributors (id, name, generation, brand_id, spotify_user_id, spotify_display_name, created_at)
+    VALUES (?, ?, ?, 'wkrp', ?, ?, ?)
+  `).bind(
+    contributorId,
+    name,
+    gen,
+    profile.id,
+    profile.display_name ?? name,
+    new Date().toISOString(),
+  ).run();
+
+  log('AUTH_CONTRIBUTOR_CREATED', { id: contributorId, spotify_id: profile.id });
+  return contributorId;
 }
 
 /** Validate redirect target is an allowed domain — prevents open redirect */
@@ -127,7 +174,6 @@ function validateRedirectTarget(urlString: string): string | null {
   try {
     const url = new URL(urlString);
     if (!ALLOWED_REDIRECT_HOSTS.has(url.hostname)) return null;
-    // Only allow http for localhost, https for everything else
     if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1' && url.protocol !== 'https:') return null;
     return url.origin;
   } catch {
