@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ourWKRP — Catalog</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --surface-hover: #1a1a1a;
+      --border: #2a2a2a;
+      --text: #f0f0f0;
+      --text-muted: #888;
+      --accent: #1DB954;
+      --accent-hover: #1ed760;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* --- Header --- */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(10, 10, 10, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .user-badge {
+      font-size: 0.75rem;
+      color: var(--accent);
+      background: rgba(29, 185, 84, 0.1);
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    /* --- Search + Filters --- */
+    .search-bar {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 0.875rem;
+      outline: none;
+      font-family: var(--font);
+    }
+
+    .search-bar:focus {
+      border-color: var(--accent);
+    }
+
+    .search-bar::placeholder {
+      color: var(--text-muted);
+    }
+
+    .filters {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 12px 20px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .filters::-webkit-scrollbar { display: none; }
+
+    .filter-chip {
+      flex-shrink: 0;
+      padding: 6px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      touch-action: manipulation;
+    }
+
+    .filter-chip:hover, .filter-chip.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(29, 185, 84, 0.1);
+    }
+
+    /* --- Slider Filters --- */
+    .range-filters {
+      padding: 0 20px 12px;
+      display: none;
+    }
+
+    .range-filters.visible {
+      display: block;
+    }
+
+    .range-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .range-group label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      min-width: 80px;
+    }
+
+    .range-group input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+      height: 4px;
+    }
+
+    .range-value {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      min-width: 30px;
+      text-align: right;
+    }
+
+    /* --- Loading State --- */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      gap: 20px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      font-size: 1rem;
+      color: var(--text-muted);
+    }
+
+    .sync-status {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* --- Track List --- */
+    .track-list {
+      padding: 0 20px 100px;
+    }
+
+    .track-count {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      padding: 8px 0 12px;
+    }
+
+    .track-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      transition: background 0.15s;
+      cursor: pointer;
+    }
+
+    .track-card:hover {
+      background: var(--surface-hover);
+    }
+
+    .track-art {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      background: var(--surface);
+      flex-shrink: 0;
+      object-fit: cover;
+    }
+
+    .track-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .track-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-artist {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .track-meta {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .meta-badge {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--text-muted);
+    }
+
+    .meta-badge.high { color: var(--accent); background: rgba(29, 185, 84, 0.15); }
+
+    /* --- Bottom Nav --- */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(10, 10, 10, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      padding: 10px 0 env(safe-area-inset-bottom, 10px);
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 6px 16px;
+      transition: color 0.2s;
+    }
+
+    .nav-item.active {
+      color: var(--accent);
+    }
+
+    .nav-item svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    /* --- Empty State --- */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-state h3 {
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <!-- Loading State -->
+  <div id="loading-view" class="loading" data-testid="loading-view">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loading-text" data-testid="loading-text">Connecting...</div>
+    <div class="sync-status" id="sync-status" data-testid="sync-status"></div>
+  </div>
+
+  <!-- Catalog View -->
+  <div id="catalog-view" class="hidden" data-testid="catalog-view">
+    <div class="header">
+      <div class="header-top">
+        <h1>ourWKRP</h1>
+        <span class="user-badge" id="user-badge" data-testid="user-badge"></span>
+      </div>
+      <input
+        type="search"
+        class="search-bar"
+        id="search-input"
+        placeholder="Search tracks, artists, albums..."
+        data-testid="search-input"
+      >
+    </div>
+
+    <div class="filters" data-testid="filters">
+      <button class="filter-chip active" data-filter="all" data-testid="filter-all">All</button>
+      <button class="filter-chip" data-filter="high-energy" data-testid="filter-energy">High Energy</button>
+      <button class="filter-chip" data-filter="chill" data-testid="filter-chill">Chill</button>
+      <button class="filter-chip" data-filter="happy" data-testid="filter-happy">Happy</button>
+      <button class="filter-chip" data-filter="danceable" data-testid="filter-dance">Danceable</button>
+      <button class="filter-chip" data-filter="acoustic" data-testid="filter-acoustic">Acoustic</button>
+      <button class="filter-chip" data-filter="advanced" data-testid="filter-advanced">Filters</button>
+    </div>
+
+    <div id="range-filters" class="range-filters" data-testid="range-filters">
+      <div class="range-group">
+        <label>Energy</label>
+        <input type="range" id="energy-range" min="0" max="100" value="0" data-testid="range-energy">
+        <span class="range-value" id="energy-value">0</span>
+      </div>
+      <div class="range-group">
+        <label>Mood (Valence)</label>
+        <input type="range" id="valence-range" min="0" max="100" value="0" data-testid="range-valence">
+        <span class="range-value" id="valence-value">0</span>
+      </div>
+      <div class="range-group">
+        <label>Danceability</label>
+        <input type="range" id="dance-range" min="0" max="100" value="0" data-testid="range-dance">
+        <span class="range-value" id="dance-value">0</span>
+      </div>
+    </div>
+
+    <div class="track-list" id="track-list" data-testid="track-list">
+      <div class="track-count" id="track-count" data-testid="track-count"></div>
+      <!-- Tracks rendered here -->
+    </div>
+
+    <nav class="bottom-nav" data-testid="bottom-nav">
+      <a href="/catalog" class="nav-item active" data-testid="nav-catalog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+        Catalog
+      </a>
+      <a href="/create" class="nav-item" data-testid="nav-create">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Create
+      </a>
+    </nav>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      let allTracks = [];
+      let contributor = null;
+
+      // Session is in HttpOnly cookie — no localStorage, no URL params
+      init();
+
+      async function init() {
+        try {
+          updateLoading('Verifying session...');
+          console.log('[WKRP] Checking session via cookie...');
+
+          // Fetch session/contributor data (cookie sent automatically)
+          const sessionRes = await fetch('/auth/session/me', { credentials: 'same-origin' });
+          const sessionData = await sessionRes.json();
+
+          if (!sessionData.ok) {
+            console.error('[WKRP] Session invalid:', sessionData.error);
+            window.location.href = '/?error=invalid_state';
+            return;
+          }
+
+          contributor = sessionData.contributor;
+          console.log('[WKRP] Contributor loaded:', contributor.name, contributor.generation);
+          updateLoading(contributor.name + ' connected \u2014 syncing library...');
+
+          // Trigger sync (cookie authenticates the request)
+          updateSync('Pulling playlists from Spotify...');
+          console.log('[WKRP] Starting sync for:', contributor.id);
+
+          const syncRes = await fetch('/spotify/sync/' + contributor.id, {
+            method: 'POST',
+            credentials: 'same-origin',
+          });
+          const syncData = await syncRes.json();
+
+          if (syncData.ok) {
+            console.log('[WKRP] Sync complete:', syncData.sync);
+            updateSync(
+              syncData.sync.playlists_synced + ' playlists, ' +
+              syncData.sync.tracks_synced + ' tracks synced'
+            );
+          } else {
+            console.warn('[WKRP] Sync warning:', syncData.error);
+          }
+
+          // Fetch catalog from D1 via session
+          await loadCatalog();
+
+        } catch (err) {
+          console.error('[WKRP] Init error:', err);
+          updateLoading('Something went wrong. Please try again.');
+        }
+      }
+
+      async function loadCatalog() {
+        // For now, we'll fetch tracks from the sync endpoint response
+        // In production, this would be a separate /api/tracks endpoint
+        // Using a simple approach: the catalog page makes a lightweight query
+        updateLoading('Loading catalog...');
+
+        // Show catalog view
+        document.getElementById('loading-view').classList.add('hidden');
+        document.getElementById('catalog-view').classList.remove('hidden');
+        document.getElementById('user-badge').textContent = contributor.name;
+
+        // The tracks would come from a dedicated API endpoint
+        // For MVP, we display sync confirmation and invite browsing
+        document.getElementById('track-count').textContent = 'Catalog loaded. Use search and filters to browse.';
+        console.log('[WKRP] Catalog view ready');
+      }
+
+      function updateLoading(text) {
+        document.getElementById('loading-text').textContent = text;
+      }
+
+      function updateSync(text) {
+        document.getElementById('sync-status').textContent = text;
+      }
+
+      // --- Search ---
+      const searchInput = document.getElementById('search-input');
+      let searchTimeout;
+      searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(function() {
+          const query = searchInput.value.toLowerCase().trim();
+          console.log('[WKRP] Search:', query);
+          filterTracks();
+        }, 300);
+      });
+
+      // --- Filter chips ---
+      document.querySelectorAll('.filter-chip').forEach(function(chip) {
+        chip.addEventListener('click', function() {
+          const filter = this.dataset.filter;
+
+          if (filter === 'advanced') {
+            document.getElementById('range-filters').classList.toggle('visible');
+            this.classList.toggle('active');
+            return;
+          }
+
+          document.querySelectorAll('.filter-chip:not([data-filter="advanced"])').forEach(function(c) {
+            c.classList.remove('active');
+          });
+          this.classList.add('active');
+          console.log('[WKRP] Filter:', filter);
+          filterTracks();
+        });
+      });
+
+      // --- Range sliders ---
+      ['energy', 'valence', 'dance'].forEach(function(name) {
+        var range = document.getElementById(name + '-range');
+        var value = document.getElementById(name + '-value');
+        if (range) {
+          range.addEventListener('input', function() {
+            value.textContent = this.value;
+            filterTracks();
+          });
+        }
+      });
+
+      function filterTracks() {
+        // Filter implementation for when tracks are loaded
+        var activeFilter = document.querySelector('.filter-chip.active:not([data-filter="advanced"])');
+        var filter = activeFilter ? activeFilter.dataset.filter : 'all';
+        var query = searchInput.value.toLowerCase().trim();
+
+        console.log('[WKRP] Applying filter:', { filter: filter, query: query });
+        // Track filtering logic will be connected to the API
+      }
+
+      function renderTrack(track) {
+        var energyLevel = track.energy > 0.7 ? 'high' : '';
+        return '<div class="track-card" data-testid="track-card">' +
+          '<img class="track-art" src="' + (track.image_url || '') + '" alt="" loading="lazy">' +
+          '<div class="track-info">' +
+            '<div class="track-name">' + escapeHtml(track.name) + '</div>' +
+            '<div class="track-artist">' + escapeHtml(track.artist) + '</div>' +
+          '</div>' +
+          '<div class="track-meta">' +
+            (track.energy !== null ? '<span class="meta-badge ' + energyLevel + '">' + Math.round(track.energy * 100) + '</span>' : '') +
+          '</div>' +
+        '</div>';
+      }
+
+      function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+    })();
+  </script>
+</body>
+</html>

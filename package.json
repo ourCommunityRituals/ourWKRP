@@ -1,0 +1,37 @@
+{
+  "name": "ourwkrp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mobile-first Spotify music catalog — auth, sync, discover, create",
+  "scripts": {
+    "dev": "doppler run -- wrangler dev",
+    "dev:local": "wrangler dev",
+    "deploy:staging": "doppler run -c stg -- wrangler deploy",
+    "deploy:prod": "doppler run -c prd -- wrangler deploy --env production",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:contract": "vitest run tests/contract",
+    "test:security": "vitest run tests/security",
+    "test:e2e": "playwright test",
+    "test:performance": "vitest run tests/performance",
+    "test:load": "k6 run k6/sync-load.js",
+    "test:all": "npm run typecheck && npm run lint && npm run test && npm run test:e2e",
+    "ci": "npm run typecheck && npm run lint && npm run test"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240529.0",
+    "@playwright/test": "^1.45.0",
+    "eslint": "^9.5.0",
+    "@eslint/js": "^9.5.0",
+    "typescript-eslint": "^8.0.0",
+    "miniflare": "^3.20240524.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0",
+    "wrangler": "^3.60.0"
+  }
+}

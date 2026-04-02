@@ -1,0 +1,91 @@
+# ============================================
+# ourWKRP — Cloudflare Worker Configuration
+# ============================================
+# Staging: doppler run -- wrangler deploy
+# Production: doppler run -c prd -- wrangler deploy --env production
+# Local dev: doppler run -c dev -- wrangler dev
+# ============================================
+# Secrets Management: Doppler (preferred)
+#
+# Doppler project: ourwkrp
+# Configs: dev, stg, prd
+#
+# Doppler injects these as environment variables at runtime:
+#   SPOTIFY_CLIENT_ID      → Spotify app client ID
+#   SPOTIFY_REDIRECT_URI   → OAuth callback URL (per environment)
+#   APP_URL                → Frontend base URL (per environment)
+#
+# Local dev setup:
+#   doppler setup           → select ourwkrp project + dev config
+#   doppler run -- wrangler dev
+#
+# The [vars] block below provides fallback defaults for local dev
+# when Doppler is not available. Doppler env vars override these.
+# ============================================
+
+name = "ourwkrp-staging"
+main = "src/index.ts"
+compatibility_date = "2024-06-01"
+
+# Import HTML templates as text strings
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
+# ============================================
+# Default vars (overridden by Doppler at deploy time)
+# ============================================
+[vars]
+WORKER_ENV = "staging"
+WORKER_VERSION = "0.1.0"
+# Fallback for local dev without Doppler — Doppler overrides in stg/prd
+SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
+SPOTIFY_REDIRECT_URI = "http://localhost:8787/auth/callback"
+APP_URL = "http://localhost:8787"
+
+# KV Namespace for auth/session state
+[[kv_namespaces]]
+binding = "WKRP_KV"
+id = "PLACEHOLDER_KV_STAGING"
+preview_id = "PLACEHOLDER_KV_PREVIEW"
+
+# D1 Database for catalog data
+[[d1_databases]]
+binding = "WKRP_DB"
+database_name = "ourwkrp-staging"
+database_id = "PLACEHOLDER_D1_STAGING"
+
+# ============================================
+# Production environment
+# ============================================
+[env.production]
+name = "ourwkrp-production"
+routes = [
+  { pattern = "ourwkrp.com/*", zone_name = "ourwkrp.com" },
+  { pattern = "www.ourwkrp.com/*", zone_name = "ourwkrp.com" }
+]
+
+[env.production.vars]
+WORKER_ENV = "production"
+WORKER_VERSION = "0.1.0"
+# Doppler (prd config) overrides these at deploy time
+SPOTIFY_CLIENT_ID = ""
+SPOTIFY_REDIRECT_URI = ""
+APP_URL = ""
+
+[[env.production.kv_namespaces]]
+binding = "WKRP_KV"
+id = "PLACEHOLDER_KV_PROD"
+
+[[env.production.d1_databases]]
+binding = "WKRP_DB"
+database_name = "ourwkrp-production"
+database_id = "PLACEHOLDER_D1_PROD"
+
+# ============================================
+# Staging routes (uncomment when DNS is ready)
+# ============================================
+# routes = [
+#   { pattern = "stg.ourwkrp.com/*", zone_name = "ourwkrp.com" }
+# ]
