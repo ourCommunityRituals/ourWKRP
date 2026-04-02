@@ -1,9 +1,26 @@
 # ============================================
 # ourWKRP — Cloudflare Worker Configuration
 # ============================================
-# Staging: wrangler deploy
-# Production: wrangler deploy --env production
-# Local dev: wrangler dev
+# Staging: doppler run -- wrangler deploy
+# Production: doppler run -c prd -- wrangler deploy --env production
+# Local dev: doppler run -c dev -- wrangler dev
+# ============================================
+# Secrets Management: Doppler (preferred)
+#
+# Doppler project: ourwkrp
+# Configs: dev, stg, prd
+#
+# Doppler injects these as environment variables at runtime:
+#   SPOTIFY_CLIENT_ID      → Spotify app client ID
+#   SPOTIFY_REDIRECT_URI   → OAuth callback URL (per environment)
+#   APP_URL                → Frontend base URL (per environment)
+#
+# Local dev setup:
+#   doppler setup           → select ourwkrp project + dev config
+#   doppler run -- wrangler dev
+#
+# The [vars] block below provides fallback defaults for local dev
+# when Doppler is not available. Doppler env vars override these.
 # ============================================
 
 name = "ourwkrp-staging"
@@ -16,9 +33,13 @@ type = "Text"
 globs = ["**/*.html"]
 fallthrough = true
 
+# ============================================
+# Default vars (overridden by Doppler at deploy time)
+# ============================================
 [vars]
 WORKER_ENV = "staging"
 WORKER_VERSION = "0.1.0"
+# Fallback for local dev without Doppler — Doppler overrides in stg/prd
 SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
 SPOTIFY_REDIRECT_URI = "http://localhost:8787/auth/callback"
 APP_URL = "http://localhost:8787"
@@ -48,9 +69,10 @@ routes = [
 [env.production.vars]
 WORKER_ENV = "production"
 WORKER_VERSION = "0.1.0"
-SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
-SPOTIFY_REDIRECT_URI = "https://ourwkrp.com/auth/callback"
-APP_URL = "https://ourwkrp.com"
+# Doppler (prd config) overrides these at deploy time
+SPOTIFY_CLIENT_ID = ""
+SPOTIFY_REDIRECT_URI = ""
+APP_URL = ""
 
 [[env.production.kv_namespaces]]
 binding = "WKRP_KV"

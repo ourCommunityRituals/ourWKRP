@@ -4,9 +4,10 @@
   "private": true,
   "description": "Mobile-first Spotify music catalog — auth, sync, discover, create",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy:staging": "wrangler deploy",
-    "deploy:prod": "wrangler deploy --env production",
+    "dev": "doppler run -- wrangler dev",
+    "dev:local": "wrangler dev",
+    "deploy:staging": "doppler run -c stg -- wrangler deploy",
+    "deploy:prod": "doppler run -c prd -- wrangler deploy --env production",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",

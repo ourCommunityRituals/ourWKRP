@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# Doppler injects secrets via GitHub Actions integration
+# Configure at: dashboard.doppler.com > ourwkrp > Integrations > GitHub Actions
+# Required GitHub secret: DOPPLER_TOKEN (service token for stg config)
+
 jobs:
   lint-and-typecheck:
     name: Lint & Type Check

@@ -120,14 +120,58 @@ Registered at developer.spotify.com for app `b0af039c67b14c2fbeb1f5ab0b5ff662`:
 
 ---
 
-## 6. Secrets / Config
+## 6. Secrets / Config — Doppler
 
-| Secret | Where | Purpose |
-|--------|-------|---------|
-| SPOTIFY_CLIENT_ID | wrangler.toml [vars] | Spotify app ID |
-| SPOTIFY_REDIRECT_URI | wrangler.toml [vars] | OAuth callback URL |
-| APP_URL | wrangler.toml [vars] | Frontend base URL |
-| KV namespace ID | wrangler.toml | Auth/session state |
-| D1 database ID | wrangler.toml | Catalog data |
+**Secrets manager: [Doppler](https://doppler.com)**
+
+Doppler project: `ourwkrp`
+Configs: `dev`, `stg`, `prd`
+
+| Secret | Doppler Config | Purpose |
+|--------|---------------|---------|
+| SPOTIFY_CLIENT_ID | all | Spotify app ID (`b0af039c67b14c2fbeb1f5ab0b5ff662`) |
+| SPOTIFY_REDIRECT_URI | per-env | OAuth callback URL |
+| APP_URL | per-env | Frontend base URL |
+| KV namespace ID | wrangler.toml | Auth/session state (CF infra, not a secret) |
+| D1 database ID | wrangler.toml | Catalog data (CF infra, not a secret) |
 
 No client_secret needed — PKCE flow.
+
+### Doppler Setup
+```bash
+# First time
+doppler login
+doppler setup            # select ourwkrp project + dev config
+
+# Local dev
+doppler run -- wrangler dev
+
+# Deploy staging
+doppler run -c stg -- wrangler deploy
+
+# Deploy production
+doppler run -c prd -- wrangler deploy --env production
+```
+
+### Doppler Config Values
+
+**dev:**
+```
+SPOTIFY_CLIENT_ID=b0af039c67b14c2fbeb1f5ab0b5ff662
+SPOTIFY_REDIRECT_URI=http://localhost:8787/auth/callback
+APP_URL=http://localhost:8787
+```
+
+**stg:**
+```
+SPOTIFY_CLIENT_ID=b0af039c67b14c2fbeb1f5ab0b5ff662
+SPOTIFY_REDIRECT_URI=https://stg.ourwkrp.com/auth/callback
+APP_URL=https://stg.ourwkrp.com
+```
+
+**prd:**
+```
+SPOTIFY_CLIENT_ID=b0af039c67b14c2fbeb1f5ab0b5ff662
+SPOTIFY_REDIRECT_URI=https://ourwkrp.com/auth/callback
+APP_URL=https://ourwkrp.com
+```
