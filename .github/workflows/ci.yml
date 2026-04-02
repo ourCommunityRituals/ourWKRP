@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-# Doppler injects secrets via GitHub Actions integration
-# Configure at: dashboard.doppler.com > ourwkrp > Integrations > GitHub Actions
-# Required GitHub secret: DOPPLER_TOKEN (service token for stg config)
-
 jobs:
   lint-and-typecheck:
     name: Lint & Type Check
@@ -88,3 +84,53 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run test:performance
+
+  # ============================================
+  # Deploy jobs — Doppler injects secrets at runtime
+  # ============================================
+  # Setup: Doppler Dashboard > ourwkrp > Integrations > GitHub Actions
+  #   1. Create service token for stg config → add as DOPPLER_TOKEN_STG secret in GitHub
+  #   2. Create service token for prd config → add as DOPPLER_TOKEN_PRD secret in GitHub
+  # ============================================
+
+  deploy-staging:
+    name: Deploy Staging
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, contract-tests, security-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+      - name: Deploy to Staging
+        run: doppler run -- wrangler deploy
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STG }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-production:
+    name: Deploy Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, performance-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+      - name: Deploy to Production
+        run: doppler run -- wrangler deploy --env production
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PRD }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
