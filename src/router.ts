@@ -12,6 +12,7 @@
  *   GET  /auth/session/:token       → get contributor profile from session
  *   POST /spotify/sync/:userId      → sync playlists/tracks/audio-features
  *   POST /spotify/create-playlist/:userId → create playlist on Spotify
+ *   POST /import/:contributorId     → import CSV library file
  *   *                               → 404
  */
 
@@ -22,6 +23,7 @@ import { handleAuthCallback } from './handlers/auth-callback';
 import { handleAuthSession } from './handlers/auth-session';
 import { handleSync } from './handlers/sync';
 import { handlePages } from './handlers/pages';
+import { handleImport } from './handlers/import';
 import { addCorsHeaders } from './lib/cors';
 import { addSecurityHeaders } from './lib/security-headers';
 import { log } from './lib/logger';
@@ -57,6 +59,15 @@ export async function route(request: Request, env: Env): Promise<Response> {
   // Spotify sync
   else if (method === 'POST' && path.startsWith('/spotify/sync/')) {
     response = await handleSync(request, env);
+  }
+  // CSV import
+  else if (method === 'POST' && path.startsWith('/import/')) {
+    const contributorId = path.slice('/import/'.length);
+    if (!contributorId || !/^[0-9a-f-]{36}$/.test(contributorId)) {
+      response = Response.json({ ok: false, error: 'Invalid contributor ID format' }, { status: 400 });
+    } else {
+      response = await handleImport(request, env, contributorId);
+    }
   }
   // Pages
   else if (method === 'GET' && ['/', '/catalog', '/create'].includes(path)) {

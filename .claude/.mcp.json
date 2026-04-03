@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@anthropic-ai/playwright-mcp@latest"],
+      "description": "E2E testing — Spotify auth flow, catalog browsing, contributor onboarding"
+    },
+    "github": {
+      "command": "npx",
+      "args": ["@anthropic-ai/github-mcp@latest"],
+      "description": "PR management, issue linking, code review for ourCommunityRituals/ourWKRP"
+    }
+  }
+}

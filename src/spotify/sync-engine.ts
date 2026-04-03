@@ -4,11 +4,13 @@
  * Sync order: playlists → tracks → audio features
  * Uses snapshot_id for change detection (skip unchanged playlists)
  * Batches D1 writes via db.batch() for performance
+ * Now also writes to contributions + track_identifiers for provenance
  */
 
 import type { Env } from '../types';
 import { getUserPlaylists, getPlaylistTracks, getAudioFeatures } from './client';
 import { storeLastSync } from '../lib/kv-storage';
+import { normalizeTitle, normalizeArtist, extractReleaseYear } from '../lib/normalize';
 import { log, logError } from '../lib/logger';
 
 export interface SyncResult {
@@ -16,6 +18,7 @@ export interface SyncResult {
   playlists_skipped: number;
   tracks_synced: number;
   audio_features_synced: number;
+  contributions_created: number;
   duration_ms: number;
 }
 
@@ -33,6 +36,7 @@ export async function syncContributor(
     playlists_skipped: 0,
     tracks_synced: 0,
     audio_features_synced: 0,
+    contributions_created: 0,
     duration_ms: 0,
   };
 
@@ -97,9 +101,9 @@ export async function syncContributor(
         'DELETE FROM playlist_tracks WHERE playlist_id = ?'
       ).bind(playlist.id).run();
 
-      // Batch upsert tracks + playlist_track links
-      // D1 batch() supports up to ~100 statements per batch
-      const BATCH_SIZE = 50; // 2 statements per track (upsert + link)
+      // Batch upsert tracks + playlist_track links + provenance
+      // 4 statements per track: track upsert, playlist_track link, track_identifier, contribution
+      const BATCH_SIZE = 25;
       for (let i = 0; i < playlistTracks.length; i += BATCH_SIZE) {
         const batch = playlistTracks.slice(i, i + BATCH_SIZE);
         const statements: D1PreparedStatement[] = [];
@@ -107,16 +111,25 @@ export async function syncContributor(
         for (let j = 0; j < batch.length; j++) {
           const item = batch[j];
           const track = item.track;
+          const isrc = track.external_ids?.isrc ?? null;
+          const releaseYear = extractReleaseYear(track.album.release_date);
+          const canonTitle = normalizeTitle(track.name);
+          const canonArtist = normalizeArtist(track.artists.map((a) => a.name).join(', '));
+          const now = new Date().toISOString();
 
-          // Upsert track
+          // Upsert track (now includes ISRC and canonical fields)
           statements.push(
             env.WKRP_DB.prepare(`
-              INSERT INTO tracks (id, name, artist, album, duration_ms, preview_url, image_url, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO tracks (id, name, artist, album, duration_ms, preview_url, image_url, isrc, release_year, canonical_title, canonical_artist, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 artist = excluded.artist,
-                album = excluded.album
+                album = excluded.album,
+                isrc = COALESCE(excluded.isrc, tracks.isrc),
+                release_year = COALESCE(excluded.release_year, tracks.release_year),
+                canonical_title = excluded.canonical_title,
+                canonical_artist = excluded.canonical_artist
             `).bind(
               track.id,
               track.name,
@@ -125,7 +138,11 @@ export async function syncContributor(
               track.duration_ms,
               track.preview_url,
               track.album.images?.[0]?.url ?? null,
-              new Date().toISOString(),
+              isrc,
+              releaseYear,
+              canonTitle,
+              canonArtist,
+              now,
             )
           );
 
@@ -143,8 +160,37 @@ export async function syncContributor(
             )
           );
 
+          // Insert track_identifier (Spotify platform ID)
+          statements.push(
+            env.WKRP_DB.prepare(`
+              INSERT OR IGNORE INTO track_identifiers (track_id, platform, platform_id, platform_uri, created_at)
+              VALUES (?, 'spotify', ?, ?, ?)
+            `).bind(
+              track.id,
+              track.id,
+              `spotify:track:${track.id}`,
+              now,
+            )
+          );
+
+          // Insert contribution (provenance)
+          statements.push(
+            env.WKRP_DB.prepare(`
+              INSERT OR IGNORE INTO contributions (id, track_id, contributor_id, source_type, source_name, source_platform, added_at, created_at)
+              VALUES (?, ?, ?, 'created_playlist', ?, 'spotify', ?, ?)
+            `).bind(
+              crypto.randomUUID(),
+              track.id,
+              contributorId,
+              playlist.name,
+              item.added_at,
+              now,
+            )
+          );
+
           allTrackIds.add(track.id);
           result.tracks_synced++;
+          result.contributions_created++;
         }
 
         if (statements.length > 0) {

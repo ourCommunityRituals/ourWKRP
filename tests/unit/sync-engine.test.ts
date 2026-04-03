@@ -86,6 +86,7 @@ describe('Sync Engine', () => {
     expect(result.playlists_synced).toBe(1);
     expect(result.tracks_synced).toBe(1);
     expect(result.audio_features_synced).toBe(1);
+    expect(result.contributions_created).toBe(1);
     expect(result.duration_ms).toBeGreaterThanOrEqual(0);
   });
 });

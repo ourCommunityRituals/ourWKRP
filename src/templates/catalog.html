@@ -512,7 +512,7 @@
       function renderTrack(track) {
         var energyLevel = track.energy > 0.7 ? 'high' : '';
         return '<div class="track-card" data-testid="track-card">' +
-          '<img class="track-art" src="' + (track.image_url || '') + '" alt="" loading="lazy">' +
+          '<img class="track-art" src="' + sanitizeUrl(track.image_url) + '" alt="" loading="lazy">' +
           '<div class="track-info">' +
             '<div class="track-name">' + escapeHtml(track.name) + '</div>' +
             '<div class="track-artist">' + escapeHtml(track.artist) + '</div>' +
@@ -527,6 +527,15 @@
         var div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+      }
+
+      function sanitizeUrl(url) {
+        if (!url || typeof url !== 'string') return '';
+        var trimmed = url.trim();
+        if (trimmed.indexOf('https://') === 0 || trimmed.indexOf('http://') === 0) {
+          return escapeHtml(trimmed);
+        }
+        return '';
       }
     })();
   </script>
