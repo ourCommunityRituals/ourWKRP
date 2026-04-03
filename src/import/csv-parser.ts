@@ -105,6 +105,16 @@ function getField(row: string[], headerMap: Map<string, number>, ...names: strin
   return '';
 }
 
+/** Validate and sanitize a URL — only allow http/https schemes */
+function sanitizeUrl(value: string): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) {
+    return trimmed;
+  }
+  return undefined;
+}
+
 /** Parse float, returning undefined if invalid */
 function parseFloat_(value: string): number | undefined {
   if (!value) return undefined;
@@ -153,8 +163,8 @@ export function parseExportifyCsv(
       duration_ms: parseInt_(getField(row, headerMap, 'track duration (ms)', 'duration (ms)', 'duration_ms')),
       isrc: getField(row, headerMap, 'isrc') || undefined,
       release_date: getField(row, headerMap, 'album release date', 'release date') || undefined,
-      image_url: getField(row, headerMap, 'album image url', 'image url') || undefined,
-      preview_url: getField(row, headerMap, 'track preview url', 'preview url') || undefined,
+      image_url: sanitizeUrl(getField(row, headerMap, 'album image url', 'image url')),
+      preview_url: sanitizeUrl(getField(row, headerMap, 'track preview url', 'preview url')),
       energy: parseFloat_(getField(row, headerMap, 'energy')),
       danceability: parseFloat_(getField(row, headerMap, 'danceability')),
       valence: parseFloat_(getField(row, headerMap, 'valence')),

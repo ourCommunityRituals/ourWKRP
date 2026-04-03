@@ -62,8 +62,12 @@ export async function route(request: Request, env: Env): Promise<Response> {
   }
   // CSV import
   else if (method === 'POST' && path.startsWith('/import/')) {
-    const contributorId = path.replace('/import/', '');
-    response = await handleImport(request, env, contributorId);
+    const contributorId = path.slice('/import/'.length);
+    if (!contributorId || !/^[0-9a-f-]{36}$/.test(contributorId)) {
+      response = Response.json({ ok: false, error: 'Invalid contributor ID format' }, { status: 400 });
+    } else {
+      response = await handleImport(request, env, contributorId);
+    }
   }
   // Pages
   else if (method === 'GET' && ['/', '/catalog', '/create'].includes(path)) {

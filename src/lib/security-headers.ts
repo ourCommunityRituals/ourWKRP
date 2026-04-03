@@ -10,7 +10,7 @@ export function addSecurityHeaders(response: Response): Response {
 
   // Prevent clickjacking
   h.set('X-Frame-Options', 'DENY');
-  h.set('Content-Security-Policy', "frame-ancestors 'none'");
+  h.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; frame-ancestors 'none'");
 
   // Prevent MIME sniffing
   h.set('X-Content-Type-Options', 'nosniff');
