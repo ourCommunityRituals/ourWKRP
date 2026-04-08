@@ -9,6 +9,7 @@
  */
 
 import type { Env } from '../types';
+import { sanitizeForExport } from '../lib/privacy';
 import { log } from '../lib/logger';
 
 /**
@@ -54,9 +55,14 @@ export async function handleGetEventMusic(_request: Request, env: Env, eventId: 
 
   const stats = attributionsResult.results[0] as Record<string, unknown> ?? {};
 
+  // Privacy boundary: this endpoint crosses to OSE.
+  // Strip listener PII — only aggregates and music data cross the boundary.
+  const sanitizedTracks = sanitizeForExport(topTracksResult.results as Record<string, unknown>[]);
+
   return Response.json({
     ok: true,
     event_id: eventId,
+    privacy: 'aggregate_only',
     music: {
       sets: setsResult.results,
       stats: {
@@ -64,9 +70,8 @@ export async function handleGetEventMusic(_request: Request, env: Env, eventId: 
         unique_listeners: stats.unique_listeners ?? 0,
         dj_count: stats.dj_count ?? 0,
       },
-      top_tracks: topTracksResult.results,
+      top_tracks: sanitizedTracks,
     },
-    // Cross-product links
     links: {
       sponsor_report: `/api/sponsors/${eventId}/report`,
       event_page: `https://oursharedevents.com/events/${eventId}`,

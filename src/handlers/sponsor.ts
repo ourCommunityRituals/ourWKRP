@@ -74,8 +74,11 @@ export async function handleSponsorReport(_request: Request, env: Env, eventId: 
     'SELECT venue_name, started_at FROM dj_sets WHERE event_id = ? ORDER BY started_at ASC LIMIT 1'
   ).bind(eventId).first<{ venue_name: string; started_at: string }>();
 
+  // Privacy boundary: sponsor reports show aggregates, never individual identities.
+  // DJs are named (they opted into public attribution). Listeners are counts only.
   return Response.json({
     ok: true,
+    privacy: 'aggregate_listeners_named_djs',
     report: {
       event_id: eventId,
       venue: eventContext?.venue_name ?? null,
