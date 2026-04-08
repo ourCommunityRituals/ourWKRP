@@ -13,32 +13,15 @@ import type { Env } from '../types';
 import { storeSession } from '../lib/kv-storage';
 import { buildSessionCookie } from '../lib/session-cookie';
 import { extractBrandId } from '../lib/brand';
+import { registerBodySchema } from '../lib/schemas';
+import { validateBody } from '../lib/validate';
 import { log } from '../lib/logger';
 
-const VALID_ROLES = ['dj', 'curator', 'contributor', 'listener'];
-const VALID_GENERATIONS = ['founder', 'gen2', 'gen3'];
-
 export async function handleRegister(request: Request, env: Env): Promise<Response> {
-  let body: { name?: string; role?: string; generation?: string };
-  try {
-    body = await request.json() as { name?: string; role?: string; generation?: string };
-  } catch {
-    return Response.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
-  }
+  const parsed = await validateBody(request, registerBodySchema);
+  if (parsed instanceof Response) return parsed;
 
-  const name = body.name?.replace(/<[^>]*>/g, '').trim();
-  const role = body.role?.trim().toLowerCase();
-  const generation = body.generation?.trim().toLowerCase();
-
-  if (!name || name.length < 1 || name.length > 100) {
-    return Response.json({ ok: false, error: 'Name is required (1-100 characters)' }, { status: 400 });
-  }
-  if (!role || !VALID_ROLES.includes(role)) {
-    return Response.json({ ok: false, error: `Role must be one of: ${VALID_ROLES.join(', ')}` }, { status: 400 });
-  }
-  if (!generation || !VALID_GENERATIONS.includes(generation)) {
-    return Response.json({ ok: false, error: `Generation must be one of: ${VALID_GENERATIONS.join(', ')}` }, { status: 400 });
-  }
+  const { name, role, generation } = parsed;
 
   const brandId = extractBrandId(request);
   const contributorId = crypto.randomUUID();

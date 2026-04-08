@@ -15,6 +15,7 @@ describe('Catalog API Security', () => {
   const catalogContent = fs.readFileSync(path.join(HANDLERS_DIR, 'catalog.ts'), 'utf-8');
   const playlistContent = fs.readFileSync(path.join(HANDLERS_DIR, 'playlist.ts'), 'utf-8');
   const brandContent = fs.readFileSync(path.join(LIB_DIR, 'brand.ts'), 'utf-8');
+  const schemasContent = fs.readFileSync(path.join(LIB_DIR, 'schemas.ts'), 'utf-8');
 
   describe('FTS5 injection prevention', () => {
     it('catalog.ts sanitizes FTS5 query input', () => {
@@ -79,15 +80,20 @@ describe('Catalog API Security', () => {
 
   describe('Input validation', () => {
     it('playlist name is validated for length', () => {
-      expect(playlistContent).toContain('name.length');
+      // Validation via Zod schema — max(200) on name
+      expect(schemasContent).toContain('.max(200');
+      expect(playlistContent).toContain('validateBody');
     });
 
     it('playlist description is truncated', () => {
-      expect(playlistContent).toContain('.slice(0, 1000)');
+      // Validation via Zod schema — max(1000) on description
+      expect(schemasContent).toContain('.max(1000');
     });
 
     it('track_ids has max batch size', () => {
-      expect(playlistContent).toContain('trackIds.length > 100');
+      // Validation via Zod schema — max(100) on track_ids array
+      expect(schemasContent).toContain('.max(100');
+      expect(playlistContent).toContain('validateBody');
     });
 
     it('audio feature params are clamped to 0-1 range', () => {

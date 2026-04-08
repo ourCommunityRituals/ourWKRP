@@ -12,6 +12,8 @@ import type { Env } from '../types';
 import { getSession } from '../lib/kv-storage';
 import { getSessionToken } from '../lib/session-cookie';
 import { extractBrandId } from '../lib/brand';
+import { createPlaylistBodySchema, playlistTracksBodySchema } from '../lib/schemas';
+import { validateBody } from '../lib/validate';
 import { log } from '../lib/logger';
 
 const ALLOWED_CREATOR_ROLES = ['founder', 'curator', 'dj'];
@@ -69,19 +71,11 @@ export async function handleCreatePlaylist(request: Request, env: Env): Promise<
     );
   }
 
-  let body: { name?: string; description?: string };
-  try {
-    body = await request.json() as { name?: string; description?: string };
-  } catch {
-    return Response.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
-  }
+  const parsed = await validateBody(request, createPlaylistBodySchema);
+  if (parsed instanceof Response) return parsed;
 
-  const name = body.name?.trim();
-  if (!name || name.length === 0 || name.length > 200) {
-    return Response.json({ ok: false, error: 'Name is required (max 200 chars)' }, { status: 400 });
-  }
-
-  const description = body.description?.trim().slice(0, 1000) ?? null;
+  const name = parsed.name;
+  const description = parsed.description ?? null;
   const id = crypto.randomUUID();
 
   await env.WKRP_DB.prepare(`
@@ -145,20 +139,10 @@ export async function handleAddPlaylistTracks(request: Request, env: Env, playli
   const playlist = await requireOwnedPlaylist(env, playlistId, auth.userId);
   if (playlist instanceof Response) return playlist;
 
-  let body: { track_ids?: string[] };
-  try {
-    body = await request.json() as { track_ids?: string[] };
-  } catch {
-    return Response.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
-  }
+  const parsed = await validateBody(request, playlistTracksBodySchema);
+  if (parsed instanceof Response) return parsed;
 
-  const trackIds = body.track_ids;
-  if (!Array.isArray(trackIds) || trackIds.length === 0) {
-    return Response.json({ ok: false, error: 'track_ids array is required' }, { status: 400 });
-  }
-  if (trackIds.length > 100) {
-    return Response.json({ ok: false, error: 'Maximum 100 tracks per request' }, { status: 400 });
-  }
+  const trackIds = parsed.track_ids;
 
   // Derive position atomically inside the batch to avoid race with concurrent adds
   const statements = trackIds.map((trackId, i) =>
@@ -195,17 +179,10 @@ export async function handleRemovePlaylistTracks(request: Request, env: Env, pla
   const playlist = await requireOwnedPlaylist(env, playlistId, auth.userId);
   if (playlist instanceof Response) return playlist;
 
-  let body: { track_ids?: string[] };
-  try {
-    body = await request.json() as { track_ids?: string[] };
-  } catch {
-    return Response.json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
-  }
+  const parsed = await validateBody(request, playlistTracksBodySchema);
+  if (parsed instanceof Response) return parsed;
 
-  const trackIds = body.track_ids;
-  if (!Array.isArray(trackIds) || trackIds.length === 0) {
-    return Response.json({ ok: false, error: 'track_ids array is required' }, { status: 400 });
-  }
+  const trackIds = parsed.track_ids;
 
   const statements = trackIds.map(trackId =>
     env.WKRP_DB.prepare(

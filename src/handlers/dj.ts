@@ -13,6 +13,8 @@ import type { Env } from '../types';
 import { getSession } from '../lib/kv-storage';
 import { getSessionToken } from '../lib/session-cookie';
 import { pushTrackToLibrary, addToDiscoveryPlaylist, detectPlatform } from '../lib/music-push';
+import { startSetBodySchema, addSetTrackBodySchema, createAttributionBodySchema } from '../lib/schemas';
+import { validateBody } from '../lib/validate';
 import { log } from '../lib/logger';
 
 /**
@@ -38,12 +40,8 @@ export async function handleStartSet(request: Request, env: Env): Promise<Respon
     "UPDATE dj_sets SET is_live = 0, ended_at = datetime('now') WHERE dj_id = ? AND is_live = 1"
   ).bind(auth.userId).run();
 
-  let body: { venue_name?: string; event_id?: string };
-  try {
-    body = await request.json() as { venue_name?: string; event_id?: string };
-  } catch {
-    body = {};
-  }
+  const parsed = await validateBody(request, startSetBodySchema);
+  const body = parsed instanceof Response ? { venue_name: null, event_id: null } : parsed;
 
   const setId = crypto.randomUUID();
 
@@ -81,16 +79,10 @@ export async function handleAddSetTrack(request: Request, env: Env, setId: strin
     return Response.json({ ok: false, error: 'Not your set' }, { status: 403 });
   }
 
-  let body: { track_id?: string };
-  try {
-    body = await request.json() as { track_id?: string };
-  } catch {
-    return Response.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
-  }
+  const parsed = await validateBody(request, addSetTrackBodySchema);
+  if (parsed instanceof Response) return parsed;
 
-  if (!body.track_id) {
-    return Response.json({ ok: false, error: 'track_id required' }, { status: 400 });
-  }
+  const body = parsed;
 
   // Get next position
   const posResult = await env.WKRP_DB.prepare(
@@ -159,16 +151,10 @@ export async function handleCreateAttribution(request: Request, env: Env): Promi
     if (session) listenerId = session.userId;
   }
 
-  let body: { dj_id?: string; track_id?: string; event_id?: string };
-  try {
-    body = await request.json() as { dj_id?: string; track_id?: string; event_id?: string };
-  } catch {
-    return Response.json({ ok: false, error: 'Invalid JSON' }, { status: 400 });
-  }
+  const parsed = await validateBody(request, createAttributionBodySchema);
+  if (parsed instanceof Response) return parsed;
 
-  if (!body.dj_id || !body.track_id) {
-    return Response.json({ ok: false, error: 'dj_id and track_id required' }, { status: 400 });
-  }
+  const body = parsed;
 
   const id = crypto.randomUUID();
 

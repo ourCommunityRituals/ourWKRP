@@ -12,6 +12,7 @@
  */
 
 import { getTokens } from './kv-storage';
+import { spotifyTrackUriSchema } from './schemas';
 import { log, logError } from './logger';
 
 export type MusicPlatform = 'spotify' | 'apple_music' | 'none';
@@ -84,9 +85,9 @@ async function pushToSpotify(
       return { platform: 'spotify', saved: false, error: 'No Spotify tokens' };
     }
 
-    // Look up the Spotify URI for this track
+    // Look up the Spotify URI for this track and validate format
     const spotifyUri = await kv.get(`wkrp:track_spotify_uri:${trackId}`);
-    if (!spotifyUri) {
+    if (!spotifyUri || !spotifyTrackUriSchema.safeParse(spotifyUri).success) {
       log('PUSH_SKIP_NO_URI', { platform: 'spotify', userId, trackId });
       return { platform: 'spotify', saved: false, error: 'No Spotify URI for this track' };
     }
