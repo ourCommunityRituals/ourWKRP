@@ -12,8 +12,8 @@
       --border: #2a2a2a;
       --text: #f0f0f0;
       --text-muted: #888;
-      --accent: #1DB954;
-      --accent-hover: #1ed760;
+      --accent: #D4954B;
+      --accent-hover: #E8A849;
       --radius: 12px;
       --radius-sm: 8px;
       --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -48,7 +48,7 @@
     .user-badge {
       font-size: 0.75rem;
       color: var(--accent);
-      background: rgba(29, 185, 84, 0.1);
+      background: rgba(212, 149, 75, 0.1);
       padding: 4px 10px;
       border-radius: 20px;
     }
@@ -97,7 +97,7 @@
 
     .drop-zone.dragover {
       border-color: var(--accent);
-      background: rgba(29, 185, 84, 0.05);
+      background: rgba(212, 149, 75, 0.05);
     }
 
     .drop-zone-icon { font-size: 2rem; }
@@ -233,8 +233,8 @@
     .result-section.visible { display: block; }
 
     .result-success {
-      background: rgba(29, 185, 84, 0.1);
-      border: 1px solid rgba(29, 185, 84, 0.3);
+      background: rgba(212, 149, 75, 0.1);
+      border: 1px solid rgba(212, 149, 75, 0.3);
       border-radius: var(--radius-sm);
       padding: 16px;
       text-align: center;
@@ -342,7 +342,7 @@
   <!-- Access Denied -->
   <div id="access-denied" class="access-denied hidden" data-testid="access-denied">
     <h3>Import Restricted</h3>
-    <p>Only founders and curators can import music libraries.</p>
+    <p>DJs and Curators can import music libraries. Talk to a founder to get access.</p>
   </div>
 
   <!-- Import View -->
@@ -439,7 +439,7 @@
           contributor = sessionData.contributor;
 
           // Role check
-          var allowedRoles = ['founder', 'curator'];
+          var allowedRoles = ['founder', 'curator', 'dj'];
           if (!allowedRoles.includes(contributor.role)) {
             document.getElementById('loading-view').classList.add('hidden');
             document.getElementById('access-denied').classList.remove('hidden');

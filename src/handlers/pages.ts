@@ -59,7 +59,7 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
  * Falls back to defaults if brand not found.
  */
 async function injectBrandStyles(html: string, brandId: string, env: Env): Promise<string> {
-  let primaryColor = '#1DB954';
+  let primaryColor = '#D4954B';
   let accentColor = '#191414';
   let brandName = 'WKRP';
 

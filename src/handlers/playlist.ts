@@ -14,7 +14,7 @@ import { getSessionToken } from '../lib/session-cookie';
 import { extractBrandId } from '../lib/brand';
 import { log } from '../lib/logger';
 
-const ALLOWED_CREATOR_ROLES = ['founder', 'curator'];
+const ALLOWED_CREATOR_ROLES = ['founder', 'curator', 'dj'];
 
 async function authenticate(request: Request, env: Env): Promise<{ userId: string; brandId: string } | Response> {
   const token = getSessionToken(request);
@@ -64,7 +64,7 @@ export async function handleCreatePlaylist(request: Request, env: Env): Promise<
   }
   if (!ALLOWED_CREATOR_ROLES.includes(contributor.role as string)) {
     return Response.json(
-      { ok: false, error: 'Only founders and curators can create playlists' },
+      { ok: false, error: 'Only founders, curators, and DJs can create playlists' },
       { status: 403 },
     );
   }

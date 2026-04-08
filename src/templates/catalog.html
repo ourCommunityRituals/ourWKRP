@@ -12,8 +12,8 @@
       --border: #2a2a2a;
       --text: #f0f0f0;
       --text-muted: #888;
-      --accent: #1DB954;
-      --accent-hover: #1ed760;
+      --accent: #D4954B;
+      --accent-hover: #E8A849;
       --radius: 12px;
       --radius-sm: 8px;
       --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -56,7 +56,7 @@
     .user-badge {
       font-size: 0.75rem;
       color: var(--accent);
-      background: rgba(29, 185, 84, 0.1);
+      background: rgba(212, 149, 75, 0.1);
       padding: 4px 10px;
       border-radius: 20px;
     }
@@ -109,7 +109,7 @@
     .filter-chip:hover, .filter-chip.active {
       border-color: var(--accent);
       color: var(--accent);
-      background: rgba(29, 185, 84, 0.1);
+      background: rgba(212, 149, 75, 0.1);
     }
 
     /* --- Slider Filters --- */
@@ -250,7 +250,7 @@
       color: var(--text-muted);
     }
 
-    .meta-badge.high { color: var(--accent); background: rgba(29, 185, 84, 0.15); }
+    .meta-badge.high { color: var(--accent); background: rgba(212, 149, 75, 0.15); }
 
     /* --- Bottom Nav --- */
     .bottom-nav {
@@ -308,14 +308,14 @@
       font-size: 0.65rem;
       padding: 2px 8px;
       border-radius: 10px;
-      background: rgba(29, 185, 84, 0.1);
+      background: rgba(212, 149, 75, 0.1);
       color: var(--accent);
       cursor: pointer;
       transition: background 0.15s;
     }
 
     .genre-tag:hover {
-      background: rgba(29, 185, 84, 0.25);
+      background: rgba(212, 149, 75, 0.25);
     }
 
     .genre-popup {
@@ -417,7 +417,7 @@
   <!-- Loading State -->
   <div id="loading-view" class="loading" data-testid="loading-view">
     <div class="spinner"></div>
-    <div class="loading-text" id="loading-text" data-testid="loading-text">Connecting...</div>
+    <div class="loading-text" id="loading-text" data-testid="loading-text">Loading the catalog...</div>
     <div class="sync-status" id="sync-status" data-testid="sync-status"></div>
   </div>
 
@@ -472,12 +472,16 @@
 
     <nav class="bottom-nav" data-testid="bottom-nav">
       <a href="/catalog" class="nav-item active" data-testid="nav-catalog">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>
         Catalog
       </a>
       <a href="/create" class="nav-item" data-testid="nav-create">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         Create
+      </a>
+      <a href="/import" class="nav-item" data-testid="nav-import">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        Import
       </a>
     </nav>
   </div>

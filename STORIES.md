@@ -289,3 +289,23 @@
 - [x] Add note: "Spotify limited to 5 users in dev mode"
 - [x] "Browse the catalog" link for anonymous browsing
 - [x] Update tagline to reflect community-first model
+
+---
+
+### WKRP-20: Frontend Identity Overhaul — 5-Layer Brand Alignment
+**Status:** 🚧 IN PROGRESS
+**Prerequisite:** WKRP-17, WKRP-18, WKRP-19
+**Sprint:** 3
+
+**PO Acceptance Criteria:**
+- [ ] New accent color — not Spotify green. Warm amber/gold (vinyl, warmth, culture)
+- [ ] Role model: DJ / Curator / Contributor / Consumer (not Founder/Gen2/Gen3)
+- [ ] Generation preserved as lineage (founder/gen2/gen3) separate from role
+- [ ] Connect flow: community-first, CSV/Last.fm lead, Spotify demoted
+- [ ] Copy reflects mission: human curation vs AI slop, real crew, real taste
+- [ ] Navigation: Catalog, DJs, Create, Import (role-gated)
+- [ ] DJ profile shows attribution stats placeholder
+- [ ] OurRecordStories link/placeholder in profile and nav
+- [ ] Every screen optimized for who's looking at it (role-aware)
+- [ ] Smooth flow: connect → catalog → create → share feels effortless
+- [ ] All templates updated: connect, catalog, create, import, profile

@@ -12,8 +12,8 @@
       --border: #2a2a2a;
       --text: #f0f0f0;
       --text-muted: #888;
-      --accent: #1DB954;
-      --accent-hover: #1ed760;
+      --accent: #D4954B;
+      --accent-hover: #E8A849;
       --radius: 12px;
       --radius-sm: 8px;
       --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -85,7 +85,7 @@
     .profile-role {
       font-size: 0.8rem;
       color: var(--accent);
-      background: rgba(29, 185, 84, 0.1);
+      background: rgba(212, 149, 75, 0.1);
       padding: 4px 12px;
       border-radius: 20px;
       display: inline-block;
@@ -163,7 +163,7 @@
       font-size: 0.8rem;
       padding: 6px 14px;
       border-radius: 20px;
-      background: rgba(29, 185, 84, 0.1);
+      background: rgba(212, 149, 75, 0.1);
       color: var(--accent);
       cursor: pointer;
       transition: background 0.15s;
@@ -172,7 +172,7 @@
     }
 
     .genre-tag:hover {
-      background: rgba(29, 185, 84, 0.25);
+      background: rgba(212, 149, 75, 0.25);
     }
 
     .genre-count {
@@ -400,13 +400,21 @@
       <div id="playlist-list" data-testid="playlist-list"></div>
     </div>
 
+    <div class="section" id="attribution-section" class="hidden" data-testid="attribution-section">
+      <div class="section-title">DJ Influence</div>
+      <div id="attribution-stats" data-testid="attribution-stats" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px;text-align:center;">
+        <div style="font-size:0.85rem;color:var(--text-muted);">Attribution tracking coming soon</div>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">QR scan at sets to track discoveries</div>
+      </div>
+    </div>
+
     <div class="section" id="sources-section" data-testid="sources-section">
       <div class="section-title">Sources</div>
       <div class="source-list" id="source-list" data-testid="source-list"></div>
     </div>
 
     <div class="section" id="brands-section" data-testid="brands-section">
-      <div class="section-title">Brands</div>
+      <div class="section-title">Communities</div>
       <div id="brand-list" data-testid="brand-list"></div>
     </div>
 
@@ -500,6 +508,13 @@
               '<span class="playlist-count">' + p.track_count + ' tracks</span>' +
               '</div>';
           }).join('');
+        }
+
+        // DJ Attribution section — only show for DJ role
+        var roles = data.roles || [c.role];
+        var isDJ = roles.indexOf('dj') !== -1;
+        if (!isDJ) {
+          document.getElementById('attribution-section').classList.add('hidden');
         }
 
         // Sources

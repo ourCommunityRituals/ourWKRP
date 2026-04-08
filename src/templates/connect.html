@@ -11,8 +11,8 @@
       --border: #2a2a2a;
       --text: #f0f0f0;
       --text-muted: #888;
-      --accent: #1DB954;
-      --accent-hover: #1ed760;
+      --accent: #D4954B;
+      --accent-hover: #E8A849;
       --error: #e74c3c;
       --radius: 12px;
       --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -177,7 +177,7 @@
   <div class="container">
     <div class="logo">
       <h1>ourWKRP</h1>
-      <p>Your music. Your community. Your catalog.</p>
+      <p>The human answer to AI playlists.<br>Real people. Real taste. No algorithm.</p>
     </div>
 
     <div id="error-banner" class="error-banner" data-testid="error-banner"></div>
@@ -198,31 +198,42 @@
       </div>
 
       <div class="form-group">
-        <label for="generation">Generation</label>
-        <select id="generation" name="generation" required data-testid="select-generation">
-          <option value="" disabled selected>Select your generation</option>
-          <option value="founder">Founder</option>
-          <option value="gen2">Gen 2</option>
-          <option value="gen3">Gen 3</option>
+        <label for="role">What's your role?</label>
+        <select id="role" name="role" required data-testid="select-role">
+          <option value="" disabled selected>How do you contribute?</option>
+          <option value="dj">DJ — I play the records</option>
+          <option value="curator">Curator — I build the playlists</option>
+          <option value="contributor">Contributor — I bring the taste</option>
+          <option value="listener">Listener — I'm here for the music</option>
         </select>
       </div>
 
-      <button type="submit" class="btn btn-spotify" id="connect-btn" data-testid="btn-connect">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
-        Connect with Spotify
-      </button>
-
-      <div style="text-align:center;margin-top:16px;font-size:0.75rem;color:var(--text-muted);">
-        Spotify limited to 5 users in dev mode
+      <div class="form-group">
+        <label for="generation">Generation</label>
+        <select id="generation" name="generation" required data-testid="select-generation">
+          <option value="" disabled selected>When did you join the crew?</option>
+          <option value="founder">Founder — been here since day one</option>
+          <option value="gen2">Gen 2 — brought in by a founder</option>
+          <option value="gen3">Gen 3 — newest to the table</option>
+        </select>
       </div>
 
-      <a href="/import" class="btn" id="import-btn" data-testid="btn-import" style="margin-top:16px;background:var(--surface);border:1px solid var(--border);color:var(--text);">
-        Or import your library via CSV
+      <a href="/import" class="btn" id="import-btn" data-testid="btn-import" style="background:var(--accent);color:#000;">
+        Import Your Library
       </a>
 
-      <a href="/catalog" class="btn" data-testid="btn-browse" style="margin-top:12px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-weight:400;font-size:0.85rem;">
-        Browse the catalog
+      <a href="/catalog" class="btn" data-testid="btn-browse" style="margin-top:12px;background:var(--surface);border:1px solid var(--border);color:var(--text);">
+        Browse the Catalog
       </a>
+
+      <div style="text-align:center;margin-top:24px;border-top:1px solid var(--border);padding-top:20px;">
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:12px;">Already have Spotify connected?</div>
+        <button type="submit" class="btn" id="connect-btn" data-testid="btn-connect" style="background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:0.85rem;">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+          Connect with Spotify
+        </button>
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:6px;">Limited to 5 users in dev mode</div>
+      </div>
     </form>
 
     <div class="footer">

@@ -115,7 +115,7 @@ describe('Playlist Builder', () => {
 
       expect(res.status).toBe(403);
       const body = await res.json() as { error: string };
-      expect(body.error).toMatch(/founders and curators/);
+      expect(body.error).toMatch(/founders.*curators|curators.*DJs/);
     });
 
     it('rejects missing name', async () => {
