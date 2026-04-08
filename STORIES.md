@@ -71,20 +71,20 @@
 ---
 
 ### WKRP-6: Catalog API Endpoints
-**Status:** 🚧 IN PROGRESS
+**Status:** ✅ DONE
 **Prerequisite:** WKRP-5
 **Sprint:** 2
 **CCR Review:** Rewritten April 2026 — original depended on dead Spotify audio features API
 
 **PO Acceptance Criteria:**
-- [ ] `GET /api/tracks?genre=hip-hop&artist=kendrick&contributor=matt&year_min=2010` — filtered track list from D1
-- [ ] `GET /api/tracks?q=searchterm` — full-text search on track name + artist name (FTS5)
-- [ ] `GET /api/tracks?energy_min=0.7&valence_min=0.5` — audio feature filters (progressive enhancement, hidden if no data)
-- [ ] `GET /api/playlists/:contributorId` — contributor's imported playlists
-- [ ] `GET /api/contributors` — all contributors with track counts
-- [ ] `GET /api/stats` — catalog stats (total tracks, contributors, top genres, top decades)
-- [ ] Cursor-based pagination on all list endpoints (`?cursor=xxx&limit=25`)
-- [ ] Genre data enriched from CSV imports (Exportify includes artist genres)
+- [x] `GET /api/tracks?genre=hip-hop&artist=kendrick&contributor=matt&year_min=2010` — filtered track list from D1
+- [x] `GET /api/tracks?q=searchterm` — full-text search on track name + artist name (FTS5)
+- [x] `GET /api/tracks?energy_min=0.7&valence_min=0.5` — audio feature filters (progressive enhancement, hidden if no data)
+- [x] `GET /api/playlists/:contributorId` — contributor's imported playlists
+- [x] `GET /api/contributors` — all contributors with track counts
+- [x] `GET /api/stats` — catalog stats (total tracks, contributors, top genres, top decades), brand-scoped
+- [x] Cursor-based pagination on all list endpoints (`?cursor=xxx&limit=25`)
+- [x] Genre data enriched from CSV imports (Exportify includes artist genres)
 
 ---
 

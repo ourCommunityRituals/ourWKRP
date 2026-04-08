@@ -209,12 +209,19 @@ export async function handleGetContributorPlaylists(request: Request, env: Env, 
 export async function handleGetStats(request: Request, env: Env): Promise<Response> {
   const brandId = extractBrandId(request);
 
+  // Brand-scoped track queries join through contributions → contributors
+  const brandTrackJoin = brandId !== 'wkrp'
+    ? `INNER JOIN contributions cn ON t.id = cn.track_id
+       INNER JOIN contributors ct ON cn.contributor_id = ct.id AND ct.brand_id = ?`
+    : '';
+  const brandTrackBinds = brandId !== 'wkrp' ? [brandId] : [];
+
   // Run queries in a batch for efficiency
   const [tracksResult, contributorsResult, playlistsResult, genresResult, decadesResult, audioFeaturesResult] =
     await env.WKRP_DB.batch([
       env.WKRP_DB.prepare(
-        'SELECT COUNT(*) as count FROM tracks WHERE merged_into_id IS NULL'
-      ).bind(),
+        `SELECT COUNT(DISTINCT t.id) as count FROM tracks t ${brandTrackJoin} WHERE t.merged_into_id IS NULL`
+      ).bind(...brandTrackBinds),
       env.WKRP_DB.prepare(
         "SELECT COUNT(*) as count FROM contributors WHERE brand_id = ? AND status = 'active'"
       ).bind(brandId),
@@ -222,18 +229,18 @@ export async function handleGetStats(request: Request, env: Env): Promise<Respon
         'SELECT COUNT(*) as count FROM playlists WHERE brand_id = ?'
       ).bind(brandId),
       env.WKRP_DB.prepare(
-        `SELECT genre, COUNT(*) as count FROM tracks
-         WHERE genre IS NOT NULL AND merged_into_id IS NULL
-         GROUP BY genre ORDER BY count DESC LIMIT 10`
-      ).bind(),
+        `SELECT t.genre, COUNT(DISTINCT t.id) as count FROM tracks t ${brandTrackJoin}
+         WHERE t.genre IS NOT NULL AND t.merged_into_id IS NULL
+         GROUP BY t.genre ORDER BY count DESC LIMIT 10`
+      ).bind(...brandTrackBinds),
       env.WKRP_DB.prepare(
-        `SELECT (release_year / 10) * 10 as decade, COUNT(*) as count FROM tracks
-         WHERE release_year IS NOT NULL AND merged_into_id IS NULL
+        `SELECT (t.release_year / 10) * 10 as decade, COUNT(DISTINCT t.id) as count FROM tracks t ${brandTrackJoin}
+         WHERE t.release_year IS NOT NULL AND t.merged_into_id IS NULL
          GROUP BY decade ORDER BY decade DESC LIMIT 10`
-      ).bind(),
+      ).bind(...brandTrackBinds),
       env.WKRP_DB.prepare(
-        'SELECT COUNT(*) as count FROM tracks WHERE energy IS NOT NULL'
-      ).bind(),
+        `SELECT COUNT(DISTINCT t.id) as count FROM tracks t ${brandTrackJoin} WHERE t.energy IS NOT NULL`
+      ).bind(...brandTrackBinds),
     ]);
 
   const totalTracks = (tracksResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
@@ -272,6 +279,29 @@ export async function handleGetBrands(_request: Request, env: Env): Promise<Resp
 
   return Response.json({
     ok: true,
+    brands: result.results,
+  });
+}
+
+/**
+ * GET /api/contributors/:id/brands
+ * Cross-brand contributor discovery — which brands has this contributor contributed to?
+ */
+export async function handleGetContributorBrands(_request: Request, env: Env, contributorId: string): Promise<Response> {
+  const result = await env.WKRP_DB.prepare(`
+    SELECT DISTINCT b.id, b.name, b.subdomain, b.primary_color, b.accent_color, b.logo_url,
+           COUNT(DISTINCT cn.track_id) as track_count
+    FROM contributions cn
+    INNER JOIN contributors ct ON cn.contributor_id = ct.id
+    INNER JOIN brands b ON ct.brand_id = b.id
+    WHERE cn.contributor_id = ?
+    GROUP BY b.id
+    ORDER BY track_count DESC
+  `).bind(contributorId).all();
+
+  return Response.json({
+    ok: true,
+    contributor_id: contributorId,
     brands: result.results,
   });
 }

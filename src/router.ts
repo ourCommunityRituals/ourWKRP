@@ -16,6 +16,7 @@
  *   --- Catalog API (WKRP-6) ---
  *   GET  /api/tracks                → filtered, searchable, paginated tracks
  *   GET  /api/contributors          → all contributors with track counts
+ *   GET  /api/contributors/:id/brands → cross-brand contributor discovery
  *   GET  /api/playlists/:id         → contributor playlists (by contributor) or single playlist (by UUID)
  *   GET  /api/stats                 → catalog statistics
  *   GET  /api/brands                → all brands with counts
@@ -43,7 +44,7 @@ import { handleAuthSession } from './handlers/auth-session';
 import { handleSync } from './handlers/sync';
 import { handlePages } from './handlers/pages';
 import { handleImport } from './handlers/import';
-import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, handleGetStats, handleGetBrands } from './handlers/catalog';
+import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, handleGetStats, handleGetBrands, handleGetContributorBrands } from './handlers/catalog';
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
 import { addCorsHeaders } from './lib/cors';
@@ -97,6 +98,14 @@ export async function route(request: Request, env: Env): Promise<Response> {
   // --- Catalog API (WKRP-6) ---
   else if (method === 'GET' && path === '/api/tracks') {
     response = await handleGetTracks(request, env);
+  }
+  else if (method === 'GET' && path.startsWith('/api/contributors/') && path.endsWith('/brands')) {
+    const contributorId = path.slice('/api/contributors/'.length, -'/brands'.length);
+    if (!UUID_RE.test(contributorId)) {
+      response = Response.json({ ok: false, error: 'Invalid contributor ID format' }, { status: 400 });
+    } else {
+      response = await handleGetContributorBrands(request, env, contributorId);
+    }
   }
   else if (method === 'GET' && path === '/api/contributors') {
     response = await handleGetContributors(request, env);

@@ -29,6 +29,7 @@ vi.mock('../../src/handlers/catalog', () => ({
   handleGetContributorPlaylists: vi.fn(() => Response.json({ ok: true, service: 'catalog-playlists' })),
   handleGetStats: vi.fn(() => Response.json({ ok: true, service: 'catalog-stats' })),
   handleGetBrands: vi.fn(() => Response.json({ ok: true, service: 'catalog-brands' })),
+  handleGetContributorBrands: vi.fn(() => Response.json({ ok: true, service: 'catalog-contributor-brands' })),
 }));
 vi.mock('../../src/handlers/playlist', () => ({
   handleCreatePlaylist: vi.fn(() => Response.json({ ok: true, service: 'playlist-create' })),
@@ -150,6 +151,17 @@ describe('Router', () => {
     const res = await route(makeRequest('/api/contributors'), mockEnv);
     const body = await res.json() as { service: string };
     expect(body.service).toBe('catalog-contributors');
+  });
+
+  it('routes GET /api/contributors/:id/brands to contributor brands handler', async () => {
+    const res = await route(makeRequest('/api/contributors/12345678-1234-1234-1234-123456789012/brands'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('catalog-contributor-brands');
+  });
+
+  it('rejects GET /api/contributors/:id/brands with invalid UUID', async () => {
+    const res = await route(makeRequest('/api/contributors/not-a-uuid/brands'), mockEnv);
+    expect(res.status).toBe(400);
   });
 
   it('routes GET /api/stats to catalog handler', async () => {
