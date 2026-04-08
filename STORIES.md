@@ -312,6 +312,31 @@
 
 ---
 
+### WKRP-30: Catalog Layers View — Assemble by Who Brought What
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-17
+**Sprint:** 4
+
+**Context:**
+The catalog assembles in layers. DJ sets sit on top — they're the strongest signal,
+curated live in the room. The WKRP crew shows the curation model. Then spouses,
+kids, friends, one degree out. Then the bar, the league, matchstick.
+
+All three layers launch quietly at the same time, but the emphasis is on the DJs.
+
+**PO Acceptance Criteria:**
+- [ ] `GET /api/tracks?layer=dj` — tracks from DJ sets (attribution-weighted)
+- [ ] `GET /api/tracks?layer=crew` — tracks from founders/curators
+- [ ] `GET /api/tracks?layer=community` — tracks from contributors/listeners
+- [ ] Catalog UI: layer toggle (DJs / Crew / Community / All)
+- [ ] DJ layer shows set context: "Played by [DJ] at [venue]"
+- [ ] Crew layer shows contributor attribution
+- [ ] Community layer shows how many people brought each track
+- [ ] Default view: All (blended), but DJ tracks bubble up
+- [ ] Layer counts in toggle buttons (DJ: 47, Crew: 312, Community: 1.2k)
+
+---
+
 ### WKRP-21: OurRecordStories Integration
 **Status:** 📋 BACKLOG
 **Prerequisite:** WKRP-15

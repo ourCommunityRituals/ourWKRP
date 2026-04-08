@@ -570,6 +570,14 @@
       >
     </div>
 
+    <!-- Layer Toggle -->
+    <div class="filters" id="layer-filters" data-testid="layer-filters" style="padding-bottom:4px;">
+      <button class="filter-chip active" data-layer="all" data-testid="layer-all">All</button>
+      <button class="filter-chip" data-layer="dj" data-testid="layer-dj" style="border-color:var(--accent);color:var(--text);">DJs</button>
+      <button class="filter-chip" data-layer="crew" data-testid="layer-crew">Crew</button>
+      <button class="filter-chip" data-layer="community" data-testid="layer-community">Community</button>
+    </div>
+
     <div class="filters" data-testid="filters">
       <button class="filter-chip active" data-filter="all" data-testid="filter-all">All</button>
       <button class="filter-chip" data-filter="high-energy" data-testid="filter-energy">High Energy</button>
@@ -651,6 +659,7 @@
       var currentCursor = null;
       var isLoading = false;
       var currentView = 'list';
+      var currentLayer = 'all';
       var allLoadedTracks = [];
 
       init();
@@ -730,6 +739,7 @@
           if (dance > 0) params.set('danceability_min', (dance / 100).toFixed(2));
         }
 
+        if (currentLayer && currentLayer !== 'all') params.set('layer', currentLayer);
         if (currentCursor) params.set('cursor', currentCursor);
 
         return '/api/tracks?' + params.toString();
@@ -832,6 +842,31 @@
           fetchTracks();
         });
       });
+
+      // --- Layer toggle ---
+      document.querySelectorAll('[data-layer]').forEach(function(chip) {
+        chip.addEventListener('click', function() {
+          document.querySelectorAll('[data-layer]').forEach(function(c) { c.classList.remove('active'); });
+          this.classList.add('active');
+          currentLayer = this.dataset.layer;
+          fetchTracks();
+        });
+      });
+
+      // Load layer counts
+      fetch('/api/layers')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok) {
+            var l = data.layers;
+            var fmt = function(n) { return n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n); };
+            document.querySelector('[data-layer="all"]').textContent = 'All ' + fmt(l.all);
+            document.querySelector('[data-layer="dj"]').textContent = 'DJs ' + fmt(l.dj);
+            document.querySelector('[data-layer="crew"]').textContent = 'Crew ' + fmt(l.crew);
+            document.querySelector('[data-layer="community"]').textContent = 'Community ' + fmt(l.community);
+          }
+        })
+        .catch(function() {});
 
       // --- Range sliders ---
       var rangeTimeout;

@@ -47,7 +47,7 @@ import { handleAuthSession } from './handlers/auth-session';
 import { handleSync } from './handlers/sync';
 import { handlePages } from './handlers/pages';
 import { handleImport } from './handlers/import';
-import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, handleGetContributorProfile, handleGetStats, handleGetBrands, handleGetContributorBrands } from './handlers/catalog';
+import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, handleGetContributorProfile, handleGetStats, handleGetBrands, handleGetContributorBrands, handleGetLayers } from './handlers/catalog';
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
 import { handleStartSet, handleAddSetTrack, handleEndSet, handleCreateAttribution, handleGetDjStats, handleGetLiveSet } from './handlers/dj';
@@ -130,6 +130,9 @@ export async function route(request: Request, env: Env): Promise<Response> {
   }
   else if (method === 'GET' && path === '/api/stats') {
     response = await handleGetStats(request, env);
+  }
+  else if (method === 'GET' && path === '/api/layers') {
+    response = await handleGetLayers(request, env);
   }
   else if (method === 'GET' && path === '/api/brands') {
     response = await handleGetBrands(request, env);

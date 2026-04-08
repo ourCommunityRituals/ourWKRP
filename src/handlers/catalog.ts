@@ -37,6 +37,7 @@ export async function handleGetTracks(request: Request, env: Env): Promise<Respo
   const genre = url.searchParams.get('genre');
   const artist = url.searchParams.get('artist');
   const contributorId = url.searchParams.get('contributor');
+  const layer = url.searchParams.get('layer'); // dj, crew, community, or null (all)
   const yearMin = parseIntParam(url.searchParams.get('year_min'));
   const yearMax = parseIntParam(url.searchParams.get('year_max'));
   const energyMin = parseFloatParam(url.searchParams.get('energy_min'));
@@ -66,6 +67,26 @@ export async function handleGetTracks(request: Request, env: Env): Promise<Respo
     fromClause += ' INNER JOIN contributions c ON t.id = c.track_id INNER JOIN contributors ct ON c.contributor_id = ct.id';
     conditions.push('ct.brand_id = ?');
     binds.push(brandId);
+  }
+
+  // Layer filtering: dj (from sets), crew (founders/curators), community (contributors/listeners)
+  if (layer === 'dj') {
+    // Tracks that appear in DJ sets (via set_tracks table)
+    if (!fromClause.includes('set_tracks')) {
+      fromClause += ' INNER JOIN set_tracks st ON t.id = st.track_id';
+    }
+  } else if (layer === 'crew') {
+    // Tracks contributed by founders or curators
+    if (!fromClause.includes('contributions')) {
+      fromClause += ' INNER JOIN contributions c ON t.id = c.track_id INNER JOIN contributors ct ON c.contributor_id = ct.id';
+    }
+    conditions.push("ct.role IN ('founder', 'curator')");
+  } else if (layer === 'community') {
+    // Tracks contributed by contributors or listeners (not founders/curators/djs)
+    if (!fromClause.includes('contributions')) {
+      fromClause += ' INNER JOIN contributions c ON t.id = c.track_id INNER JOIN contributors ct ON c.contributor_id = ct.id';
+    }
+    conditions.push("ct.role IN ('contributor', 'listener')");
   }
 
   if (genre) {
@@ -280,6 +301,41 @@ export async function handleGetBrands(_request: Request, env: Env): Promise<Resp
   return Response.json({
     ok: true,
     brands: result.results,
+  });
+}
+
+/**
+ * GET /api/layers
+ * Layer counts — how many tracks in each layer.
+ */
+export async function handleGetLayers(_request: Request, env: Env): Promise<Response> {
+  const [djResult, crewResult, communityResult, totalResult] = await env.WKRP_DB.batch([
+    env.WKRP_DB.prepare(
+      'SELECT COUNT(DISTINCT track_id) as count FROM set_tracks'
+    ).bind(),
+    env.WKRP_DB.prepare(
+      `SELECT COUNT(DISTINCT c.track_id) as count FROM contributions c
+       INNER JOIN contributors ct ON c.contributor_id = ct.id
+       WHERE ct.role IN ('founder', 'curator')`
+    ).bind(),
+    env.WKRP_DB.prepare(
+      `SELECT COUNT(DISTINCT c.track_id) as count FROM contributions c
+       INNER JOIN contributors ct ON c.contributor_id = ct.id
+       WHERE ct.role IN ('contributor', 'listener')`
+    ).bind(),
+    env.WKRP_DB.prepare(
+      'SELECT COUNT(*) as count FROM tracks WHERE merged_into_id IS NULL'
+    ).bind(),
+  ]);
+
+  return Response.json({
+    ok: true,
+    layers: {
+      dj: (djResult.results[0] as Record<string, unknown>)?.count as number ?? 0,
+      crew: (crewResult.results[0] as Record<string, unknown>)?.count as number ?? 0,
+      community: (communityResult.results[0] as Record<string, unknown>)?.count as number ?? 0,
+      all: (totalResult.results[0] as Record<string, unknown>)?.count as number ?? 0,
+    },
   });
 }
 

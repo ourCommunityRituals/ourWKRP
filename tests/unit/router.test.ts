@@ -34,6 +34,7 @@ vi.mock('../../src/handlers/catalog', () => ({
   handleGetBrands: vi.fn(() => Response.json({ ok: true, service: 'catalog-brands' })),
   handleGetContributorBrands: vi.fn(() => Response.json({ ok: true, service: 'catalog-contributor-brands' })),
   handleGetContributorProfile: vi.fn(() => Response.json({ ok: true, service: 'catalog-contributor-profile' })),
+  handleGetLayers: vi.fn(() => Response.json({ ok: true, service: 'catalog-layers' })),
 }));
 vi.mock('../../src/handlers/playlist', () => ({
   handleCreatePlaylist: vi.fn(() => Response.json({ ok: true, service: 'playlist-create' })),
@@ -322,6 +323,14 @@ describe('Router', () => {
   it('routes GET /dj/:id to live set HTML page', async () => {
     const res = await route(makeRequest('/dj/user123'), mockEnv);
     expect(res.headers.get('Content-Type')).toContain('text/html');
+  });
+
+  // --- Layers ---
+
+  it('routes GET /api/layers to layers handler', async () => {
+    const res = await route(makeRequest('/api/layers'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('catalog-layers');
   });
 
   // --- Catalog Export ---
