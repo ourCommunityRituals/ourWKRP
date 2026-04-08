@@ -24,6 +24,7 @@ export async function handleAuthStart(request: Request, env: Env): Promise<Respo
   const url = new URL(request.url);
   const name = url.searchParams.get('name')?.trim();
   const gen = url.searchParams.get('gen')?.trim();
+  const role = url.searchParams.get('role')?.trim() || 'contributor';
 
   // Validate inputs
   if (!name || name.length < 1 || name.length > 100) {
@@ -62,6 +63,7 @@ export async function handleAuthStart(request: Request, env: Env): Promise<Respo
       code_verifier: codeVerifier,
       name: sanitizedName,
       gen,
+      role,
     });
 
     // Build Spotify auth URL and redirect

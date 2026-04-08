@@ -69,7 +69,7 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
     });
 
     // Upsert contributor by spotify_user_id — returning users merge, not duplicate
-    const contributorId = await upsertContributor(env, profile, authState.name, authState.gen);
+    const contributorId = await upsertContributor(env, profile, authState.name, authState.gen, authState.role);
 
     log('AUTH_CALLBACK_CONTRIBUTOR_UPSERTED', { contributorId, name: authState.name });
 
@@ -118,6 +118,7 @@ async function upsertContributor(
   profile: SpotifyUserProfile,
   name: string,
   gen: string,
+  role?: string,
 ): Promise<string> {
   // Check if this Spotify user already exists
   const existing = await env.WKRP_DB.prepare(
@@ -146,12 +147,13 @@ async function upsertContributor(
   // New user — insert
   const contributorId = crypto.randomUUID();
   await env.WKRP_DB.prepare(`
-    INSERT INTO contributors (id, name, generation, brand_id, spotify_user_id, spotify_display_name, created_at)
-    VALUES (?, ?, ?, 'wkrp', ?, ?, ?)
+    INSERT INTO contributors (id, name, generation, brand_id, role, status, spotify_user_id, spotify_display_name, created_at)
+    VALUES (?, ?, ?, 'wkrp', ?, 'active', ?, ?, ?)
   `).bind(
     contributorId,
     name,
     gen,
+    role || 'contributor',
     profile.id,
     profile.display_name ?? name,
     new Date().toISOString(),

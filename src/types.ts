@@ -167,6 +167,7 @@ export interface AuthState {
   code_verifier: string;
   name: string;
   gen: string;
+  role?: string;
 }
 
 export interface SessionData {

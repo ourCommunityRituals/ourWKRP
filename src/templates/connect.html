@@ -275,30 +275,70 @@
         })
         .catch(function() { /* no session, stay on connect */ });
 
+      // Import button — register and redirect
+      var importBtn = document.getElementById('import-btn');
+      importBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        register('/import');
+      });
+
+      // Browse button — register and redirect (or just go if no form data)
+      var browseBtn = document.querySelector('[data-testid="btn-browse"]');
+      browseBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var name = document.getElementById('name').value.trim();
+        if (name) {
+          register('/catalog');
+        } else {
+          window.location.href = '/catalog';
+        }
+      });
+
+      // Spotify connect — register first, then Spotify OAuth
       form.addEventListener('submit', function(e) {
         e.preventDefault();
 
-        const name = document.getElementById('name').value.trim();
-        const gen = document.getElementById('generation').value;
+        var name = document.getElementById('name').value.trim();
+        var gen = document.getElementById('generation').value;
 
-        if (!name) {
-          showError('Please enter your name.');
-          return;
-        }
-        if (!gen) {
-          showError('Please select your generation.');
-          return;
-        }
+        if (!name) { showError('Please enter your name.'); return; }
+        if (!gen) { showError('Please select your generation.'); return; }
 
-        // Disable button and show loading
         connectBtn.disabled = true;
         connectBtn.innerHTML = 'Connecting...';
 
-        // Redirect to auth start
-        const authUrl = '/auth/start?' + new URLSearchParams({ name, gen }).toString();
-        console.log('[WKRP] Starting auth flow:', { name, gen, url: authUrl });
+        var authUrl = '/auth/start?' + new URLSearchParams({ name: name, gen: gen }).toString();
         window.location.href = authUrl;
       });
+
+      function register(redirectTo) {
+        var name = document.getElementById('name').value.trim();
+        var role = document.getElementById('role').value;
+        var gen = document.getElementById('generation').value;
+
+        if (!name) { showError('Please enter your name.'); return; }
+        if (!role) { showError('Please select your role.'); return; }
+        if (!gen) { showError('Please select your generation.'); return; }
+
+        fetch('/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ name: name, role: role, generation: gen }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok) {
+            window.location.href = redirectTo || data.redirect || '/catalog';
+          } else {
+            showError(data.error || 'Registration failed');
+          }
+        })
+        .catch(function(err) {
+          console.error('[WKRP] Register error:', err);
+          showError('Something went wrong. Please try again.');
+        });
+      }
 
       function showError(message) {
         errorBanner.textContent = message;

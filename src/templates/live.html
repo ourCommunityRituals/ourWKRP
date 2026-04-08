@@ -223,8 +223,9 @@
       <div id="track-list" data-testid="track-list"></div>
     </div>
 
-    <div class="footer-cta">
-      <a href="/catalog">Explore the full catalog</a>
+    <div class="footer-cta" id="footer-cta" data-testid="footer-cta">
+      <a href="/" style="color:var(--accent);text-decoration:none;font-size:0.9rem;font-weight:500;" data-testid="join-link">Join the crew — save discoveries to your library</a>
+      <div style="margin-top:8px;"><a href="/catalog" style="color:var(--text-muted);text-decoration:none;font-size:0.8rem;">or browse the catalog</a></div>
     </div>
   </div>
 
@@ -238,6 +239,17 @@
 
       var eventId = new URLSearchParams(window.location.search).get('event');
       var attributed = {};
+
+      // Check if logged in — update footer CTA
+      fetch('/auth/session/me', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok && data.contributor) {
+            var cta = document.getElementById('footer-cta');
+            cta.innerHTML = '<a href="/catalog" style="color:var(--accent);text-decoration:none;font-size:0.9rem;">Back to your catalog</a>';
+          }
+        })
+        .catch(function() {});
 
       loadLiveSet();
 

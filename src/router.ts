@@ -41,6 +41,7 @@
 import type { Env } from './types';
 import { handleHealth } from './handlers/health';
 import { handleAuthStart } from './handlers/auth-start';
+import { handleRegister } from './handlers/auth-register';
 import { handleAuthCallback } from './handlers/auth-callback';
 import { handleAuthSession } from './handlers/auth-session';
 import { handleSync } from './handlers/sync';
@@ -78,6 +79,9 @@ export async function route(request: Request, env: Env): Promise<Response> {
     response = await handleHealth(request, env);
   }
   // Auth endpoints
+  else if (method === 'POST' && path === '/auth/register') {
+    response = await handleRegister(request, env);
+  }
   else if (method === 'GET' && path === '/auth/start') {
     response = await handleAuthStart(request, env);
   }

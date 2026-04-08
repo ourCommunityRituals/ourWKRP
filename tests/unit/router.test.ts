@@ -8,6 +8,9 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('../../src/handlers/health', () => ({
   handleHealth: vi.fn(() => Response.json({ ok: true, service: 'health' })),
 }));
+vi.mock('../../src/handlers/auth-register', () => ({
+  handleRegister: vi.fn(() => Response.json({ ok: true, service: 'auth-register' })),
+}));
 vi.mock('../../src/handlers/auth-start', () => ({
   handleAuthStart: vi.fn(() => Response.json({ ok: true, service: 'auth-start' })),
 }));
@@ -90,6 +93,12 @@ describe('Router', () => {
     const res = await route(makeRequest('/health'), mockEnv);
     const body = await res.json() as { service: string };
     expect(body.service).toBe('health');
+  });
+
+  it('routes POST /auth/register to register handler', async () => {
+    const res = await route(makeRequest('/auth/register', 'POST'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('auth-register');
   });
 
   it('routes GET /auth/start to auth-start handler', async () => {
