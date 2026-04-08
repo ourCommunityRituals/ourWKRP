@@ -64,6 +64,24 @@ export async function getTokens(kv: KVNamespace, userId: string): Promise<Stored
   return JSON.parse(raw) as StoredTokens;
 }
 
+// Last.fm session keys — permanent (no expiry)
+export async function storeLastfmSession(kv: KVNamespace, contributorId: string, data: { username: string; session_key: string }): Promise<void> {
+  const key = `wkrp:lastfm:${contributorId}`;
+  await kv.put(key, JSON.stringify(data));
+  log('KV_WRITE', { key });
+}
+
+export async function getLastfmSession(kv: KVNamespace, contributorId: string): Promise<{ username: string; session_key: string } | null> {
+  const key = `wkrp:lastfm:${contributorId}`;
+  const raw = await kv.get(key);
+  if (!raw) {
+    log('KV_MISS', { key });
+    return null;
+  }
+  log('KV_HIT', { key });
+  return JSON.parse(raw) as { username: string; session_key: string };
+}
+
 // Last sync timestamp
 export async function storeLastSync(kv: KVNamespace, userId: string): Promise<void> {
   const key = `wkrp:last_sync:${userId}`;

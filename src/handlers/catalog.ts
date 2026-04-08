@@ -1,0 +1,305 @@
+/**
+ * Catalog API handlers
+ *
+ * GET /api/tracks       — filtered, searchable, paginated track list
+ * GET /api/contributors — all contributors with track counts
+ * GET /api/stats        — catalog statistics
+ * GET /api/playlists/:contributorId — contributor's playlists
+ */
+
+import type { Env } from '../types';
+import { extractBrandId } from '../lib/brand';
+import { encodeCursor, decodeCursor, parsePaginationParams } from '../lib/cursor';
+import { log } from '../lib/logger';
+
+/**
+ * GET /api/tracks
+ *
+ * Query params:
+ *   q           — full-text search (FTS5)
+ *   genre       — exact genre match
+ *   artist      — partial artist match (LIKE)
+ *   contributor — contributor ID filter
+ *   year_min    — minimum release year
+ *   year_max    — maximum release year
+ *   energy_min/energy_max       — audio feature range (0-1)
+ *   valence_min/valence_max     — audio feature range (0-1)
+ *   danceability_min/danceability_max — audio feature range (0-1)
+ *   cursor      — pagination cursor
+ *   limit       — page size (1-100, default 25)
+ */
+export async function handleGetTracks(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const brandId = extractBrandId(request);
+  const { cursor, limit } = parsePaginationParams(url);
+
+  const q = url.searchParams.get('q');
+  const genre = url.searchParams.get('genre');
+  const artist = url.searchParams.get('artist');
+  const contributorId = url.searchParams.get('contributor');
+  const yearMin = parseIntParam(url.searchParams.get('year_min'));
+  const yearMax = parseIntParam(url.searchParams.get('year_max'));
+  const energyMin = parseFloatParam(url.searchParams.get('energy_min'));
+  const energyMax = parseFloatParam(url.searchParams.get('energy_max'));
+  const valenceMin = parseFloatParam(url.searchParams.get('valence_min'));
+  const valenceMax = parseFloatParam(url.searchParams.get('valence_max'));
+  const danceabilityMin = parseFloatParam(url.searchParams.get('danceability_min'));
+  const danceabilityMax = parseFloatParam(url.searchParams.get('danceability_max'));
+
+  // Build query dynamically
+  const conditions: string[] = [];
+  const binds: (string | number)[] = [];
+
+  // Full-text search uses a subquery on FTS5
+  let fromClause: string;
+  if (q && q.trim().length > 0) {
+    const sanitized = sanitizeFtsQuery(q);
+    fromClause = `tracks t INNER JOIN tracks_fts fts ON t.rowid = fts.rowid`;
+    conditions.push('fts.tracks_fts MATCH ?');
+    binds.push(sanitized);
+  } else {
+    fromClause = 'tracks t';
+  }
+
+  // Brand scoping: filter by contributions from contributors in this brand
+  if (brandId !== 'wkrp') {
+    fromClause += ' INNER JOIN contributions c ON t.id = c.track_id INNER JOIN contributors ct ON c.contributor_id = ct.id';
+    conditions.push('ct.brand_id = ?');
+    binds.push(brandId);
+  }
+
+  if (genre) {
+    conditions.push('t.genre = ?');
+    binds.push(genre);
+  }
+  if (artist) {
+    conditions.push('t.artist LIKE ?');
+    binds.push(`%${artist}%`);
+  }
+  if (contributorId) {
+    if (brandId === 'wkrp' && !fromClause.includes('contributions')) {
+      fromClause += ' INNER JOIN contributions c ON t.id = c.track_id';
+    }
+    conditions.push('c.contributor_id = ?');
+    binds.push(contributorId);
+  }
+  if (yearMin !== null) {
+    conditions.push('t.release_year >= ?');
+    binds.push(yearMin);
+  }
+  if (yearMax !== null) {
+    conditions.push('t.release_year <= ?');
+    binds.push(yearMax);
+  }
+  if (energyMin !== null) {
+    conditions.push('t.energy >= ?');
+    binds.push(energyMin);
+  }
+  if (energyMax !== null) {
+    conditions.push('t.energy <= ?');
+    binds.push(energyMax);
+  }
+  if (valenceMin !== null) {
+    conditions.push('t.valence >= ?');
+    binds.push(valenceMin);
+  }
+  if (valenceMax !== null) {
+    conditions.push('t.valence <= ?');
+    binds.push(valenceMax);
+  }
+  if (danceabilityMin !== null) {
+    conditions.push('t.danceability >= ?');
+    binds.push(danceabilityMin);
+  }
+  if (danceabilityMax !== null) {
+    conditions.push('t.danceability <= ?');
+    binds.push(danceabilityMax);
+  }
+
+  // Exclude merged tracks
+  conditions.push('t.merged_into_id IS NULL');
+
+  // Cursor-based pagination
+  if (cursor) {
+    const cursorData = decodeCursor(cursor);
+    if (cursorData) {
+      conditions.push('t.id > ?');
+      binds.push(cursorData.id);
+    }
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // Fetch limit + 1 to detect has_more
+  const fetchLimit = limit + 1;
+  binds.push(fetchLimit);
+
+  const sql = `
+    SELECT DISTINCT t.id, t.name, t.artist, t.album, t.duration_ms,
+           t.image_url, t.energy, t.danceability, t.valence, t.tempo,
+           t.genre, t.isrc, t.release_year
+    FROM ${fromClause}
+    ${whereClause}
+    ORDER BY t.id ASC
+    LIMIT ?
+  `;
+
+  log('CATALOG_QUERY', { sql: sql.trim(), binds, brand_id: brandId });
+
+  const result = await env.WKRP_DB.prepare(sql).bind(...binds).all();
+  const rows = result.results;
+
+  const hasMore = rows.length > limit;
+  const items = hasMore ? rows.slice(0, limit) : rows;
+  const nextCursor = hasMore && items.length > 0
+    ? encodeCursor(items[items.length - 1].id as string)
+    : null;
+
+  return Response.json({
+    ok: true,
+    tracks: items,
+    cursor: nextCursor,
+    has_more: hasMore,
+  });
+}
+
+/**
+ * GET /api/contributors
+ */
+export async function handleGetContributors(request: Request, env: Env): Promise<Response> {
+  const brandId = extractBrandId(request);
+
+  const result = await env.WKRP_DB.prepare(`
+    SELECT c.id, c.name, c.generation, c.brand_id, c.role, c.status, c.created_at,
+           COUNT(DISTINCT cn.track_id) as track_count
+    FROM contributors c
+    LEFT JOIN contributions cn ON c.id = cn.contributor_id
+    WHERE c.brand_id = ? AND c.status = 'active'
+    GROUP BY c.id
+    ORDER BY c.name ASC
+  `).bind(brandId).all();
+
+  return Response.json({
+    ok: true,
+    contributors: result.results,
+  });
+}
+
+/**
+ * GET /api/playlists/:contributorId
+ */
+export async function handleGetContributorPlaylists(request: Request, env: Env, contributorId: string): Promise<Response> {
+  const result = await env.WKRP_DB.prepare(`
+    SELECT p.id, p.name, p.description, p.track_count, p.image_url,
+           p.is_curated, p.created_at
+    FROM playlists p
+    WHERE p.contributor_id = ?
+    ORDER BY p.created_at DESC
+  `).bind(contributorId).all();
+
+  return Response.json({
+    ok: true,
+    playlists: result.results,
+  });
+}
+
+/**
+ * GET /api/stats
+ */
+export async function handleGetStats(request: Request, env: Env): Promise<Response> {
+  const brandId = extractBrandId(request);
+
+  // Run queries in a batch for efficiency
+  const [tracksResult, contributorsResult, playlistsResult, genresResult, decadesResult, audioFeaturesResult] =
+    await env.WKRP_DB.batch([
+      env.WKRP_DB.prepare(
+        'SELECT COUNT(*) as count FROM tracks WHERE merged_into_id IS NULL'
+      ).bind(),
+      env.WKRP_DB.prepare(
+        "SELECT COUNT(*) as count FROM contributors WHERE brand_id = ? AND status = 'active'"
+      ).bind(brandId),
+      env.WKRP_DB.prepare(
+        'SELECT COUNT(*) as count FROM playlists WHERE brand_id = ?'
+      ).bind(brandId),
+      env.WKRP_DB.prepare(
+        `SELECT genre, COUNT(*) as count FROM tracks
+         WHERE genre IS NOT NULL AND merged_into_id IS NULL
+         GROUP BY genre ORDER BY count DESC LIMIT 10`
+      ).bind(),
+      env.WKRP_DB.prepare(
+        `SELECT (release_year / 10) * 10 as decade, COUNT(*) as count FROM tracks
+         WHERE release_year IS NOT NULL AND merged_into_id IS NULL
+         GROUP BY decade ORDER BY decade DESC LIMIT 10`
+      ).bind(),
+      env.WKRP_DB.prepare(
+        'SELECT COUNT(*) as count FROM tracks WHERE energy IS NOT NULL'
+      ).bind(),
+    ]);
+
+  const totalTracks = (tracksResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
+  const totalContributors = (contributorsResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
+  const totalPlaylists = (playlistsResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
+  const hasAudioFeatures = ((audioFeaturesResult.results[0] as Record<string, unknown>)?.count as number ?? 0) > 0;
+
+  return Response.json({
+    ok: true,
+    stats: {
+      total_tracks: totalTracks,
+      total_contributors: totalContributors,
+      total_playlists: totalPlaylists,
+      top_genres: genresResult.results,
+      top_decades: decadesResult.results,
+      has_audio_features: hasAudioFeatures,
+    },
+  });
+}
+
+/**
+ * GET /api/brands
+ */
+export async function handleGetBrands(_request: Request, env: Env): Promise<Response> {
+  const result = await env.WKRP_DB.prepare(`
+    SELECT b.id, b.name, b.subdomain, b.primary_color, b.accent_color, b.logo_url,
+           COUNT(DISTINCT c.id) as contributor_count,
+           (SELECT COUNT(*) FROM contributions cn
+            INNER JOIN contributors ct ON cn.contributor_id = ct.id
+            WHERE ct.brand_id = b.id) as track_count
+    FROM brands b
+    LEFT JOIN contributors c ON c.brand_id = b.id AND c.status = 'active'
+    GROUP BY b.id
+    ORDER BY b.name ASC
+  `).all();
+
+  return Response.json({
+    ok: true,
+    brands: result.results,
+  });
+}
+
+// --- Helpers ---
+
+function parseIntParam(value: string | null): number | null {
+  if (!value) return null;
+  const n = parseInt(value, 10);
+  return isNaN(n) ? null : n;
+}
+
+function parseFloatParam(value: string | null): number | null {
+  if (!value) return null;
+  const n = parseFloat(value);
+  return isNaN(n) ? null : Math.max(0, Math.min(1, n));
+}
+
+/**
+ * Sanitize FTS5 query to prevent injection.
+ * FTS5 has its own query syntax — strip dangerous operators.
+ */
+function sanitizeFtsQuery(query: string): string {
+  // Remove FTS5 special characters that could cause syntax errors
+  const cleaned = query.replace(/[*"():^{}[\]\\]/g, ' ').trim();
+  // Split into words and join with implicit AND
+  const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+  if (words.length === 0) return '""';
+  // Quote each word to prevent operator interpretation
+  return words.map(w => `"${w}"`).join(' ');
+}

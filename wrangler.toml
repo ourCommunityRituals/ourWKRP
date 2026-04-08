@@ -43,6 +43,9 @@ WORKER_VERSION = "0.1.0"
 SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
 SPOTIFY_REDIRECT_URI = "http://localhost:8787/auth/callback"
 APP_URL = "http://localhost:8787"
+# Last.fm — get API key at https://www.last.fm/api/account/create
+LASTFM_API_KEY = ""
+LASTFM_SHARED_SECRET = ""
 
 # KV Namespace for auth/session state
 [[kv_namespaces]]
@@ -63,7 +66,8 @@ database_id = "PLACEHOLDER_D1_STAGING"
 name = "ourwkrp-production"
 routes = [
   { pattern = "ourwkrp.com/*", zone_name = "ourwkrp.com" },
-  { pattern = "www.ourwkrp.com/*", zone_name = "ourwkrp.com" }
+  { pattern = "www.ourwkrp.com/*", zone_name = "ourwkrp.com" },
+  { pattern = "*.ourwkrp.com/*", zone_name = "ourwkrp.com" }
 ]
 
 [env.production.vars]
@@ -73,6 +77,8 @@ WORKER_VERSION = "0.1.0"
 SPOTIFY_CLIENT_ID = ""
 SPOTIFY_REDIRECT_URI = ""
 APP_URL = ""
+LASTFM_API_KEY = ""
+LASTFM_SHARED_SECRET = ""
 
 [[env.production.kv_namespaces]]
 binding = "WKRP_KV"

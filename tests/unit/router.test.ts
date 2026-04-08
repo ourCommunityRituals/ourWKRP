@@ -23,6 +23,26 @@ vi.mock('../../src/handlers/sync', () => ({
 vi.mock('../../src/handlers/pages', () => ({
   handlePages: vi.fn(() => new Response('<html></html>', { headers: { 'Content-Type': 'text/html' } })),
 }));
+vi.mock('../../src/handlers/catalog', () => ({
+  handleGetTracks: vi.fn(() => Response.json({ ok: true, service: 'catalog-tracks' })),
+  handleGetContributors: vi.fn(() => Response.json({ ok: true, service: 'catalog-contributors' })),
+  handleGetContributorPlaylists: vi.fn(() => Response.json({ ok: true, service: 'catalog-playlists' })),
+  handleGetStats: vi.fn(() => Response.json({ ok: true, service: 'catalog-stats' })),
+  handleGetBrands: vi.fn(() => Response.json({ ok: true, service: 'catalog-brands' })),
+}));
+vi.mock('../../src/handlers/playlist', () => ({
+  handleCreatePlaylist: vi.fn(() => Response.json({ ok: true, service: 'playlist-create' })),
+  handleGetPlaylist: vi.fn(() => Response.json({ ok: true, service: 'playlist-get' })),
+  handleAddPlaylistTracks: vi.fn(() => Response.json({ ok: true, service: 'playlist-add-tracks' })),
+  handleRemovePlaylistTracks: vi.fn(() => Response.json({ ok: true, service: 'playlist-remove-tracks' })),
+  handleExportPlaylist: vi.fn(() => Response.json({ ok: true, service: 'playlist-export' })),
+}));
+vi.mock('../../src/handlers/lastfm', () => ({
+  handleLastfmAuthStart: vi.fn(() => Response.json({ ok: true, service: 'lastfm-auth-start' })),
+  handleLastfmAuthCallback: vi.fn(() => Response.json({ ok: true, service: 'lastfm-auth-callback' })),
+  handleLastfmSync: vi.fn(() => Response.json({ ok: true, service: 'lastfm-sync' })),
+  handleLastfmStatus: vi.fn(() => Response.json({ ok: true, service: 'lastfm-status' })),
+}));
 
 import { route } from '../../src/router';
 import type { Env } from '../../src/types';
@@ -35,6 +55,8 @@ const mockEnv: Env = {
   SPOTIFY_CLIENT_ID: 'test-client-id',
   SPOTIFY_REDIRECT_URI: 'http://localhost:8787/auth/callback',
   APP_URL: 'http://localhost:8787',
+  LASTFM_API_KEY: 'test-lastfm-key',
+  LASTFM_SHARED_SECRET: 'test-lastfm-secret',
 };
 
 function makeRequest(path: string, method = 'GET', origin?: string): Request {
@@ -115,5 +137,86 @@ describe('Router', () => {
     const res = await route(makeRequest('/health'), mockEnv);
     expect(res.headers.get('X-Frame-Options')).toBe('DENY');
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+  });
+
+  // --- Catalog API routes ---
+  it('routes GET /api/tracks to catalog handler', async () => {
+    const res = await route(makeRequest('/api/tracks'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('catalog-tracks');
+  });
+
+  it('routes GET /api/contributors to catalog handler', async () => {
+    const res = await route(makeRequest('/api/contributors'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('catalog-contributors');
+  });
+
+  it('routes GET /api/stats to catalog handler', async () => {
+    const res = await route(makeRequest('/api/stats'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('catalog-stats');
+  });
+
+  it('routes GET /api/brands to catalog handler', async () => {
+    const res = await route(makeRequest('/api/brands'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('catalog-brands');
+  });
+
+  // --- Playlist routes ---
+  it('routes POST /api/playlists to playlist create handler', async () => {
+    const res = await route(makeRequest('/api/playlists', 'POST'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('playlist-create');
+  });
+
+  it('routes GET /api/playlists/:id to playlist get handler', async () => {
+    const res = await route(makeRequest('/api/playlists/12345678-1234-1234-1234-123456789012'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('playlist-get');
+  });
+
+  it('routes POST /api/playlists/:id/tracks to add tracks handler', async () => {
+    const res = await route(makeRequest('/api/playlists/12345678-1234-1234-1234-123456789012/tracks', 'POST'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('playlist-add-tracks');
+  });
+
+  it('routes DELETE /api/playlists/:id/tracks to remove tracks handler', async () => {
+    const res = await route(makeRequest('/api/playlists/12345678-1234-1234-1234-123456789012/tracks', 'DELETE'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('playlist-remove-tracks');
+  });
+
+  it('routes GET /api/playlists/:id/export to export handler', async () => {
+    const res = await route(makeRequest('/api/playlists/12345678-1234-1234-1234-123456789012/export'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('playlist-export');
+  });
+
+  // --- Last.fm routes ---
+  it('routes GET /auth/lastfm/start to lastfm auth handler', async () => {
+    const res = await route(makeRequest('/auth/lastfm/start'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('lastfm-auth-start');
+  });
+
+  it('routes GET /auth/lastfm/callback to lastfm callback handler', async () => {
+    const res = await route(makeRequest('/auth/lastfm/callback?token=abc'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('lastfm-auth-callback');
+  });
+
+  it('routes POST /lastfm/sync/:userId to lastfm sync handler', async () => {
+    const res = await route(makeRequest('/lastfm/sync/user123', 'POST'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('lastfm-sync');
+  });
+
+  it('routes GET /lastfm/status/:userId to lastfm status handler', async () => {
+    const res = await route(makeRequest('/lastfm/status/user123'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('lastfm-status');
   });
 });

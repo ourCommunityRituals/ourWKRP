@@ -13,6 +13,8 @@ export interface Env {
   SPOTIFY_CLIENT_ID: string;
   SPOTIFY_REDIRECT_URI: string;
   APP_URL: string;
+  LASTFM_API_KEY: string;
+  LASTFM_SHARED_SECRET: string;
 }
 
 export type ContributorRole = 'founder' | 'curator' | 'contributor' | 'dj';
@@ -97,6 +99,31 @@ export interface Contribution {
   first_listened_at: string | null;
   added_at: string | null;
   created_at: string;
+}
+
+export interface Brand {
+  id: string;
+  name: string;
+  subdomain: string;
+  primary_color: string;
+  accent_color: string;
+  logo_url: string | null;
+  created_at: string;
+}
+
+export interface CursorPage<T> {
+  items: T[];
+  cursor: string | null;
+  has_more: boolean;
+}
+
+export interface CatalogStats {
+  total_tracks: number;
+  total_contributors: number;
+  total_playlists: number;
+  top_genres: Array<{ genre: string; count: number }>;
+  top_decades: Array<{ decade: number; count: number }>;
+  has_audio_features: boolean;
 }
 
 export interface ImportResult {
@@ -199,4 +226,38 @@ export interface SpotifyTokenResponse {
   scope: string;
   expires_in: number;
   refresh_token?: string;
+}
+
+// Last.fm API response types
+export interface LastfmUser {
+  name: string;
+  realname: string;
+  url: string;
+  playcount: string;
+  registered: { unixtime: string };
+  image: Array<{ '#text': string; size: string }>;
+}
+
+export interface LastfmTrack {
+  name: string;
+  artist: { '#text'?: string; name?: string; mbid?: string };
+  album: { '#text'?: string; mbid?: string };
+  mbid: string;
+  url: string;
+  date?: { uts: string; '#text': string };
+  image?: Array<{ '#text': string; size: string }>;
+  playcount?: string;
+  duration?: string;
+}
+
+export interface LastfmTag {
+  name: string;
+  count: number;
+  url: string;
+}
+
+export interface LastfmSession {
+  name: string;
+  key: string;
+  subscriber: number;
 }
