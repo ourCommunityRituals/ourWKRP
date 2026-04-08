@@ -45,7 +45,7 @@ export async function handleAuthSession(request: Request, env: Env): Promise<Res
 
   // Fetch contributor details from D1
   const contributor = await env.WKRP_DB.prepare(
-    'SELECT id, name, generation, brand_id, spotify_display_name, last_sync_at FROM contributors WHERE id = ?'
+    'SELECT id, name, generation, brand_id, role, spotify_display_name, last_sync_at FROM contributors WHERE id = ?'
   ).bind(session.userId).first();
 
   if (!contributor) {
@@ -65,6 +65,7 @@ export async function handleAuthSession(request: Request, env: Env): Promise<Res
       name: contributor.name,
       generation: contributor.generation,
       brand_id: contributor.brand_id,
+      role: contributor.role,
       spotify_display_name: contributor.spotify_display_name,
       last_sync_at: contributor.last_sync_at,
     },
