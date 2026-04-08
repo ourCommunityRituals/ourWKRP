@@ -293,7 +293,7 @@
 ---
 
 ### WKRP-20: Frontend Identity Overhaul — 5-Layer Brand Alignment
-**Status:** 🚧 IN PROGRESS
+**Status:** ✅ DONE
 **Prerequisite:** WKRP-17, WKRP-18, WKRP-19
 **Sprint:** 3
 
@@ -308,4 +308,48 @@
 - [ ] OurRecordStories link/placeholder in profile and nav
 - [ ] Every screen optimized for who's looking at it (role-aware)
 - [ ] Smooth flow: connect → catalog → create → share feels effortless
-- [ ] All templates updated: connect, catalog, create, import, profile
+- [x] All templates updated: connect, catalog, create, import, profile
+
+---
+
+### WKRP-21: OurRecordStories Integration
+**Status:** 📋 BACKLOG
+**Prerequisite:** WKRP-15
+**Sprint:** 4
+
+**Context:**
+OurRecordStories is the oral history engine. Five minutes, one side of a record, why does it matter to you. Curators and contributors tell the stories. The crew — Matt, P, G, JS, M, the kids, the partners — are the founding curatorial voice with zero genre blind spots. Stories are linked to tracks and attributed to the person who told them.
+
+**PO Acceptance Criteria:**
+- [ ] Contributor profile shows "Stories" section with linked record stories
+- [ ] `GET /api/contributors/:id/stories` — returns stories by this contributor
+- [ ] Story card: album art, track name, contributor name, duration, play button
+- [ ] Stories linked to tracks in D1 via `stories` table (track_id, contributor_id, audio_url, duration_s, recorded_at)
+- [ ] D1 migration: `stories` table
+- [ ] `POST /api/stories` — upload a story (audio file + track_id, founder/curator only)
+- [ ] Story playback: inline audio player on profile page (HTML5 audio)
+- [ ] Stories appear on track cards in catalog: "1 story" badge, tap to listen
+- [ ] OurRecordStories branding: "Tell your record story" CTA on profile
+- [ ] Navigation: "Stories" link in bottom nav when stories exist for the catalog
+- [ ] Cross-product link: when OurRecordStories has its own app, deep link to it
+
+---
+
+### WKRP-22: DJ Attribution + QR Scan
+**Status:** 📋 BACKLOG
+**Prerequisite:** WKRP-15
+**Sprint:** 4
+
+**Context:**
+QR codes displayed at the set. When you hear a song that hits, you scan and attribute it. That attribution gets tracked. Over time those stats become the DJ's undeniable influence record — a portfolio of human taste that no algorithm can manufacture or claim. The DJ who introduced you to something gets credit for it permanently.
+
+**PO Acceptance Criteria:**
+- [ ] `GET /dj/:id/qr` — generates a QR code linking to the DJ's live set page
+- [ ] `GET /dj/:id/live` — mobile page: "What's playing?" → tap to attribute
+- [ ] D1 migration: `attributions` table (dj_id, listener_id, track_id, event_id, attributed_at)
+- [ ] `POST /api/attributions` — record that a listener discovered a track via this DJ
+- [ ] DJ profile "Influence" section: total attributions, unique listeners, top discovered tracks
+- [ ] Attribution stats: "X people discovered Y tracks through this DJ"
+- [ ] Integration with OurSharedEvents: `event_id` links attribution to specific set/venue
+- [ ] QR code includes event context when scanned at an OSE event
+- [ ] Sponsor data layer: attribution counts as verified engagement for sponsor reporting
