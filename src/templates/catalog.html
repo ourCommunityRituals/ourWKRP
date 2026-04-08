@@ -494,101 +494,158 @@
     (function() {
       'use strict';
 
-      let allTracks = [];
-      let contributor = null;
+      var currentCursor = null;
+      var isLoading = false;
 
-      // Session is in HttpOnly cookie — no localStorage, no URL params
       init();
 
       async function init() {
         try {
-          updateLoading('Verifying session...');
-          console.log('[WKRP] Checking session via cookie...');
+          document.getElementById('loading-text').textContent = 'Loading catalog...';
 
-          // Fetch session/contributor data (cookie sent automatically)
-          const sessionRes = await fetch('/auth/session/me', { credentials: 'same-origin' });
-          const sessionData = await sessionRes.json();
+          // Try to load session info for badge (non-blocking)
+          fetch('/auth/session/me', { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data.ok && data.contributor) {
+                document.getElementById('user-badge').textContent = data.contributor.name;
+              }
+            })
+            .catch(function() {});
 
-          if (!sessionData.ok) {
-            console.error('[WKRP] Session invalid:', sessionData.error);
-            window.location.href = '/?error=invalid_state';
-            return;
-          }
+          // Load stats
+          fetch('/api/stats')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data.ok) {
+                document.getElementById('sync-status').textContent =
+                  data.stats.total_tracks + ' tracks \u00B7 ' +
+                  data.stats.total_contributors + ' contributors';
+              }
+            })
+            .catch(function() {});
 
-          contributor = sessionData.contributor;
-          console.log('[WKRP] Contributor loaded:', contributor.name, contributor.generation);
-          updateLoading(contributor.name + ' connected \u2014 syncing library...');
-
-          // Trigger sync (cookie authenticates the request)
-          updateSync('Pulling playlists from Spotify...');
-          console.log('[WKRP] Starting sync for:', contributor.id);
-
-          const syncRes = await fetch('/spotify/sync/' + contributor.id, {
-            method: 'POST',
-            credentials: 'same-origin',
-          });
-          const syncData = await syncRes.json();
-
-          if (syncData.ok) {
-            console.log('[WKRP] Sync complete:', syncData.sync);
-            updateSync(
-              syncData.sync.playlists_synced + ' playlists, ' +
-              syncData.sync.tracks_synced + ' tracks synced'
-            );
-          } else {
-            console.warn('[WKRP] Sync warning:', syncData.error);
-          }
-
-          // Fetch catalog from D1 via session
-          await loadCatalog();
+          // Load initial tracks
+          await fetchTracks();
 
         } catch (err) {
           console.error('[WKRP] Init error:', err);
-          updateLoading('Something went wrong. Please try again.');
+          document.getElementById('loading-text').textContent = 'Something went wrong. Please try again.';
         }
       }
 
-      async function loadCatalog() {
-        // For now, we'll fetch tracks from the sync endpoint response
-        // In production, this would be a separate /api/tracks endpoint
-        // Using a simple approach: the catalog page makes a lightweight query
-        updateLoading('Loading catalog...');
+      function buildApiUrl() {
+        var params = new URLSearchParams();
+        var query = searchInput.value.trim();
+        if (query) params.set('q', query);
 
-        // Show catalog view
-        document.getElementById('loading-view').classList.add('hidden');
-        document.getElementById('catalog-view').classList.remove('hidden');
-        document.getElementById('user-badge').textContent = contributor.name;
+        var activeFilter = document.querySelector('.filter-chip.active:not([data-filter="advanced"])');
+        var filter = activeFilter ? activeFilter.dataset.filter : 'all';
 
-        // The tracks would come from a dedicated API endpoint
-        // For MVP, we display sync confirmation and invite browsing
-        document.getElementById('track-count').textContent = 'Catalog loaded. Use search and filters to browse.';
-        console.log('[WKRP] Catalog view ready');
+        // Preset filter chips map to API params
+        if (filter === 'high-energy') params.set('energy_min', '0.7');
+        else if (filter === 'chill') { params.set('energy_max', '0.4'); params.set('valence_max', '0.5'); }
+        else if (filter === 'happy') params.set('valence_min', '0.7');
+        else if (filter === 'danceable') params.set('danceability_min', '0.7');
+        else if (filter === 'acoustic') params.set('energy_max', '0.3');
+
+        // Range sliders (only apply if advanced filters visible and value > 0)
+        var rangeVisible = document.getElementById('range-filters').classList.contains('visible');
+        if (rangeVisible) {
+          var energy = parseInt(document.getElementById('energy-range').value, 10);
+          var valence = parseInt(document.getElementById('valence-range').value, 10);
+          var dance = parseInt(document.getElementById('dance-range').value, 10);
+          if (energy > 0) params.set('energy_min', (energy / 100).toFixed(2));
+          if (valence > 0) params.set('valence_min', (valence / 100).toFixed(2));
+          if (dance > 0) params.set('danceability_min', (dance / 100).toFixed(2));
+        }
+
+        if (currentCursor) params.set('cursor', currentCursor);
+
+        return '/api/tracks?' + params.toString();
       }
 
-      function updateLoading(text) {
-        document.getElementById('loading-text').textContent = text;
-      }
+      async function fetchTracks(append) {
+        if (isLoading) return;
+        isLoading = true;
 
-      function updateSync(text) {
-        document.getElementById('sync-status').textContent = text;
+        if (!append) {
+          currentCursor = null;
+          document.getElementById('track-list').innerHTML =
+            '<div class="track-count" id="track-count" data-testid="track-count"></div>';
+        }
+
+        try {
+          var res = await fetch(buildApiUrl());
+          var data = await res.json();
+
+          if (!data.ok) {
+            console.error('[WKRP] API error:', data.error);
+            isLoading = false;
+            return;
+          }
+
+          // Show catalog view
+          document.getElementById('loading-view').classList.add('hidden');
+          document.getElementById('catalog-view').classList.remove('hidden');
+
+          var trackList = document.getElementById('track-list');
+
+          if (!append && data.tracks.length === 0) {
+            document.getElementById('track-count').textContent = 'No tracks found.';
+            // Remove load-more if present
+            var oldBtn = document.getElementById('load-more-btn');
+            if (oldBtn) oldBtn.remove();
+            isLoading = false;
+            return;
+          }
+
+          if (!append) {
+            document.getElementById('track-count').textContent = '';
+          }
+
+          // Render tracks
+          var html = data.tracks.map(renderTrack).join('');
+          if (append) {
+            var oldLoadMore = document.getElementById('load-more-btn');
+            if (oldLoadMore) oldLoadMore.remove();
+          }
+          trackList.insertAdjacentHTML('beforeend', html);
+
+          // Load More button
+          if (data.has_more && data.cursor) {
+            currentCursor = data.cursor;
+            var loadMoreHtml = '<button id="load-more-btn" class="filter-chip" ' +
+              'style="display:block;margin:16px auto;padding:12px 32px;min-height:48px;" ' +
+              'data-testid="load-more-btn">Load More</button>';
+            trackList.insertAdjacentHTML('beforeend', loadMoreHtml);
+            document.getElementById('load-more-btn').addEventListener('click', function() {
+              fetchTracks(true);
+            });
+          } else {
+            currentCursor = null;
+          }
+        } catch (err) {
+          console.error('[WKRP] Fetch error:', err);
+        }
+
+        isLoading = false;
       }
 
       // --- Search ---
-      const searchInput = document.getElementById('search-input');
-      let searchTimeout;
+      var searchInput = document.getElementById('search-input');
+      var searchTimeout;
       searchInput.addEventListener('input', function() {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(function() {
-          const query = searchInput.value.toLowerCase().trim();
-          console.log('[WKRP] Search:', query);
-          filterTracks();
+          fetchTracks();
         }, 300);
       });
 
       // --- Filter chips ---
       document.querySelectorAll('.filter-chip').forEach(function(chip) {
         chip.addEventListener('click', function() {
-          const filter = this.dataset.filter;
+          var filter = this.dataset.filter;
 
           if (filter === 'advanced') {
             document.getElementById('range-filters').classList.toggle('visible');
@@ -600,32 +657,23 @@
             c.classList.remove('active');
           });
           this.classList.add('active');
-          console.log('[WKRP] Filter:', filter);
-          filterTracks();
+          fetchTracks();
         });
       });
 
       // --- Range sliders ---
+      var rangeTimeout;
       ['energy', 'valence', 'dance'].forEach(function(name) {
         var range = document.getElementById(name + '-range');
         var value = document.getElementById(name + '-value');
         if (range) {
           range.addEventListener('input', function() {
             value.textContent = this.value;
-            filterTracks();
+            clearTimeout(rangeTimeout);
+            rangeTimeout = setTimeout(function() { fetchTracks(); }, 300);
           });
         }
       });
-
-      function filterTracks() {
-        // Filter implementation for when tracks are loaded
-        var activeFilter = document.querySelector('.filter-chip.active:not([data-filter="advanced"])');
-        var filter = activeFilter ? activeFilter.dataset.filter : 'all';
-        var query = searchInput.value.toLowerCase().trim();
-
-        console.log('[WKRP] Applying filter:', { filter: filter, query: query });
-        // Track filtering logic will be connected to the API
-      }
 
       function renderTrack(track) {
         var energyLevel = track.energy > 0.7 ? 'high' : '';

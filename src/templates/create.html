@@ -308,9 +308,25 @@
       </div>
 
       <button type="submit" class="btn btn-create" id="create-btn" data-testid="btn-create">
-        Create on Spotify
+        Create Playlist
       </button>
     </form>
+
+    <!-- Track search + add (shown after playlist created) -->
+    <div id="track-add-section" class="section" style="display:none;" data-testid="track-add-section">
+      <div class="section-title">Add Tracks</div>
+      <input type="text" id="track-search" placeholder="Search tracks to add..." data-testid="track-search" style="margin-bottom:12px;">
+      <div id="search-results" data-testid="search-results"></div>
+    </div>
+
+    <!-- Playlist track list -->
+    <div id="playlist-tracks-section" class="section" style="display:none;" data-testid="playlist-tracks-section">
+      <div class="section-title">Playlist Tracks (<span id="playlist-track-count">0</span>)</div>
+      <div id="playlist-track-list" data-testid="playlist-track-list"></div>
+      <button class="btn btn-create" id="export-btn" style="margin-top:16px;background:var(--surface);color:var(--text);border:1px solid var(--border);" data-testid="export-btn">
+        Export for Apple Music
+      </button>
+    </div>
   </div>
 
   <nav class="bottom-nav">
@@ -328,11 +344,15 @@
     (function() {
       'use strict';
 
-      var session = localStorage.getItem('wkrp_session');
-      if (!session) {
-        window.location.href = '/';
-        return;
-      }
+      var playlistId = null;
+
+      // Auth check via cookie
+      fetch('/auth/session/me', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.ok) window.location.href = '/';
+        })
+        .catch(function() { window.location.href = '/'; });
 
       // Range slider value updates
       ['energy', 'valence', 'dance', 'tempo'].forEach(function(name) {
@@ -341,12 +361,12 @@
         if (range && value) {
           range.addEventListener('input', function() {
             value.textContent = this.value;
-            console.log('[WKRP] Create filter:', name, this.value);
           });
         }
       });
 
-      document.getElementById('create-form').addEventListener('submit', function(e) {
+      // Create playlist
+      document.getElementById('create-form').addEventListener('submit', async function(e) {
         e.preventDefault();
 
         var name = document.getElementById('playlist-name').value.trim();
@@ -356,24 +376,158 @@
         btn.disabled = true;
         btn.textContent = 'Creating...';
 
-        console.log('[WKRP] Creating playlist:', {
-          name: name,
-          desc: document.getElementById('playlist-desc').value,
-          energy: document.getElementById('min-energy').value,
-          valence: document.getElementById('min-valence').value,
-          dance: document.getElementById('min-dance').value,
-          tempo: document.getElementById('min-tempo').value,
-          public: document.getElementById('is-public').checked,
-        });
+        try {
+          var res = await fetch('/api/playlists', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+              name: name,
+              description: document.getElementById('playlist-desc').value.trim() || null,
+            }),
+          });
+          var data = await res.json();
 
-        // Playlist creation will call /spotify/create-playlist/:userId
-        // For MVP, log the intent
-        setTimeout(function() {
-          btn.textContent = 'Create on Spotify';
+          if (!data.ok) {
+            alert(data.error || 'Failed to create playlist');
+            btn.disabled = false;
+            btn.textContent = 'Create Playlist';
+            return;
+          }
+
+          playlistId = data.playlist.id;
+          btn.textContent = 'Playlist Created';
+
+          // Show track add section
+          document.getElementById('track-add-section').style.display = 'block';
+          document.getElementById('playlist-tracks-section').style.display = 'block';
+          document.getElementById('create-form').style.display = 'none';
+
+        } catch (err) {
+          console.error('[WKRP] Create error:', err);
           btn.disabled = false;
-          alert('Playlist creation will be wired to the Spotify API in the next iteration.');
-        }, 1000);
+          btn.textContent = 'Create Playlist';
+        }
       });
+
+      // Track search
+      var trackSearchInput = document.getElementById('track-search');
+      var searchTimeout;
+      if (trackSearchInput) {
+        trackSearchInput.addEventListener('input', function() {
+          clearTimeout(searchTimeout);
+          searchTimeout = setTimeout(async function() {
+            var q = trackSearchInput.value.trim();
+            if (q.length < 2) {
+              document.getElementById('search-results').innerHTML = '';
+              return;
+            }
+            try {
+              var res = await fetch('/api/tracks?q=' + encodeURIComponent(q) + '&limit=10');
+              var data = await res.json();
+              if (data.ok) {
+                renderSearchResults(data.tracks);
+              }
+            } catch (err) {
+              console.error('[WKRP] Search error:', err);
+            }
+          }, 300);
+        });
+      }
+
+      function renderSearchResults(tracks) {
+        var container = document.getElementById('search-results');
+        if (tracks.length === 0) {
+          container.innerHTML = '<div style="color:var(--text-muted);padding:12px;text-align:center;">No tracks found</div>';
+          return;
+        }
+        container.innerHTML = tracks.map(function(t) {
+          return '<div style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;cursor:pointer;min-height:48px;" ' +
+            'data-track-id="' + escapeHtml(t.id) + '" data-testid="search-result">' +
+            '<div style="flex:1;min-width:0;">' +
+              '<div style="font-size:0.9rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.name) + '</div>' +
+              '<div style="font-size:0.8rem;color:var(--text-muted);">' + escapeHtml(t.artist) + '</div>' +
+            '</div>' +
+            '<button style="background:var(--accent);color:#000;border:none;border-radius:20px;padding:6px 14px;font-size:0.75rem;font-weight:600;cursor:pointer;min-height:44px;" ' +
+              'data-testid="add-track-btn">Add</button>' +
+          '</div>';
+        }).join('');
+
+        // Add click handlers
+        container.querySelectorAll('[data-track-id]').forEach(function(row) {
+          row.querySelector('button').addEventListener('click', function(e) {
+            e.stopPropagation();
+            addTrackToPlaylist(row.dataset.trackId);
+            row.querySelector('button').textContent = 'Added';
+            row.querySelector('button').disabled = true;
+            row.querySelector('button').style.opacity = '0.5';
+          });
+        });
+      }
+
+      async function addTrackToPlaylist(trackId) {
+        if (!playlistId) return;
+        try {
+          await fetch('/api/playlists/' + playlistId + '/tracks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ track_ids: [trackId] }),
+          });
+          loadPlaylistTracks();
+        } catch (err) {
+          console.error('[WKRP] Add track error:', err);
+        }
+      }
+
+      async function loadPlaylistTracks() {
+        if (!playlistId) return;
+        try {
+          var res = await fetch('/api/playlists/' + playlistId);
+          var data = await res.json();
+          if (data.ok) {
+            var tracks = data.playlist.tracks || [];
+            document.getElementById('playlist-track-count').textContent = tracks.length;
+            document.getElementById('playlist-track-list').innerHTML = tracks.map(function(t) {
+              return '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">' +
+                '<div style="flex:1;min-width:0;">' +
+                  '<div style="font-size:0.85rem;">' + escapeHtml(t.name) + '</div>' +
+                  '<div style="font-size:0.75rem;color:var(--text-muted);">' + escapeHtml(t.artist) + '</div>' +
+                '</div>' +
+              '</div>';
+            }).join('');
+          }
+        } catch (err) {
+          console.error('[WKRP] Load playlist error:', err);
+        }
+      }
+
+      // Export
+      document.getElementById('export-btn').addEventListener('click', async function() {
+        if (!playlistId) return;
+        try {
+          var res = await fetch('/api/playlists/' + playlistId + '/export');
+          var data = await res.json();
+          if (data.ok) {
+            var blob = new Blob([JSON.stringify(data.export, null, 2)], { type: 'application/json' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = (data.export.playlist_name || 'playlist') + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+          }
+        } catch (err) {
+          console.error('[WKRP] Export error:', err);
+        }
+      });
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
     })();
   </script>
 </body>

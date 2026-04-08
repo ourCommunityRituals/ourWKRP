@@ -241,3 +241,51 @@
 - [ ] MusicKit JS on frontend for user authorization (catalog.html or dedicated page)
 - [ ] MUT stored in KV (`wkrp:apple_token:{userId}`) with refresh logic
 - [ ] Tests: auth flow, sync, ISRC matching, profile source display
+
+---
+
+### WKRP-17: Wire Catalog UI to Track API
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-6
+**Sprint:** 3
+
+**PO Acceptance Criteria:**
+- [x] catalog.html fetches tracks from `GET /api/tracks` on load
+- [x] Search input calls API with `?q=` param (debounced 300ms)
+- [x] Filter chips map to API params (energy_min, valence_min, danceability_min)
+- [x] Range sliders send exact values to API
+- [x] Tracks rendered from API response with album art, genre tags, energy badges
+- [x] Cursor pagination: "Load More" button when `has_more` is true
+- [x] Empty state when no tracks match
+- [x] Stats bar from `GET /api/stats` (total tracks, contributors)
+- [x] No Spotify sync call on page load (removed)
+
+---
+
+### WKRP-18: Wire Playlist Builder UI
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-7, WKRP-17
+**Sprint:** 3
+
+**PO Acceptance Criteria:**
+- [x] Auth via cookie (remove localStorage check)
+- [x] Create playlist via `POST /api/playlists`
+- [x] Track search in create flow via `GET /api/tracks?q=`
+- [x] Add/remove tracks from playlist via API
+- [x] Show playlist track list after creation
+- [x] Export button calls `GET /api/playlists/:id/export`
+- [x] Button text: "Create Playlist" (not "Create on Spotify")
+
+---
+
+### WKRP-19: Connect Flow — CSV-First Model
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-14
+**Sprint:** 3
+
+**PO Acceptance Criteria:**
+- [x] Keep Spotify OAuth option (for first 5 contributors)
+- [x] Add "Or import your library via CSV" link to `/import`
+- [x] Add note: "Spotify limited to 5 users in dev mode"
+- [x] "Browse the catalog" link for anonymous browsing
+- [x] Update tagline to reflect community-first model
