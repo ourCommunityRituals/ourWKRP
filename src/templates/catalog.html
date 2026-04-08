@@ -78,6 +78,17 @@
       border-color: var(--accent);
     }
 
+    .search-bar.loading {
+      background-image: linear-gradient(90deg, var(--surface) 0%, var(--surface-hover) 50%, var(--surface) 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
     .search-bar::placeholder {
       color: var(--text-muted);
     }
@@ -302,6 +313,120 @@
 
     .hidden { display: none; }
 
+    /* --- Sort + View Controls --- */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 20px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .sort-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.75rem;
+      padding: 6px 10px;
+      font-family: var(--font);
+      outline: none;
+      -webkit-appearance: none;
+    }
+
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+    }
+
+    .view-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-family: var(--font);
+      min-height: 32px;
+      transition: all 0.15s;
+    }
+
+    .view-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* --- Track Detail Expand --- */
+    .track-detail {
+      display: none;
+      padding: 8px 10px 12px 70px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      gap: 8px;
+    }
+
+    .track-detail.open {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    .detail-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 0.65rem;
+    }
+
+    /* --- Grid View --- */
+    .track-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+      padding: 0 20px 100px;
+    }
+
+    .grid-card {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    .grid-card:hover {
+      transform: scale(1.02);
+    }
+
+    .grid-art {
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--border);
+      object-fit: cover;
+    }
+
+    .grid-info {
+      padding: 10px;
+    }
+
+    .grid-name {
+      font-size: 0.8rem;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .grid-artist {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* --- Genre Tag + Discovery Links --- */
     .genre-tag {
       display: inline-block;
@@ -397,6 +522,14 @@
       color: var(--text-muted);
     }
 
+    .genre-link::after {
+      content: '↗';
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-left: auto;
+      padding-left: 8px;
+    }
+
     .genre-filter-btn {
       width: 100%;
       padding: 14px;
@@ -465,6 +598,23 @@
       </div>
     </div>
 
+    <div class="toolbar" data-testid="toolbar">
+      <div>
+        <select class="sort-select" id="sort-select" data-testid="sort-select">
+          <option value="default">Sort: Default</option>
+          <option value="artist">Sort: Artist A-Z</option>
+          <option value="title">Sort: Title A-Z</option>
+          <option value="year-desc">Sort: Newest First</option>
+          <option value="year-asc">Sort: Oldest First</option>
+          <option value="energy-desc">Sort: Most Energy</option>
+        </select>
+      </div>
+      <div class="view-toggle">
+        <button class="view-btn active" id="view-list" data-testid="view-list">List</button>
+        <button class="view-btn" id="view-grid" data-testid="view-grid">Grid</button>
+      </div>
+    </div>
+
     <div class="track-list" id="track-list" data-testid="track-list">
       <div class="track-count" id="track-count" data-testid="track-count"></div>
       <!-- Tracks rendered here -->
@@ -500,6 +650,8 @@
 
       var currentCursor = null;
       var isLoading = false;
+      var currentView = 'list';
+      var allLoadedTracks = [];
 
       init();
 
@@ -586,6 +738,7 @@
       async function fetchTracks(append) {
         if (isLoading) return;
         isLoading = true;
+        searchInput.classList.add('loading');
 
         if (!append) {
           currentCursor = null;
@@ -648,6 +801,7 @@
         }
 
         isLoading = false;
+        searchInput.classList.remove('loading');
       }
 
       // --- Search ---

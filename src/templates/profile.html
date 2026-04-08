@@ -317,6 +317,7 @@
     .genre-link-info { flex: 1; }
     .genre-link-label { font-weight: 500; }
     .genre-link-desc { font-size: 0.75rem; color: var(--text-muted); }
+    .genre-link::after { content: '↗'; font-size: 0.8rem; color: var(--text-muted); margin-left: auto; padding-left: 8px; }
 
     /* --- Bottom Nav --- */
     .bottom-nav {
@@ -418,14 +419,18 @@
       <div id="brand-list" data-testid="brand-list"></div>
     </div>
 
-    <nav class="bottom-nav" data-testid="bottom-nav">
+    <nav class="bottom-nav" id="bottom-nav" data-testid="bottom-nav">
       <a href="/catalog" class="nav-item" data-testid="nav-catalog">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>
         Catalog
       </a>
       <a href="/create" class="nav-item" data-testid="nav-create">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         Create
+      </a>
+      <a href="/import" class="nav-item" data-testid="nav-import">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        Import
       </a>
     </nav>
   </div>
@@ -440,6 +445,21 @@
   <script>
     (function() {
       'use strict';
+
+      // Add DJ dashboard link if viewer is a DJ
+      fetch('/auth/session/me', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok && data.contributor && data.contributor.role === 'dj') {
+            var nav = document.getElementById('bottom-nav');
+            var dashLink = document.createElement('a');
+            dashLink.href = '/dashboard';
+            dashLink.className = 'nav-item';
+            dashLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3"/></svg>Dashboard';
+            nav.appendChild(dashLink);
+          }
+        })
+        .catch(function() {});
 
       var contributorId = window.location.pathname.split('/contributor/')[1];
       if (!contributorId) {

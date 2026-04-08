@@ -253,6 +253,7 @@
           liveSetId = null;
           setLiveState(false);
           document.getElementById('current-set-tracks').innerHTML = '';
+          document.getElementById('venue-input').value = '';
           await loadSetHistory();
         } catch (e) { console.error(e); }
       });
