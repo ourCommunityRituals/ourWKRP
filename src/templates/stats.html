@@ -66,6 +66,16 @@
       <div class="bar-chart" id="top-decades" data-testid="top-decades"></div>
     </div>
 
+    <div class="section" data-testid="layers-section">
+      <div class="section-title">Catalog Layers</div>
+      <div id="layer-bars" data-testid="layer-bars" class="bar-chart"></div>
+    </div>
+
+    <div class="section" data-testid="mood-section">
+      <div class="section-title">Catalog Mood</div>
+      <div id="mood-grid" data-testid="mood-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;"></div>
+    </div>
+
     <div class="section" data-testid="top-contributors-section">
       <div class="section-title">Most Active Contributors</div>
       <div id="top-contributors" data-testid="top-contributors"></div>
@@ -101,8 +111,58 @@
           renderContributors(contribData.contributors || []);
         }
 
-        // Attribution count — not in /api/stats, show 0 until data exists
         document.getElementById('total-attributions').textContent = '0';
+
+        // Load layer breakdown
+        fetch('/api/layers').then(function(r) { return r.json(); }).then(function(ld) {
+          if (ld.ok) {
+            var l = ld.layers;
+            var layerMax = Math.max(l.dj, l.crew, l.community, 1);
+            var layers = [
+              { label: 'DJ Sets', count: l.dj, color: 'var(--accent)' },
+              { label: 'Crew (Founders + Curators)', count: l.crew, color: '#7B8794' },
+              { label: 'Community', count: l.community, color: '#4A5568' },
+            ];
+            document.getElementById('layer-bars').innerHTML = layers.map(function(item) {
+              var pct = Math.round((item.count / layerMax) * 100);
+              return '<div class="bar-row">' +
+                '<div class="bar-label">' + item.label + '</div>' +
+                '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;background:' + item.color + '"></div></div>' +
+                '<div class="bar-count">' + item.count + '</div></div>';
+            }).join('');
+          }
+        }).catch(function() {});
+
+        // Load mood data from a sample of tracks
+        fetch('/api/tracks?limit=100').then(function(r) { return r.json(); }).then(function(td) {
+          if (td.ok && td.tracks.length > 0) {
+            var tracks = td.tracks;
+            var avgEnergy = 0, avgValence = 0, avgDance = 0, count = 0;
+            tracks.forEach(function(t) {
+              if (t.energy !== null) { avgEnergy += t.energy; avgValence += (t.valence || 0); avgDance += (t.danceability || 0); count++; }
+            });
+            if (count > 0) {
+              avgEnergy = Math.round((avgEnergy / count) * 100);
+              avgValence = Math.round((avgValence / count) * 100);
+              avgDance = Math.round((avgDance / count) * 100);
+            }
+
+            var moodCards = [
+              { label: 'Energy', value: avgEnergy, desc: avgEnergy > 60 ? 'High energy catalog' : avgEnergy > 30 ? 'Balanced energy' : 'Chill vibes' },
+              { label: 'Mood', value: avgValence, desc: avgValence > 60 ? 'Upbeat feel' : avgValence > 30 ? 'Mixed mood' : 'Darker tones' },
+              { label: 'Danceability', value: avgDance, desc: avgDance > 60 ? 'Dance-heavy' : avgDance > 30 ? 'Mixed' : 'Sit-down music' },
+              { label: 'Tracks Sampled', value: count, desc: 'with audio features' },
+            ];
+
+            document.getElementById('mood-grid').innerHTML = moodCards.map(function(m) {
+              return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center;">' +
+                '<div style="font-size:1.25rem;font-weight:700;color:var(--accent);">' + m.value + (m.label !== 'Tracks Sampled' ? '%' : '') + '</div>' +
+                '<div style="font-size:0.75rem;font-weight:600;margin-top:4px;">' + m.label + '</div>' +
+                '<div style="font-size:0.65rem;color:var(--text-muted);margin-top:2px;">' + m.desc + '</div>' +
+              '</div>';
+            }).join('');
+          }
+        }).catch(function() {});
       });
 
       function renderBarChart(containerId, items, labelKey) {

@@ -322,10 +322,23 @@
     <!-- Playlist track list -->
     <div id="playlist-tracks-section" class="section" style="display:none;" data-testid="playlist-tracks-section">
       <div class="section-title">Playlist Tracks (<span id="playlist-track-count">0</span>)</div>
+
+      <!-- Playlist stats mini-bar -->
+      <div id="playlist-stats" data-testid="playlist-stats" style="display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;"></div>
+
+      <!-- Filter within playlist -->
+      <input type="text" id="playlist-filter" placeholder="Filter this playlist..." data-testid="playlist-filter" style="margin-bottom:12px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.8rem;width:100%;font-family:var(--font);outline:none;">
+
       <div id="playlist-track-list" data-testid="playlist-track-list"></div>
-      <button class="btn btn-create" id="export-btn" style="margin-top:16px;background:var(--surface);color:var(--text);border:1px solid var(--border);" data-testid="export-btn">
-        Export for Apple Music
-      </button>
+
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-create" id="export-btn" style="flex:1;background:var(--accent);color:#000;" data-testid="export-btn">
+          Export for Apple Music
+        </button>
+        <button class="btn btn-create" id="export-csv-btn" style="flex:1;background:var(--surface);color:var(--text);border:1px solid var(--border);" data-testid="export-csv-btn">
+          Export CSV
+        </button>
+      </div>
     </div>
   </div>
 
@@ -492,27 +505,108 @@
         }
       }
 
+      var playlistTracks = [];
+
       async function loadPlaylistTracks() {
         if (!playlistId) return;
         try {
           var res = await fetch('/api/playlists/' + playlistId);
           var data = await res.json();
           if (data.ok) {
-            var tracks = data.playlist.tracks || [];
-            document.getElementById('playlist-track-count').textContent = tracks.length;
-            document.getElementById('playlist-track-list').innerHTML = tracks.map(function(t) {
-              return '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">' +
-                '<div style="flex:1;min-width:0;">' +
-                  '<div style="font-size:0.85rem;">' + escapeHtml(t.name) + '</div>' +
-                  '<div style="font-size:0.75rem;color:var(--text-muted);">' + escapeHtml(t.artist) + '</div>' +
-                '</div>' +
-              '</div>';
-            }).join('');
+            playlistTracks = data.playlist.tracks || [];
+            document.getElementById('playlist-track-count').textContent = playlistTracks.length;
+            renderPlaylistTracks(playlistTracks);
+            renderPlaylistStats(playlistTracks);
           }
         } catch (err) {
           console.error('[WKRP] Load playlist error:', err);
         }
       }
+
+      function renderPlaylistTracks(tracks) {
+        var filter = (document.getElementById('playlist-filter').value || '').toLowerCase();
+        var filtered = filter ? tracks.filter(function(t) {
+          return (t.name || '').toLowerCase().includes(filter) ||
+                 (t.artist || '').toLowerCase().includes(filter) ||
+                 (t.genre || '').toLowerCase().includes(filter);
+        }) : tracks;
+
+        document.getElementById('playlist-track-list').innerHTML = filtered.map(function(t, i) {
+          return '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);" data-track-id="' + t.id + '">' +
+            '<div style="font-size:0.7rem;color:var(--text-muted);min-width:20px;text-align:center;">' + (t.position + 1) + '</div>' +
+            '<div style="flex:1;min-width:0;">' +
+              '<div style="font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.name) + '</div>' +
+              '<div style="font-size:0.7rem;color:var(--text-muted);">' + escapeHtml(t.artist) +
+                (t.genre ? ' <span style="color:var(--accent);">' + escapeHtml(t.genre) + '</span>' : '') +
+              '</div>' +
+            '</div>' +
+            '<button data-action="remove" data-id="' + t.id + '" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:8px;min-height:44px;min-width:44px;" data-testid="remove-track-btn" title="Remove">&times;</button>' +
+          '</div>';
+        }).join('');
+
+        // Remove handlers
+        document.querySelectorAll('[data-action="remove"]').forEach(function(btn) {
+          btn.addEventListener('click', function() { removeTrack(btn.dataset.id); });
+        });
+      }
+
+      function renderPlaylistStats(tracks) {
+        var genres = {};
+        var decades = {};
+        var totalEnergy = 0;
+        var energyCount = 0;
+
+        tracks.forEach(function(t) {
+          if (t.genre) genres[t.genre] = (genres[t.genre] || 0) + 1;
+          if (t.release_year) {
+            var dec = Math.floor(t.release_year / 10) * 10 + 's';
+            decades[dec] = (decades[dec] || 0) + 1;
+          }
+          if (t.energy !== null && t.energy !== undefined) {
+            totalEnergy += t.energy;
+            energyCount++;
+          }
+        });
+
+        var topGenres = Object.entries(genres).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 4);
+        var topDecades = Object.entries(decades).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 3);
+        var avgEnergy = energyCount > 0 ? Math.round((totalEnergy / energyCount) * 100) : null;
+
+        var statsHtml = '';
+        topGenres.forEach(function(g) {
+          statsHtml += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.65rem;white-space:nowrap;flex-shrink:0;">' +
+            '<span style="color:var(--accent);">' + escapeHtml(g[0]) + '</span> ' + g[1] + '</div>';
+        });
+        topDecades.forEach(function(d) {
+          statsHtml += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.65rem;white-space:nowrap;flex-shrink:0;">' + d[0] + ' ' + d[1] + '</div>';
+        });
+        if (avgEnergy !== null) {
+          statsHtml += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.65rem;white-space:nowrap;flex-shrink:0;">' +
+            'Energy ' + avgEnergy + '</div>';
+        }
+
+        document.getElementById('playlist-stats').innerHTML = statsHtml || '<div style="font-size:0.7rem;color:var(--text-muted);">Add tracks to see stats</div>';
+      }
+
+      async function removeTrack(trackId) {
+        if (!playlistId) return;
+        try {
+          await fetch('/api/playlists/' + playlistId + '/tracks', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ track_ids: [trackId] }),
+          });
+          loadPlaylistTracks();
+        } catch (err) {
+          console.error('[WKRP] Remove track error:', err);
+        }
+      }
+
+      // Filter within playlist
+      document.getElementById('playlist-filter').addEventListener('input', function() {
+        renderPlaylistTracks(playlistTracks);
+      });
 
       // Export
       document.getElementById('export-btn').addEventListener('click', async function() {
@@ -533,6 +627,29 @@
           console.error('[WKRP] Export error:', err);
         }
       });
+
+      // CSV export
+      document.getElementById('export-csv-btn').addEventListener('click', function() {
+        if (!playlistTracks.length) return;
+        var header = 'position,name,artist,album,genre,isrc';
+        var rows = playlistTracks.map(function(t, i) {
+          return [i + 1, csvEsc(t.name), csvEsc(t.artist), csvEsc(t.album), csvEsc(t.genre), csvEsc(t.isrc)].join(',');
+        });
+        var csv = [header].concat(rows).join('\n');
+        var blob = new Blob([csv], { type: 'text/csv' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'playlist.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      function csvEsc(v) {
+        if (v === null || v === undefined) return '';
+        var s = String(v);
+        return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }
 
       function escapeHtml(str) {
         if (!str) return '';
