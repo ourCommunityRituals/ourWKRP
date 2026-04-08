@@ -50,6 +50,8 @@ import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, 
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
 import { handleStartSet, handleAddSetTrack, handleEndSet, handleCreateAttribution, handleGetDjStats, handleGetLiveSet } from './handlers/dj';
+import { handleSponsorReport } from './handlers/sponsor';
+import { handleGetEventMusic } from './handlers/events';
 import { addCorsHeaders } from './lib/cors';
 import { addSecurityHeaders } from './lib/security-headers';
 import { log } from './lib/logger';
@@ -201,6 +203,18 @@ export async function route(request: Request, env: Env): Promise<Response> {
     response = await handleGetLiveSet(request, env, djId);
   }
 
+  // --- Sponsor Reporting (WKRP-25) ---
+  else if (method === 'GET' && path.startsWith('/api/sponsors/') && path.endsWith('/report')) {
+    const eventId = path.slice('/api/sponsors/'.length, -'/report'.length);
+    response = await handleSponsorReport(request, env, eventId);
+  }
+
+  // --- OurSharedEvents Integration (WKRP-26) ---
+  else if (method === 'GET' && path.startsWith('/api/events/') && path.endsWith('/music')) {
+    const eventId = path.slice('/api/events/'.length, -'/music'.length);
+    response = await handleGetEventMusic(request, env, eventId);
+  }
+
   // Pages — DJ poster must match before generic /dj/ page
   else if (method === 'GET' && path.startsWith('/dj/') && path.endsWith('/poster')) {
     response = await handlePages(request, env);
@@ -211,7 +225,7 @@ export async function route(request: Request, env: Env): Promise<Response> {
   else if (method === 'GET' && path.startsWith('/contributor/')) {
     response = await handlePages(request, env);
   }
-  else if (method === 'GET' && ['/', '/catalog', '/create', '/import'].includes(path)) {
+  else if (method === 'GET' && ['/', '/catalog', '/create', '/import', '/dashboard', '/stats'].includes(path)) {
     response = await handlePages(request, env);
   }
   // 404

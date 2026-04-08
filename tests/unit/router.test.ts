@@ -54,6 +54,13 @@ vi.mock('../../src/handlers/dj', () => ({
   handleGetLiveSet: vi.fn(() => Response.json({ ok: true, service: 'dj-live' })),
 }));
 
+vi.mock('../../src/handlers/sponsor', () => ({
+  handleSponsorReport: vi.fn(() => Response.json({ ok: true, service: 'sponsor-report' })),
+}));
+vi.mock('../../src/handlers/events', () => ({
+  handleGetEventMusic: vi.fn(() => Response.json({ ok: true, service: 'event-music' })),
+}));
+
 import { route } from '../../src/router';
 import type { Env } from '../../src/types';
 
@@ -302,6 +309,34 @@ describe('Router', () => {
 
   it('routes GET /dj/:id to live set HTML page', async () => {
     const res = await route(makeRequest('/dj/user123'), mockEnv);
+    expect(res.headers.get('Content-Type')).toContain('text/html');
+  });
+
+  // --- Sponsor Reporting ---
+
+  it('routes GET /api/sponsors/:eventId/report to sponsor handler', async () => {
+    const res = await route(makeRequest('/api/sponsors/event-123/report'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('sponsor-report');
+  });
+
+  // --- Event Integration ---
+
+  it('routes GET /api/events/:id/music to event music handler', async () => {
+    const res = await route(makeRequest('/api/events/event-123/music'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('event-music');
+  });
+
+  // --- Dashboard + Stats pages ---
+
+  it('routes GET /dashboard to pages handler', async () => {
+    const res = await route(makeRequest('/dashboard'), mockEnv);
+    expect(res.headers.get('Content-Type')).toContain('text/html');
+  });
+
+  it('routes GET /stats to pages handler', async () => {
+    const res = await route(makeRequest('/stats'), mockEnv);
     expect(res.headers.get('Content-Type')).toContain('text/html');
   });
 });

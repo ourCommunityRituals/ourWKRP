@@ -359,3 +359,67 @@ QR codes displayed at the set. When you hear a song that hits, you scan and attr
 - [ ] Apple Music: add track to user's library via MusicKit
 - [ ] No platform connected: prompt to connect, attribution still recorded
 - [ ] Auto-create "Discovered at [venue]" playlist if event context present
+
+---
+
+### WKRP-23: DJ Dashboard
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-22
+**Sprint:** 4
+
+**PO Acceptance Criteria:**
+- [ ] `GET /dashboard` — DJ-only page, redirects non-DJs
+- [ ] Start/end set controls
+- [ ] Add tracks to live set via search
+- [ ] View influence stats: total attributions, unique listeners, top tracks
+- [ ] Attribution timeline: recent discoveries through this DJ
+- [ ] Set history: past sets with venue, date, track count
+- [ ] Mobile-first, same design language
+
+---
+
+### WKRP-24: Catalog Stats Page
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-6
+**Sprint:** 4
+
+**PO Acceptance Criteria:**
+- [ ] `GET /stats` — public page showing community health
+- [ ] Total tracks, contributors, playlists, brands
+- [ ] Top genres with counts
+- [ ] Top decades
+- [ ] Most active contributors (by track count)
+- [ ] Recent imports timeline
+- [ ] Mobile-first, shareable
+
+---
+
+### WKRP-25: Sponsor Reporting API
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-22
+**Sprint:** 4
+
+**PO Acceptance Criteria:**
+- [ ] `GET /api/sponsors/:eventId/report` — engagement report for a sponsored event
+- [ ] Total attributions during event
+- [ ] Unique QR scans (unique listeners)
+- [ ] Top discovered tracks
+- [ ] DJ performance breakdown (attributions per DJ)
+- [ ] Time-series: attributions over the course of the event
+- [ ] Platform breakdown: how many saved to Spotify vs Apple Music
+- [ ] JSON response suitable for sponsor decks
+
+---
+
+### WKRP-26: OurSharedEvents Integration
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-22
+**Sprint:** 4
+
+**PO Acceptance Criteria:**
+- [ ] `?event=` param on poster/live pages resolves event name + venue from OSE
+- [ ] Event context displayed on poster and live set pages
+- [ ] Cross-link: "View this event on OurSharedEvents"
+- [ ] `GET /api/events/:id/music` — all attributions + sets for an OSE event
+- [ ] OSE can embed ourWKRP music data in event recaps
+- [ ] Fallback: if OSE is unreachable, use venue_name from dj_sets table

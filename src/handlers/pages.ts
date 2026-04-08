@@ -18,6 +18,8 @@ import profileHtml from '../templates/profile.html';
 import importHtml from '../templates/import.html';
 import liveHtml from '../templates/live.html';
 import qrPosterHtml from '../templates/qr-poster.html';
+import dashboardHtml from '../templates/dashboard.html';
+import statsHtml from '../templates/stats.html';
 
 const HTML_HEADERS = {
   'Content-Type': 'text/html;charset=UTF-8',
@@ -39,6 +41,10 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
     html = catalogHtml;
   } else if (path === '/create') {
     html = createHtml;
+  } else if (path === '/dashboard') {
+    html = dashboardHtml;
+  } else if (path === '/stats') {
+    html = statsHtml;
   } else if (path === '/import') {
     html = importHtml;
   } else if (path.startsWith('/dj/') && path.endsWith('/poster')) {
