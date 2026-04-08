@@ -12,6 +12,7 @@
 import type { Env } from '../types';
 import { getSession } from '../lib/kv-storage';
 import { getSessionToken } from '../lib/session-cookie';
+import { pushTrackToLibrary, addToDiscoveryPlaylist, detectPlatform } from '../lib/music-push';
 import { log } from '../lib/logger';
 
 /**
@@ -137,8 +138,16 @@ export async function handleEndSet(request: Request, env: Env, setId: string): P
 /**
  * POST /api/attributions
  * Record that a listener discovered a track via a DJ.
+ * Then push the track to the listener's connected music service.
+ *
  * Body: { dj_id: string, track_id: string, event_id?: string }
  * Can be anonymous (no session) or authenticated.
+ *
+ * Flow:
+ *   1. Record attribution in D1 (permanent — the DJ gets credit)
+ *   2. Detect listener's connected platform (Spotify, Apple Music, or none)
+ *   3. Push track to their library
+ *   4. If event context, add to "Discovered at [venue]" playlist
  */
 export async function handleCreateAttribution(request: Request, env: Env): Promise<Response> {
   let listenerId: string | null = null;
@@ -163,6 +172,7 @@ export async function handleCreateAttribution(request: Request, env: Env): Promi
 
   const id = crypto.randomUUID();
 
+  // 1. Record attribution (the permanent record)
   await env.WKRP_DB.prepare(`
     INSERT INTO attributions (id, dj_id, listener_id, track_id, event_id, attributed_at)
     VALUES (?, ?, ?, ?, ?, datetime('now'))
@@ -172,7 +182,50 @@ export async function handleCreateAttribution(request: Request, env: Env): Promi
     id, dj_id: body.dj_id, listener_id: listenerId, track_id: body.track_id,
   });
 
-  return Response.json({ ok: true, attribution: { id } }, { status: 201 });
+  // 2. Push to listener's music service (if authenticated and connected)
+  let pushResult = null;
+  let discoveryPlaylistId = null;
+
+  if (listenerId) {
+    // Get track ISRC for Apple Music matching
+    const track = await env.WKRP_DB.prepare(
+      'SELECT isrc FROM tracks WHERE id = ?'
+    ).bind(body.track_id).first<{ isrc: string | null }>();
+
+    pushResult = await pushTrackToLibrary(
+      env.WKRP_KV,
+      listenerId,
+      body.track_id,
+      track?.isrc ?? null,
+    );
+
+    // 3. Add to discovery playlist if event context
+    if (body.event_id) {
+      // Try to get venue name from the DJ's live set
+      const liveSet = await env.WKRP_DB.prepare(
+        'SELECT venue_name FROM dj_sets WHERE dj_id = ? AND is_live = 1'
+      ).bind(body.dj_id).first<{ venue_name: string | null }>();
+
+      discoveryPlaylistId = await addToDiscoveryPlaylist(
+        env.WKRP_DB,
+        env.WKRP_KV,
+        listenerId,
+        body.track_id,
+        liveSet?.venue_name ?? null,
+        body.event_id,
+      );
+    }
+  }
+
+  return Response.json({
+    ok: true,
+    attribution: { id },
+    push: pushResult ? {
+      platform: pushResult.platform,
+      saved: pushResult.saved,
+    } : null,
+    discovery_playlist_id: discoveryPlaylistId,
+  }, { status: 201 });
 }
 
 /**

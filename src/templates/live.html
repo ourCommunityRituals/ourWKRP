@@ -328,8 +328,18 @@
           var data = await res.json();
           if (data.ok) {
             attributed[trackId] = true;
-            btn.textContent = 'Saved';
             btn.classList.add('done');
+
+            // Show platform-specific feedback
+            if (data.push && data.push.saved) {
+              var label = data.push.platform === 'spotify' ? 'Saved to Spotify' :
+                          data.push.platform === 'apple_music' ? 'Saved to Apple Music' : 'Saved';
+              btn.textContent = label;
+            } else if (data.push && data.push.platform !== 'none') {
+              btn.textContent = 'Noted';
+            } else {
+              btn.textContent = 'Saved';
+            }
           } else {
             btn.textContent = 'This hit';
             btn.disabled = false;
