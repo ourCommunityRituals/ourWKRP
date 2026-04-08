@@ -201,7 +201,10 @@ export async function route(request: Request, env: Env): Promise<Response> {
     response = await handleGetLiveSet(request, env, djId);
   }
 
-  // Pages
+  // Pages — DJ display must match before generic /dj/ page
+  else if (method === 'GET' && path.startsWith('/dj/') && path.endsWith('/display')) {
+    response = await handlePages(request, env);
+  }
   else if (method === 'GET' && path.startsWith('/dj/')) {
     response = await handlePages(request, env);
   }
