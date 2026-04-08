@@ -50,6 +50,7 @@ import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, 
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
 import { handleStartSet, handleAddSetTrack, handleEndSet, handleCreateAttribution, handleGetDjStats, handleGetLiveSet } from './handlers/dj';
+import { handleExportTracks } from './handlers/export';
 import { handleSponsorReport } from './handlers/sponsor';
 import { handleGetEventMusic } from './handlers/events';
 import { addCorsHeaders } from './lib/cors';
@@ -201,6 +202,11 @@ export async function route(request: Request, env: Env): Promise<Response> {
   else if (method === 'GET' && path.startsWith('/dj/') && path.endsWith('/live')) {
     const djId = path.slice('/dj/'.length, -'/live'.length);
     response = await handleGetLiveSet(request, env, djId);
+  }
+
+  // --- Catalog Export (WKRP-29) ---
+  else if (method === 'GET' && path === '/api/export/tracks') {
+    response = await handleExportTracks(request, env);
   }
 
   // --- Sponsor Reporting (WKRP-25) ---

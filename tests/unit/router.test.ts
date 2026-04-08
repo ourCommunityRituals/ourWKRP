@@ -54,6 +54,9 @@ vi.mock('../../src/handlers/dj', () => ({
   handleGetLiveSet: vi.fn(() => Response.json({ ok: true, service: 'dj-live' })),
 }));
 
+vi.mock('../../src/handlers/export', () => ({
+  handleExportTracks: vi.fn(() => new Response('name,artist\n', { headers: { 'Content-Type': 'text/csv' } })),
+}));
 vi.mock('../../src/handlers/sponsor', () => ({
   handleSponsorReport: vi.fn(() => Response.json({ ok: true, service: 'sponsor-report' })),
 }));
@@ -310,6 +313,13 @@ describe('Router', () => {
   it('routes GET /dj/:id to live set HTML page', async () => {
     const res = await route(makeRequest('/dj/user123'), mockEnv);
     expect(res.headers.get('Content-Type')).toContain('text/html');
+  });
+
+  // --- Catalog Export ---
+
+  it('routes GET /api/export/tracks to export handler', async () => {
+    const res = await route(makeRequest('/api/export/tracks'), mockEnv);
+    expect(res.headers.get('Content-Type')).toContain('text/csv');
   });
 
   // --- Sponsor Reporting ---

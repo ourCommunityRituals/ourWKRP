@@ -423,3 +423,20 @@ QR codes displayed at the set. When you hear a song that hits, you scan and attr
 - [ ] `GET /api/events/:id/music` — all attributions + sets for an OSE event
 - [ ] OSE can embed ourWKRP music data in event recaps
 - [ ] Fallback: if OSE is unreachable, use venue_name from dj_sets table
+
+---
+
+### WKRP-29: Catalog Export
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-6
+**Sprint:** 4
+
+**PO Acceptance Criteria:**
+- [ ] `GET /api/export/tracks` — full catalog as JSON (paginated, all tracks)
+- [ ] `GET /api/export/tracks?format=csv` — full catalog as CSV download
+- [ ] CSV includes: name, artist, album, genre, isrc, release_year, contributor, source
+- [ ] Respects brand scoping (subdomain = only that brand's tracks)
+- [ ] Auth required: founder or curator role only
+- [ ] Streaming response for large catalogs (not buffered in memory)
+- [ ] Content-Disposition header for browser download
+- [ ] Tests: route, auth, CSV format, brand scoping
