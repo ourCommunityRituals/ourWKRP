@@ -93,5 +93,6 @@ database_id = "PLACEHOLDER_D1_PROD"
 # Staging routes (uncomment when DNS is ready)
 # ============================================
 # routes = [
-#   { pattern = "stg.ourwkrp.com/*", zone_name = "ourwkrp.com" }
+#   { pattern = "stg.ourwkrp.com/*", zone_name = "ourwkrp.com" },
+#   { pattern = "*.stg.ourwkrp.com/*", zone_name = "ourwkrp.com" }
 # ]

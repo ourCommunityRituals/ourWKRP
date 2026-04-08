@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ourWKRP — Contributor</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --surface-hover: #1a1a1a;
+      --border: #2a2a2a;
+      --text: #f0f0f0;
+      --text-muted: #888;
+      --accent: #1DB954;
+      --accent-hover: #1ed760;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* --- Loading --- */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      gap: 20px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-size: 1rem;
+      color: var(--text-muted);
+    }
+
+    /* --- Profile Header --- */
+    .profile-header {
+      padding: 32px 20px 20px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .profile-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #000;
+      margin: 0 auto 12px;
+    }
+
+    .profile-name {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .profile-role {
+      font-size: 0.8rem;
+      color: var(--accent);
+      background: rgba(29, 185, 84, 0.1);
+      padding: 4px 12px;
+      border-radius: 20px;
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+
+    .profile-generation {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .profile-joined {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    /* --- Stats Cards --- */
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      padding: 20px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .stats-row::-webkit-scrollbar { display: none; }
+
+    .stat-card {
+      flex: 1;
+      min-width: 90px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* --- Sections --- */
+    .section {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+    }
+
+    /* --- Genre Tags --- */
+    .genre-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .genre-tag {
+      display: inline-block;
+      font-size: 0.8rem;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(29, 185, 84, 0.1);
+      color: var(--accent);
+      cursor: pointer;
+      transition: background 0.15s;
+      min-height: 44px;
+      line-height: 30px;
+    }
+
+    .genre-tag:hover {
+      background: rgba(29, 185, 84, 0.25);
+    }
+
+    .genre-count {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-left: 4px;
+    }
+
+    /* --- Playlists --- */
+    .playlist-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      transition: background 0.15s;
+      min-height: 48px;
+    }
+
+    .playlist-item:hover {
+      background: var(--surface-hover);
+    }
+
+    .playlist-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .playlist-count {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* --- Source Badges --- */
+    .source-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .source-badge {
+      font-size: 0.75rem;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      min-height: 44px;
+      line-height: 30px;
+    }
+
+    /* --- Brands --- */
+    .brand-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      min-height: 48px;
+    }
+
+    .brand-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .brand-tracks {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* --- Not Found --- */
+    .not-found {
+      text-align: center;
+      padding: 80px 20px;
+    }
+
+    .not-found h2 {
+      margin-bottom: 8px;
+    }
+
+    .not-found p {
+      color: var(--text-muted);
+    }
+
+    /* --- Genre Popup (reuse from catalog) --- */
+    .genre-popup {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0;
+      padding: 20px 20px env(safe-area-inset-bottom, 20px);
+      z-index: 100;
+      transform: translateY(100%);
+      transition: transform 0.25s ease-out;
+    }
+
+    .genre-popup.open { transform: translateY(0); }
+
+    .genre-popup-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 99;
+      display: none;
+    }
+
+    .genre-popup-backdrop.open { display: block; }
+
+    .genre-popup-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .genre-popup-links {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .genre-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: background 0.15s;
+      min-height: 48px;
+    }
+
+    .genre-link:hover { background: var(--surface-hover); }
+
+    .genre-link-icon { width: 28px; text-align: center; font-size: 1.1rem; flex-shrink: 0; }
+
+    .genre-link-info { flex: 1; }
+    .genre-link-label { font-weight: 500; }
+    .genre-link-desc { font-size: 0.75rem; color: var(--text-muted); }
+
+    /* --- Bottom Nav --- */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(10, 10, 10, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      padding: 10px 0 env(safe-area-inset-bottom, 10px);
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 6px 16px;
+      transition: color 0.2s;
+    }
+
+    .nav-item svg { width: 22px; height: 22px; }
+
+    .content-wrap { padding-bottom: 80px; }
+
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <!-- Loading State -->
+  <div id="loading-view" class="loading" data-testid="loading-view">
+    <div class="spinner"></div>
+    <div class="loading-text" data-testid="loading-text">Loading profile...</div>
+  </div>
+
+  <!-- Not Found -->
+  <div id="not-found" class="not-found hidden" data-testid="not-found">
+    <h2>Contributor not found</h2>
+    <p>This profile doesn't exist or has been removed.</p>
+  </div>
+
+  <!-- Profile View -->
+  <div id="profile-view" class="hidden content-wrap" data-testid="profile-view">
+    <div class="profile-header" data-testid="profile-header">
+      <div class="profile-avatar" id="profile-avatar" data-testid="profile-avatar"></div>
+      <div class="profile-name" id="profile-name" data-testid="profile-name"></div>
+      <div id="profile-roles" data-testid="profile-roles"></div>
+      <div class="profile-generation" id="profile-generation" data-testid="profile-generation"></div>
+      <div class="profile-joined" id="profile-joined" data-testid="profile-joined"></div>
+    </div>
+
+    <div class="stats-row" data-testid="stats-row">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-tracks" data-testid="stat-tracks">0</div>
+        <div class="stat-label">Tracks</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-playlists" data-testid="stat-playlists">0</div>
+        <div class="stat-label">Playlists</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-brands" data-testid="stat-brands">0</div>
+        <div class="stat-label">Brands</div>
+      </div>
+    </div>
+
+    <div class="section" id="genres-section" data-testid="genres-section">
+      <div class="section-title">Top Genres</div>
+      <div class="genre-list" id="genre-list" data-testid="genre-list"></div>
+    </div>
+
+    <div class="section" id="playlists-section" data-testid="playlists-section">
+      <div class="section-title">Playlists</div>
+      <div id="playlist-list" data-testid="playlist-list"></div>
+    </div>
+
+    <div class="section" id="sources-section" data-testid="sources-section">
+      <div class="section-title">Sources</div>
+      <div class="source-list" id="source-list" data-testid="source-list"></div>
+    </div>
+
+    <div class="section" id="brands-section" data-testid="brands-section">
+      <div class="section-title">Brands</div>
+      <div id="brand-list" data-testid="brand-list"></div>
+    </div>
+
+    <nav class="bottom-nav" data-testid="bottom-nav">
+      <a href="/catalog" class="nav-item" data-testid="nav-catalog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+        Catalog
+      </a>
+      <a href="/create" class="nav-item" data-testid="nav-create">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Create
+      </a>
+    </nav>
+  </div>
+
+  <!-- Genre Discovery Popup -->
+  <div class="genre-popup-backdrop" id="genre-backdrop" data-testid="genre-backdrop"></div>
+  <div class="genre-popup" id="genre-popup" data-testid="genre-popup">
+    <div class="genre-popup-title" id="genre-popup-title"></div>
+    <div class="genre-popup-links" id="genre-popup-links"></div>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      var contributorId = window.location.pathname.split('/contributor/')[1];
+      if (!contributorId) {
+        showNotFound();
+        return;
+      }
+
+      loadProfile(contributorId);
+
+      async function loadProfile(id) {
+        try {
+          var res = await fetch('/api/contributors/' + encodeURIComponent(id));
+          var data = await res.json();
+
+          if (!data.ok || !data.contributor) {
+            showNotFound();
+            return;
+          }
+
+          renderProfile(data);
+        } catch (err) {
+          console.error('[WKRP] Profile load error:', err);
+          showNotFound();
+        }
+      }
+
+      function renderProfile(data) {
+        var c = data.contributor;
+
+        document.title = c.name + ' — ourWKRP';
+
+        document.getElementById('profile-avatar').textContent = c.name.charAt(0).toUpperCase();
+        document.getElementById('profile-name').textContent = c.name;
+        var roles = data.roles || [c.role];
+        document.getElementById('profile-roles').innerHTML = roles.map(function(r) {
+          return '<span class="profile-role">' + escapeHtml(r) + '</span>';
+        }).join(' ');
+        document.getElementById('profile-generation').textContent = c.generation;
+        document.getElementById('profile-joined').textContent = 'Joined ' + formatDate(c.created_at);
+
+        document.getElementById('stat-tracks').textContent = data.track_count || 0;
+        document.getElementById('stat-playlists').textContent = data.playlist_count || 0;
+        document.getElementById('stat-brands').textContent = (data.brands || []).length;
+
+        // Genres
+        var genreList = document.getElementById('genre-list');
+        var genres = data.top_genres || [];
+        if (genres.length === 0) {
+          document.getElementById('genres-section').classList.add('hidden');
+        } else {
+          genreList.innerHTML = genres.map(function(g) {
+            return '<span class="genre-tag" data-genre="' + escapeHtml(g.genre) + '" data-testid="genre-tag">' +
+              escapeHtml(g.genre) + '<span class="genre-count">' + g.count + '</span></span>';
+          }).join('');
+        }
+
+        // Playlists
+        var playlistList = document.getElementById('playlist-list');
+        var playlists = data.playlists || [];
+        if (playlists.length === 0) {
+          document.getElementById('playlists-section').classList.add('hidden');
+        } else {
+          playlistList.innerHTML = playlists.map(function(p) {
+            return '<div class="playlist-item" data-testid="playlist-item">' +
+              '<span class="playlist-name">' + escapeHtml(p.name) + '</span>' +
+              '<span class="playlist-count">' + p.track_count + ' tracks</span>' +
+              '</div>';
+          }).join('');
+        }
+
+        // Sources
+        var sourceList = document.getElementById('source-list');
+        var sources = data.contribution_sources || [];
+        if (sources.length === 0) {
+          document.getElementById('sources-section').classList.add('hidden');
+        } else {
+          sourceList.innerHTML = sources.map(function(s) {
+            return '<span class="source-badge" data-testid="source-badge">' + escapeHtml(s) + '</span>';
+          }).join('');
+        }
+
+        // Brands
+        var brandListEl = document.getElementById('brand-list');
+        var brands = data.brands || [];
+        if (brands.length === 0) {
+          document.getElementById('brands-section').classList.add('hidden');
+        } else {
+          brandListEl.innerHTML = brands.map(function(b) {
+            return '<div class="brand-item" data-testid="brand-item">' +
+              '<span class="brand-name">' + escapeHtml(b.name) + '</span>' +
+              '<span class="brand-tracks">' + b.track_count + ' tracks</span>' +
+              '</div>';
+          }).join('');
+        }
+
+        document.getElementById('loading-view').classList.add('hidden');
+        document.getElementById('profile-view').classList.remove('hidden');
+      }
+
+      function showNotFound() {
+        document.getElementById('loading-view').classList.add('hidden');
+        document.getElementById('not-found').classList.remove('hidden');
+      }
+
+      function formatDate(dateStr) {
+        if (!dateStr) return '';
+        try {
+          var d = new Date(dateStr);
+          return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        } catch (e) {
+          return dateStr;
+        }
+      }
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+
+      // --- Genre Discovery Popup ---
+      var genrePopup = document.getElementById('genre-popup');
+      var genreBackdrop = document.getElementById('genre-backdrop');
+      var genrePopupTitle = document.getElementById('genre-popup-title');
+      var genrePopupLinks = document.getElementById('genre-popup-links');
+
+      function openGenrePopup(genre) {
+        var slug = genre.toLowerCase().replace(/\s+/g, '+');
+        var slugDash = genre.toLowerCase().replace(/\s+/g, '-');
+
+        genrePopupTitle.textContent = genre;
+        genrePopupLinks.innerHTML =
+          '<a href="https://www.discogs.com/search/?genre_exact=' + encodeURIComponent(genre) + '" target="_blank" rel="noopener" class="genre-link" data-testid="genre-link-discogs">' +
+            '<span class="genre-link-icon">&#x1F4BF;</span>' +
+            '<div class="genre-link-info"><div class="genre-link-label">Discogs</div><div class="genre-link-desc">Labels, pressings, vinyl</div></div>' +
+          '</a>' +
+          '<a href="https://www.last.fm/tag/' + encodeURIComponent(slug) + '" target="_blank" rel="noopener" class="genre-link" data-testid="genre-link-lastfm">' +
+            '<span class="genre-link-icon">&#x1F3B6;</span>' +
+            '<div class="genre-link-info"><div class="genre-link-label">Last.fm</div><div class="genre-link-desc">Community tags, related artists</div></div>' +
+          '</a>' +
+          '<a href="https://everynoise.com/engenremap-' + encodeURIComponent(slugDash) + '.html" target="_blank" rel="noopener" class="genre-link" data-testid="genre-link-everynoise">' +
+            '<span class="genre-link-icon">&#x1F30D;</span>' +
+            '<div class="genre-link-info"><div class="genre-link-label">Every Noise</div><div class="genre-link-desc">Visual genre map</div></div>' +
+          '</a>';
+
+        genrePopup.classList.add('open');
+        genreBackdrop.classList.add('open');
+      }
+
+      function closeGenrePopup() {
+        genrePopup.classList.remove('open');
+        genreBackdrop.classList.remove('open');
+      }
+
+      genreBackdrop.addEventListener('click', closeGenrePopup);
+
+      // Delegate genre tag clicks
+      document.getElementById('genre-list').addEventListener('click', function(e) {
+        var tag = e.target.closest('.genre-tag');
+        if (tag) {
+          e.stopPropagation();
+          openGenrePopup(tag.dataset.genre);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

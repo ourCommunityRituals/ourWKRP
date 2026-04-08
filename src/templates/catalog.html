@@ -301,6 +301,116 @@
     }
 
     .hidden { display: none; }
+
+    /* --- Genre Tag + Discovery Links --- */
+    .genre-tag {
+      display: inline-block;
+      font-size: 0.65rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(29, 185, 84, 0.1);
+      color: var(--accent);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .genre-tag:hover {
+      background: rgba(29, 185, 84, 0.25);
+    }
+
+    .genre-popup {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0;
+      padding: 20px 20px env(safe-area-inset-bottom, 20px);
+      z-index: 100;
+      transform: translateY(100%);
+      transition: transform 0.25s ease-out;
+    }
+
+    .genre-popup.open {
+      transform: translateY(0);
+    }
+
+    .genre-popup-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 99;
+      display: none;
+    }
+
+    .genre-popup-backdrop.open {
+      display: block;
+    }
+
+    .genre-popup-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .genre-popup-links {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .genre-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: background 0.15s;
+      min-height: 48px;
+    }
+
+    .genre-link:hover {
+      background: var(--surface-hover);
+    }
+
+    .genre-link-icon {
+      width: 28px;
+      text-align: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    .genre-link-info {
+      flex: 1;
+    }
+
+    .genre-link-label {
+      font-weight: 500;
+    }
+
+    .genre-link-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .genre-filter-btn {
+      width: 100%;
+      padding: 14px;
+      margin-top: 8px;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font);
+      min-height: 48px;
+    }
   </style>
 </head>
 <body>
@@ -370,6 +480,14 @@
         Create
       </a>
     </nav>
+  </div>
+
+  <!-- Genre Discovery Popup -->
+  <div class="genre-popup-backdrop" id="genre-backdrop" data-testid="genre-backdrop"></div>
+  <div class="genre-popup" id="genre-popup" data-testid="genre-popup">
+    <div class="genre-popup-title" id="genre-popup-title"></div>
+    <div class="genre-popup-links" id="genre-popup-links"></div>
+    <button class="genre-filter-btn" id="genre-filter-btn" data-testid="genre-filter-btn">Filter catalog by this genre</button>
   </div>
 
   <script>
@@ -511,11 +629,14 @@
 
       function renderTrack(track) {
         var energyLevel = track.energy > 0.7 ? 'high' : '';
+        var genreHtml = track.genre
+          ? '<span class="genre-tag" data-genre="' + escapeHtml(track.genre) + '" data-testid="genre-tag">' + escapeHtml(track.genre) + '</span>'
+          : '';
         return '<div class="track-card" data-testid="track-card">' +
           '<img class="track-art" src="' + sanitizeUrl(track.image_url) + '" alt="" loading="lazy">' +
           '<div class="track-info">' +
             '<div class="track-name">' + escapeHtml(track.name) + '</div>' +
-            '<div class="track-artist">' + escapeHtml(track.artist) + '</div>' +
+            '<div class="track-artist">' + escapeHtml(track.artist) + ' ' + genreHtml + '</div>' +
           '</div>' +
           '<div class="track-meta">' +
             (track.energy !== null ? '<span class="meta-badge ' + energyLevel + '">' + Math.round(track.energy * 100) + '</span>' : '') +
@@ -537,6 +658,63 @@
         }
         return '';
       }
+
+      // --- Genre Discovery Links ---
+      var genrePopup = document.getElementById('genre-popup');
+      var genreBackdrop = document.getElementById('genre-backdrop');
+      var genrePopupTitle = document.getElementById('genre-popup-title');
+      var genrePopupLinks = document.getElementById('genre-popup-links');
+      var genreFilterBtn = document.getElementById('genre-filter-btn');
+      var activeGenre = '';
+
+      function openGenrePopup(genre) {
+        activeGenre = genre;
+        var slug = genre.toLowerCase().replace(/\s+/g, '+');
+        var slugDash = genre.toLowerCase().replace(/\s+/g, '-');
+
+        genrePopupTitle.textContent = genre;
+        genrePopupLinks.innerHTML =
+          '<a href="https://www.discogs.com/search/?genre_exact=' + encodeURIComponent(genre) + '" target="_blank" rel="noopener" class="genre-link" data-testid="genre-link-discogs">' +
+            '<span class="genre-link-icon">&#x1F4BF;</span>' +
+            '<div class="genre-link-info"><div class="genre-link-label">Discogs</div><div class="genre-link-desc">Labels, pressings, vinyl</div></div>' +
+          '</a>' +
+          '<a href="https://www.last.fm/tag/' + encodeURIComponent(slug) + '" target="_blank" rel="noopener" class="genre-link" data-testid="genre-link-lastfm">' +
+            '<span class="genre-link-icon">&#x1F3B6;</span>' +
+            '<div class="genre-link-info"><div class="genre-link-label">Last.fm</div><div class="genre-link-desc">Community tags, related artists</div></div>' +
+          '</a>' +
+          '<a href="https://everynoise.com/engenremap-' + encodeURIComponent(slugDash) + '.html" target="_blank" rel="noopener" class="genre-link" data-testid="genre-link-everynoise">' +
+            '<span class="genre-link-icon">&#x1F30D;</span>' +
+            '<div class="genre-link-info"><div class="genre-link-label">Every Noise</div><div class="genre-link-desc">Visual genre map</div></div>' +
+          '</a>';
+
+        genrePopup.classList.add('open');
+        genreBackdrop.classList.add('open');
+      }
+
+      function closeGenrePopup() {
+        genrePopup.classList.remove('open');
+        genreBackdrop.classList.remove('open');
+        activeGenre = '';
+      }
+
+      genreBackdrop.addEventListener('click', closeGenrePopup);
+
+      genreFilterBtn.addEventListener('click', function() {
+        if (activeGenre) {
+          searchInput.value = activeGenre;
+          closeGenrePopup();
+          filterTracks();
+        }
+      });
+
+      // Delegate click on genre tags
+      document.getElementById('track-list').addEventListener('click', function(e) {
+        var tag = e.target.closest('.genre-tag');
+        if (tag) {
+          e.stopPropagation();
+          openGenrePopup(tag.dataset.genre);
+        }
+      });
     })();
   </script>
 </body>

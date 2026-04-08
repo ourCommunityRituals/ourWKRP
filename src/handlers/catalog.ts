@@ -284,6 +284,74 @@ export async function handleGetBrands(_request: Request, env: Env): Promise<Resp
 }
 
 /**
+ * GET /api/contributors/:id
+ * Full contributor profile with stats, genres, playlists, sources, and brands.
+ */
+export async function handleGetContributorProfile(_request: Request, env: Env, contributorId: string): Promise<Response> {
+  const contributor = await env.WKRP_DB.prepare(
+    'SELECT id, name, generation, role, brand_id, status, created_at FROM contributors WHERE id = ?'
+  ).bind(contributorId).first();
+
+  if (!contributor) {
+    return Response.json({ ok: false, error: 'Contributor not found' }, { status: 404 });
+  }
+
+  const [trackCountResult, playlistCountResult, topGenresResult, sourcesResult, playlistsResult, brandsResult, rolesResult] =
+    await env.WKRP_DB.batch([
+      env.WKRP_DB.prepare(
+        'SELECT COUNT(DISTINCT track_id) as count FROM contributions WHERE contributor_id = ?'
+      ).bind(contributorId),
+      env.WKRP_DB.prepare(
+        'SELECT COUNT(*) as count FROM playlists WHERE contributor_id = ?'
+      ).bind(contributorId),
+      env.WKRP_DB.prepare(
+        `SELECT t.genre, COUNT(DISTINCT t.id) as count FROM contributions cn
+         INNER JOIN tracks t ON cn.track_id = t.id
+         WHERE cn.contributor_id = ? AND t.genre IS NOT NULL
+         GROUP BY t.genre ORDER BY count DESC LIMIT 5`
+      ).bind(contributorId),
+      env.WKRP_DB.prepare(
+        'SELECT DISTINCT source_platform FROM contributions WHERE contributor_id = ? ORDER BY source_platform'
+      ).bind(contributorId),
+      env.WKRP_DB.prepare(
+        `SELECT id, name, description, track_count, is_curated, created_at
+         FROM playlists WHERE contributor_id = ? ORDER BY created_at DESC`
+      ).bind(contributorId),
+      env.WKRP_DB.prepare(
+        `SELECT DISTINCT b.id, b.name, b.subdomain,
+                COUNT(DISTINCT cn.track_id) as track_count
+         FROM contributions cn
+         INNER JOIN contributors ct ON cn.contributor_id = ct.id
+         INNER JOIN brands b ON ct.brand_id = b.id
+         WHERE cn.contributor_id = ?
+         GROUP BY b.id ORDER BY track_count DESC`
+      ).bind(contributorId),
+      env.WKRP_DB.prepare(
+        'SELECT role, granted_at FROM contributor_roles WHERE contributor_id = ? ORDER BY granted_at ASC'
+      ).bind(contributorId),
+    ]);
+
+  const trackCount = (trackCountResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
+  const playlistCount = (playlistCountResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
+
+  // Merge primary role with any additional roles from contributor_roles table
+  const additionalRoles = rolesResult.results.map((r: Record<string, unknown>) => r.role as string);
+  const allRoles = [...new Set([contributor.role as string, ...additionalRoles])];
+
+  return Response.json({
+    ok: true,
+    contributor,
+    roles: allRoles,
+    track_count: trackCount,
+    playlist_count: playlistCount,
+    top_genres: topGenresResult.results,
+    contribution_sources: sourcesResult.results.map((r: Record<string, unknown>) => r.source_platform),
+    playlists: playlistsResult.results,
+    brands: brandsResult.results,
+  });
+}
+
+/**
  * GET /api/contributors/:id/brands
  * Cross-brand contributor discovery — which brands has this contributor contributed to?
  */

@@ -89,18 +89,18 @@
 ---
 
 ### WKRP-7: Playlist Builder (D1 MVP + Apple Music Push)
-**Status:** 📋 BACKLOG
+**Status:** ✅ DONE (MVP) / 📋 BACKLOG (Apple Music Phase 2)
 **Prerequisite:** WKRP-6
 **Sprint:** 2
 **CCR Review:** Rewritten April 2026 — Spotify API removed, Apple Music is publishing target
 
 **PO Acceptance Criteria — MVP (D1-only):**
-- [ ] `POST /api/playlists` — create playlist (name, description, brand_id) in D1
-- [ ] `POST /api/playlists/:id/tracks` — add tracks to playlist by track IDs
-- [ ] `DELETE /api/playlists/:id/tracks` — remove tracks from playlist
-- [ ] `GET /api/playlists/:id` — playlist with full track list
-- [ ] `GET /api/playlists/:id/export` — export playlist as JSON (track names + ISRCs for manual Apple Music import)
-- [ ] Playlists attributed to creator (contributor_id) with role check (founder/curator can create)
+- [x] `POST /api/playlists` — create playlist (name, description, brand_id) in D1
+- [x] `POST /api/playlists/:id/tracks` — add tracks to playlist by track IDs
+- [x] `DELETE /api/playlists/:id/tracks` — remove tracks from playlist
+- [x] `GET /api/playlists/:id` — playlist with full track list
+- [x] `GET /api/playlists/:id/export` — export playlist as JSON (track names + ISRCs for manual Apple Music import)
+- [x] Playlists attributed to creator (contributor_id) with role check (founder/curator can create)
 
 **PO Acceptance Criteria — Apple Music Push (Phase 2, requires Apple Developer account):**
 - [ ] `POST /api/playlists/:id/push/apple-music` — match tracks by ISRC, create in user's Apple Music library
@@ -111,41 +111,42 @@
 ---
 
 ### WKRP-8: Multi-Tenant Brand Support
-**Status:** 📋 BACKLOG
+**Status:** ✅ DONE
 **Prerequisite:** WKRP-6
 **Sprint:** 2
 **CCR Review:** Rewritten April 2026 — confirmed CF Workers wildcard routes viable
 
 **PO Acceptance Criteria:**
-- [ ] Wildcard route `*.ourwkrp.com/*` in wrangler.toml
-- [ ] `brand_id` extracted from subdomain (e.g. `bronzeville.ourwkrp.com` -> brand_id = 'bronzeville')
-- [ ] All catalog API queries scoped by brand_id
-- [ ] Default brand_id = 'wkrp' when accessed via `ourwkrp.com` (no subdomain)
-- [ ] `GET /api/brands` — list all brands with contributor/track counts
-- [ ] CSS custom properties per brand (loaded from D1 `brands` table)
-- [ ] New D1 migration: `brands` table (id, name, subdomain, primary_color, accent_color, logo_url, created_at)
-- [ ] Cross-brand contributor discovery: `GET /api/contributors/:id/brands`
+- [x] Wildcard route `*.ourwkrp.com/*` in wrangler.toml
+- [x] `brand_id` extracted from subdomain (e.g. `bronzeville.ourwkrp.com` -> brand_id = 'bronzeville')
+- [x] All catalog API queries scoped by brand_id
+- [x] Default brand_id = 'wkrp' when accessed via `ourwkrp.com` (no subdomain)
+- [x] `GET /api/brands` — list all brands with contributor/track counts
+- [x] CSS custom properties per brand (loaded from D1 `brands` table)
+- [x] New D1 migration: `brands` table (id, name, subdomain, primary_color, accent_color, logo_url, created_at)
+- [x] Cross-brand contributor discovery: `GET /api/contributors/:id/brands`
 
 ---
 
 ### WKRP-9: Infrastructure Deployment
-**Status:** 🚧 IN PROGRESS
+**Status:** 🚧 IN PROGRESS — automation + playbook complete, manual steps remain
 **Prerequisite:** WKRP-5
 **Sprint:** 2
 **CCR Review:** Rewritten April 2026 — Spotify redirect URIs removed, Apple Developer enrollment added
+**Playbook:** See [PLAYBOOK.md](PLAYBOOK.md) for complete step-by-step guide
 
-**PO Acceptance Criteria — Cloudflare:**
-- [ ] Provision D1 database (staging + prod) via `wrangler d1 create`
-- [ ] Run all D1 migrations on staging + prod
-- [ ] Provision KV namespace (staging + prod) via `wrangler kv:namespace create`
-- [ ] Update wrangler.toml with real database/namespace IDs
-- [ ] Configure `ourwkrp.com` DNS in Cloudflare (A/CNAME records)
-- [ ] Configure `*.ourwkrp.com` wildcard route for multi-tenant
-- [ ] Deploy Worker to staging via `doppler run -c stg -- wrangler deploy`
-- [ ] Smoke test: CSV import flow on staging
-- [ ] Smoke test: Catalog browse on staging (search, filter, pagination)
+**PO Acceptance Criteria — Cloudflare (automated via `scripts/setup-infra.sh`):**
+- [x] Provision D1 database (staging + prod) via `wrangler d1 create` — scripted
+- [x] Run all D1 migrations on staging + prod — scripted
+- [x] Provision KV namespace (staging + prod) via `wrangler kv:namespace create` — scripted
+- [x] Update wrangler.toml with real database/namespace IDs — scripted
+- [ ] Configure `ourwkrp.com` DNS in Cloudflare (A/CNAME records) — manual, documented in PLAYBOOK.md
+- [x] Configure `*.ourwkrp.com` wildcard route for multi-tenant — in wrangler.toml
+- [ ] Deploy Worker to staging via `doppler run -c stg -- wrangler deploy` — manual, one command
+- [ ] Smoke test: CSV import flow on staging — manual
+- [ ] Smoke test: Catalog browse on staging (search, filter, pagination) — manual
 
-**PO Acceptance Criteria — Apple Developer (parallel workstream):**
+**PO Acceptance Criteria — Apple Developer (parallel workstream, documented in PLAYBOOK.md):**
 - [ ] Enroll in Apple Developer Program as Organization ($99/yr)
 - [ ] Obtain D-U-N-S number for ourCommunityRituals (1-2 weeks)
 - [ ] Create MusicKit key in Apple Developer portal
@@ -155,16 +156,88 @@
 ---
 
 ### WKRP-10: Genre Discovery Links
-**Status:** 📋 BACKLOG
+**Status:** ✅ DONE
 **Prerequisite:** WKRP-6
 **Sprint:** 2
 
 **PO Acceptance Criteria:**
-- [ ] Genre chips/tags in catalog UI link out to three external discovery sites
-- [ ] Link order (top to bottom): Discogs → Last.fm → Every Noise
-- [ ] Discogs: `https://www.discogs.com/search/?genre_exact={genre}` — physical catalog, labels, pressings
-- [ ] Last.fm: `https://www.last.fm/tag/{genre}` — community tags, related artists/tracks
-- [ ] Every Noise: `https://everynoise.com/engenremap-{genre}.html` — visual genre map (archival, frozen ~2023)
-- [ ] Links open in new tab, no API keys required
-- [ ] Genre tag tap shows contextual menu: "Filter catalog" + 3 external links
-- [ ] Mobile-friendly: touch targets meet 44px minimum
+- [x] Genre chips/tags in catalog UI link out to three external discovery sites
+- [x] Link order (top to bottom): Discogs → Last.fm → Every Noise
+- [x] Discogs: `https://www.discogs.com/search/?genre_exact={genre}` — physical catalog, labels, pressings
+- [x] Last.fm: `https://www.last.fm/tag/{genre}` — community tags, related artists/tracks
+- [x] Every Noise: `https://everynoise.com/engenremap-{genre}.html` — visual genre map (archival, frozen ~2023)
+- [x] Links open in new tab, no API keys required
+- [x] Genre tag tap shows contextual menu: "Filter catalog" + 3 external links
+- [x] Mobile-friendly: touch targets meet 48px minimum
+
+---
+
+### WKRP-12: Last.fm Scrobble Sync + Genre Enrichment
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-6
+**Sprint:** 3
+
+**PO Acceptance Criteria:**
+- [x] `POST /lastfm/sync/:userId` pulls scrobble history and enriches tracks with Last.fm tags
+- [x] Last.fm tags mapped to genre field on tracks (top tag = primary genre)
+- [x] Scrobble play counts stored in contributions table (`play_count`, `first_listened_at`)
+- [x] Artist tag lookup via Last.fm `artist.getTopTags` for genre enrichment
+- [x] Track tag lookup via Last.fm `track.getTopTags` as fallback
+- [x] Deduplication: match existing tracks by ISRC or canonical title+artist before creating new ones
+- [x] Rate limiting: respect Last.fm API rate limits (5 req/sec)
+- [x] Tests: unit tests for client, sync engine, tag-to-genre mapping
+
+---
+
+### WKRP-14: CSV Bulk Import UI
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-6
+**Sprint:** 3
+
+**PO Acceptance Criteria:**
+- [x] New HTML template: `import.html` — mobile-first CSV upload page
+- [x] File picker accepts `.csv` files only
+- [x] Preview: show first 5 rows before confirming import
+- [x] Progress indicator during upload
+- [x] Success summary: "X tracks imported, Y duplicates skipped, Z errors"
+- [x] Error display: show failed rows with reason
+- [x] Route: `GET /import` serves the page
+- [x] Session required: must be authenticated (founder/curator role)
+- [x] Mobile-friendly: drag-and-drop on desktop, file picker on mobile
+
+---
+
+### WKRP-15: Contributor Profiles
+**Status:** ✅ DONE
+**Prerequisite:** WKRP-6
+**Sprint:** 3
+
+**PO Acceptance Criteria:**
+- [x] `GET /contributor/:id` — public profile page (HTML)
+- [x] Shows: name, generation, all roles (multi-role from contributor_roles), brands, join date
+- [x] Shows: track count, playlist count, top genres (from their contributions)
+- [x] Shows: their playlists with track counts
+- [x] Shows: their contribution sources (Spotify, Last.fm, CSV, etc.)
+- [x] Genre discovery links on profile genre tags (reuse WKRP-10 popup)
+- [x] `GET /api/contributors/:id` — JSON endpoint with full profile data + roles array
+- [x] Mobile-first layout, 48px touch targets
+- [x] Shareable URL: `yourdomain.com/contributor/:id`
+
+---
+
+### WKRP-16: Apple Music as Contribution Source
+**Status:** 📋 BACKLOG
+**Prerequisite:** WKRP-9 (Apple Developer enrollment)
+**Sprint:** 3
+
+**PO Acceptance Criteria:**
+- [ ] `GET /auth/apple/start` — redirect to Apple Music auth via MusicKit JS
+- [ ] `GET /auth/apple/callback` — exchange MUT (Music User Token) and store in KV
+- [ ] `POST /apple/sync/:userId` — sync Apple Music library into D1
+- [ ] Apple Music library tracks matched by ISRC to existing catalog tracks
+- [ ] New tracks created with `source_platform = 'apple_music'` in contributions
+- [ ] Contributors table `apple_music_id` populated on auth
+- [ ] Apple Music appears in contributor profile sources
+- [ ] MusicKit JS on frontend for user authorization (catalog.html or dedicated page)
+- [ ] MUT stored in KV (`wkrp:apple_token:{userId}`) with refresh logic
+- [ ] Tests: auth flow, sync, ISRC matching, profile source display

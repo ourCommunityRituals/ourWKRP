@@ -30,6 +30,7 @@ vi.mock('../../src/handlers/catalog', () => ({
   handleGetStats: vi.fn(() => Response.json({ ok: true, service: 'catalog-stats' })),
   handleGetBrands: vi.fn(() => Response.json({ ok: true, service: 'catalog-brands' })),
   handleGetContributorBrands: vi.fn(() => Response.json({ ok: true, service: 'catalog-contributor-brands' })),
+  handleGetContributorProfile: vi.fn(() => Response.json({ ok: true, service: 'catalog-contributor-profile' })),
 }));
 vi.mock('../../src/handlers/playlist', () => ({
   handleCreatePlaylist: vi.fn(() => Response.json({ ok: true, service: 'playlist-create' })),
@@ -112,6 +113,11 @@ describe('Router', () => {
     expect(res.headers.get('Content-Type')).toContain('text/html');
   });
 
+  it('routes GET /import to pages handler', async () => {
+    const res = await route(makeRequest('/import'), mockEnv);
+    expect(res.headers.get('Content-Type')).toContain('text/html');
+  });
+
   it('returns 404 for unknown routes', async () => {
     const res = await route(makeRequest('/unknown'), mockEnv);
     expect(res.status).toBe(404);
@@ -162,6 +168,22 @@ describe('Router', () => {
   it('rejects GET /api/contributors/:id/brands with invalid UUID', async () => {
     const res = await route(makeRequest('/api/contributors/not-a-uuid/brands'), mockEnv);
     expect(res.status).toBe(400);
+  });
+
+  it('routes GET /api/contributors/:id to contributor profile handler', async () => {
+    const res = await route(makeRequest('/api/contributors/12345678-1234-1234-1234-123456789012'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('catalog-contributor-profile');
+  });
+
+  it('rejects GET /api/contributors/:id with invalid UUID', async () => {
+    const res = await route(makeRequest('/api/contributors/not-a-uuid'), mockEnv);
+    expect(res.status).toBe(400);
+  });
+
+  it('routes GET /contributor/:id to pages handler (profile page)', async () => {
+    const res = await route(makeRequest('/contributor/12345678-1234-1234-1234-123456789012'), mockEnv);
+    expect(res.headers.get('Content-Type')).toContain('text/html');
   });
 
   it('routes GET /api/stats to catalog handler', async () => {

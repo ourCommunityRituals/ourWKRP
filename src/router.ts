@@ -16,7 +16,9 @@
  *   --- Catalog API (WKRP-6) ---
  *   GET  /api/tracks                → filtered, searchable, paginated tracks
  *   GET  /api/contributors          → all contributors with track counts
+ *   GET  /api/contributors/:id        → contributor profile JSON
  *   GET  /api/contributors/:id/brands → cross-brand contributor discovery
+ *   GET  /contributor/:id             → contributor profile page (HTML)
  *   GET  /api/playlists/:id         → contributor playlists (by contributor) or single playlist (by UUID)
  *   GET  /api/stats                 → catalog statistics
  *   GET  /api/brands                → all brands with counts
@@ -44,7 +46,7 @@ import { handleAuthSession } from './handlers/auth-session';
 import { handleSync } from './handlers/sync';
 import { handlePages } from './handlers/pages';
 import { handleImport } from './handlers/import';
-import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, handleGetStats, handleGetBrands, handleGetContributorBrands } from './handlers/catalog';
+import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, handleGetContributorProfile, handleGetStats, handleGetBrands, handleGetContributorBrands } from './handlers/catalog';
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
 import { addCorsHeaders } from './lib/cors';
@@ -107,6 +109,14 @@ export async function route(request: Request, env: Env): Promise<Response> {
       response = await handleGetContributorBrands(request, env, contributorId);
     }
   }
+  else if (method === 'GET' && path.startsWith('/api/contributors/') && !path.includes('/brands')) {
+    const contributorId = path.slice('/api/contributors/'.length);
+    if (!UUID_RE.test(contributorId)) {
+      response = Response.json({ ok: false, error: 'Invalid contributor ID format' }, { status: 400 });
+    } else {
+      response = await handleGetContributorProfile(request, env, contributorId);
+    }
+  }
   else if (method === 'GET' && path === '/api/contributors') {
     response = await handleGetContributors(request, env);
   }
@@ -166,7 +176,10 @@ export async function route(request: Request, env: Env): Promise<Response> {
   }
 
   // Pages
-  else if (method === 'GET' && ['/', '/catalog', '/create'].includes(path)) {
+  else if (method === 'GET' && path.startsWith('/contributor/')) {
+    response = await handlePages(request, env);
+  }
+  else if (method === 'GET' && ['/', '/catalog', '/create', '/import'].includes(path)) {
     response = await handlePages(request, env);
   }
   // 404
