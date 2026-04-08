@@ -352,4 +352,10 @@ QR codes displayed at the set. When you hear a song that hits, you scan and attr
 - [ ] Attribution stats: "X people discovered Y tracks through this DJ"
 - [ ] Integration with OurSharedEvents: `event_id` links attribution to specific set/venue
 - [ ] QR code includes event context when scanned at an OSE event
-- [ ] Sponsor data layer: attribution counts as verified engagement for sponsor reporting
+- [x] Sponsor data layer: attribution counts as verified engagement for sponsor reporting
+- [ ] "This hit" pushes track to listener's connected music service (Spotify or Apple Music)
+- [ ] Detect listener's connected platform from KV (Spotify tokens, Apple MUT, or none)
+- [ ] Spotify: add track to user's Saved Tracks via Spotify API
+- [ ] Apple Music: add track to user's library via MusicKit
+- [ ] No platform connected: prompt to connect, attribution still recorded
+- [ ] Auto-create "Discovered at [venue]" playlist if event context present
