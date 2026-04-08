@@ -331,12 +331,16 @@
 
   <nav class="bottom-nav">
     <a href="/catalog" class="nav-item" data-testid="nav-catalog">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>
       Catalog
     </a>
     <a href="/create" class="nav-item active" data-testid="nav-create">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
       Create
+    </a>
+    <a href="/import" class="nav-item" data-testid="nav-import">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      Import
     </a>
   </nav>
 
@@ -346,11 +350,19 @@
 
       var playlistId = null;
 
-      // Auth check via cookie
+      // Auth + role check via cookie
       fetch('/auth/session/me', { credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (!data.ok) window.location.href = '/';
+          if (!data.ok) { window.location.href = '/'; return; }
+          var allowed = ['founder', 'curator', 'dj'];
+          if (!allowed.includes(data.contributor.role)) {
+            document.querySelector('.content').innerHTML =
+              '<div style="text-align:center;padding:60px 20px;">' +
+              '<h3>Create Restricted</h3>' +
+              '<p style="color:var(--text-muted);margin-top:8px;">DJs and Curators can create playlists.</p>' +
+              '<a href="/catalog" style="color:var(--accent);text-decoration:none;display:block;margin-top:20px;">Browse the catalog</a></div>';
+          }
         })
         .catch(function() { window.location.href = '/'; });
 

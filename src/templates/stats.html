@@ -101,11 +101,8 @@
           renderContributors(contribData.contributors || []);
         }
 
-        // Try to get attribution count
-        fetch('/api/stats').then(function(r) { return r.json(); }).then(function(d) {
-          // Attribution count not in /api/stats yet — show placeholder
-          document.getElementById('total-attributions').textContent = '—';
-        });
+        // Attribution count — not in /api/stats, show 0 until data exists
+        document.getElementById('total-attributions').textContent = '0';
       });
 
       function renderBarChart(containerId, items, labelKey) {

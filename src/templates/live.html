@@ -239,12 +239,14 @@
 
       var eventId = new URLSearchParams(window.location.search).get('event');
       var attributed = {};
+      var isLoggedIn = false;
 
-      // Check if logged in — update footer CTA
+      // Check if logged in — update footer CTA and button states
       fetch('/auth/session/me', { credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.ok && data.contributor) {
+            isLoggedIn = true;
             var cta = document.getElementById('footer-cta');
             cta.innerHTML = '<a href="/catalog" style="color:var(--accent);text-decoration:none;font-size:0.9rem;">Back to your catalog</a>';
           }
@@ -307,10 +309,10 @@
               '<div class="track-name">' + escapeHtml(t.name) + '</div>' +
               '<div class="track-artist">' + escapeHtml(t.artist) + '</div>' +
             '</div>' +
-            '<button class="attr-btn' + (isAttributed ? ' done' : '') + '" ' +
+            '<button class="attr-btn' + (isAttributed ? ' done' : '') + (!isLoggedIn && !isAttributed ? ' needs-auth' : '') + '" ' +
               'data-track-id="' + t.id + '" data-dj-id="' + currentDjId + '" ' +
               (isAttributed ? 'disabled' : '') + ' data-testid="attr-btn">' +
-              (isAttributed ? 'Saved' : 'This hit') +
+              (isAttributed ? 'Saved' : (isLoggedIn ? 'This hit' : 'Save')) +
             '</button>' +
           '</div>';
         }).join('');
@@ -318,7 +320,12 @@
         // Attach handlers
         list.querySelectorAll('.attr-btn:not([disabled])').forEach(function(btn) {
           btn.addEventListener('click', function() {
-            attributeTrack(btn.dataset.djId, btn.dataset.trackId, btn);
+            if (!isLoggedIn) {
+              // Anonymous — still record attribution, then prompt to join
+              attributeTrack(btn.dataset.djId, btn.dataset.trackId, btn);
+            } else {
+              attributeTrack(btn.dataset.djId, btn.dataset.trackId, btn);
+            }
           });
         });
       }
@@ -347,8 +354,12 @@
               var label = data.push.platform === 'spotify' ? 'Saved to Spotify' :
                           data.push.platform === 'apple_music' ? 'Saved to Apple Music' : 'Saved';
               btn.textContent = label;
-            } else if (data.push && data.push.platform !== 'none') {
+            } else if (!isLoggedIn) {
               btn.textContent = 'Noted';
+              // Show join prompt after first anonymous attribution
+              var cta = document.getElementById('footer-cta');
+              cta.innerHTML = '<a href="/" style="color:var(--accent);text-decoration:none;font-size:0.9rem;font-weight:500;">Join to save songs to your library</a>' +
+                '<div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">The DJ still got credit for this one</div>';
             } else {
               btn.textContent = 'Saved';
             }

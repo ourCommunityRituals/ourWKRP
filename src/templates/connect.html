@@ -320,6 +320,11 @@
         if (!role) { showError('Please select your role.'); return; }
         if (!gen) { showError('Please select your generation.'); return; }
 
+        // Show loading state
+        var importBtnEl = document.getElementById('import-btn');
+        importBtnEl.textContent = 'Setting up...';
+        importBtnEl.style.opacity = '0.6';
+
         fetch('/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

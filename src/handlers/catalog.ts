@@ -335,7 +335,7 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
   const playlistCount = (playlistCountResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
 
   // Merge primary role with any additional roles from contributor_roles table
-  const additionalRoles = rolesResult.results.map((r: Record<string, unknown>) => r.role as string);
+  const additionalRoles = (rolesResult.results as Array<Record<string, unknown>>).map(r => r.role as string);
   const allRoles = [...new Set([contributor.role as string, ...additionalRoles])];
 
   return Response.json({
@@ -345,7 +345,7 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
     track_count: trackCount,
     playlist_count: playlistCount,
     top_genres: topGenresResult.results,
-    contribution_sources: sourcesResult.results.map((r: Record<string, unknown>) => r.source_platform),
+    contribution_sources: (sourcesResult.results as Array<Record<string, unknown>>).map(r => r.source_platform),
     playlists: playlistsResult.results,
     brands: brandsResult.results,
   });
