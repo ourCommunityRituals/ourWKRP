@@ -45,6 +45,14 @@ vi.mock('../../src/handlers/lastfm', () => ({
   handleLastfmSync: vi.fn(() => Response.json({ ok: true, service: 'lastfm-sync' })),
   handleLastfmStatus: vi.fn(() => Response.json({ ok: true, service: 'lastfm-status' })),
 }));
+vi.mock('../../src/handlers/dj', () => ({
+  handleStartSet: vi.fn(() => Response.json({ ok: true, service: 'dj-start-set' })),
+  handleAddSetTrack: vi.fn(() => Response.json({ ok: true, service: 'dj-add-track' })),
+  handleEndSet: vi.fn(() => Response.json({ ok: true, service: 'dj-end-set' })),
+  handleCreateAttribution: vi.fn(() => Response.json({ ok: true, service: 'dj-attribution' })),
+  handleGetDjStats: vi.fn(() => Response.json({ ok: true, service: 'dj-stats' })),
+  handleGetLiveSet: vi.fn(() => Response.json({ ok: true, service: 'dj-live' })),
+}));
 
 import { route } from '../../src/router';
 import type { Env } from '../../src/types';
@@ -252,5 +260,48 @@ describe('Router', () => {
     const res = await route(makeRequest('/lastfm/status/user123'), mockEnv);
     const body = await res.json() as { service: string };
     expect(body.service).toBe('lastfm-status');
+  });
+
+  // --- DJ Attribution routes ---
+
+  it('routes POST /api/sets to start set handler', async () => {
+    const res = await route(makeRequest('/api/sets', 'POST'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('dj-start-set');
+  });
+
+  it('routes POST /api/sets/:id/tracks to add track handler', async () => {
+    const res = await route(makeRequest('/api/sets/12345678-1234-1234-1234-123456789012/tracks', 'POST'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('dj-add-track');
+  });
+
+  it('routes POST /api/sets/:id/end to end set handler', async () => {
+    const res = await route(makeRequest('/api/sets/12345678-1234-1234-1234-123456789012/end', 'POST'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('dj-end-set');
+  });
+
+  it('routes POST /api/attributions to attribution handler', async () => {
+    const res = await route(makeRequest('/api/attributions', 'POST'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('dj-attribution');
+  });
+
+  it('routes GET /dj/:id/stats to DJ stats handler', async () => {
+    const res = await route(makeRequest('/dj/user123/stats'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('dj-stats');
+  });
+
+  it('routes GET /dj/:id/live to live set JSON handler', async () => {
+    const res = await route(makeRequest('/dj/user123/live'), mockEnv);
+    const body = await res.json() as { service: string };
+    expect(body.service).toBe('dj-live');
+  });
+
+  it('routes GET /dj/:id to live set HTML page', async () => {
+    const res = await route(makeRequest('/dj/user123'), mockEnv);
+    expect(res.headers.get('Content-Type')).toContain('text/html');
   });
 });

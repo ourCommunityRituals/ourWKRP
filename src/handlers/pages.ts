@@ -16,6 +16,7 @@ import catalogHtml from '../templates/catalog.html';
 import createHtml from '../templates/create.html';
 import profileHtml from '../templates/profile.html';
 import importHtml from '../templates/import.html';
+import liveHtml from '../templates/live.html';
 
 const HTML_HEADERS = {
   'Content-Type': 'text/html;charset=UTF-8',
@@ -39,6 +40,8 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
     html = createHtml;
   } else if (path === '/import') {
     html = importHtml;
+  } else if (path.startsWith('/dj/')) {
+    html = liveHtml;
   } else if (path.startsWith('/contributor/')) {
     html = profileHtml;
   } else {

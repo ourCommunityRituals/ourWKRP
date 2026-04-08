@@ -49,6 +49,7 @@ import { handleImport } from './handlers/import';
 import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, handleGetContributorProfile, handleGetStats, handleGetBrands, handleGetContributorBrands } from './handlers/catalog';
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
+import { handleStartSet, handleAddSetTrack, handleEndSet, handleCreateAttribution, handleGetDjStats, handleGetLiveSet } from './handlers/dj';
 import { addCorsHeaders } from './lib/cors';
 import { addSecurityHeaders } from './lib/security-headers';
 import { log } from './lib/logger';
@@ -176,6 +177,34 @@ export async function route(request: Request, env: Env): Promise<Response> {
   }
 
   // Pages
+  // --- DJ Attribution (WKRP-22) ---
+  else if (method === 'POST' && path === '/api/sets') {
+    response = await handleStartSet(request, env);
+  }
+  else if (method === 'POST' && path.startsWith('/api/sets/') && path.endsWith('/tracks')) {
+    const setId = path.slice('/api/sets/'.length, -'/tracks'.length);
+    response = await handleAddSetTrack(request, env, setId);
+  }
+  else if (method === 'POST' && path.startsWith('/api/sets/') && path.endsWith('/end')) {
+    const setId = path.slice('/api/sets/'.length, -'/end'.length);
+    response = await handleEndSet(request, env, setId);
+  }
+  else if (method === 'POST' && path === '/api/attributions') {
+    response = await handleCreateAttribution(request, env);
+  }
+  else if (method === 'GET' && path.startsWith('/dj/') && path.endsWith('/stats')) {
+    const djId = path.slice('/dj/'.length, -'/stats'.length);
+    response = await handleGetDjStats(request, env, djId);
+  }
+  else if (method === 'GET' && path.startsWith('/dj/') && path.endsWith('/live')) {
+    const djId = path.slice('/dj/'.length, -'/live'.length);
+    response = await handleGetLiveSet(request, env, djId);
+  }
+
+  // Pages
+  else if (method === 'GET' && path.startsWith('/dj/')) {
+    response = await handlePages(request, env);
+  }
   else if (method === 'GET' && path.startsWith('/contributor/')) {
     response = await handlePages(request, env);
   }
