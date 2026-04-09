@@ -661,6 +661,7 @@
       var currentView = 'list';
       var currentLayer = 'all';
       var allLoadedTracks = [];
+      var searchInput = document.getElementById('search-input');
 
       init();
 
@@ -748,7 +749,7 @@
       async function fetchTracks(append) {
         if (isLoading) return;
         isLoading = true;
-        searchInput.classList.add('loading');
+        if (searchInput) searchInput.classList.add('loading');
 
         if (!append) {
           currentCursor = null;
@@ -811,11 +812,10 @@
         }
 
         isLoading = false;
-        searchInput.classList.remove('loading');
+        if (searchInput) searchInput.classList.remove('loading');
       }
 
       // --- Search ---
-      var searchInput = document.getElementById('search-input');
       var searchTimeout;
       searchInput.addEventListener('input', function() {
         clearTimeout(searchTimeout);
