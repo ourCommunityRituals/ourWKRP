@@ -168,6 +168,8 @@ const ALLOWED_REDIRECT_HOSTS = new Set([
   'ourwkrp.com',
   'www.ourwkrp.com',
   'stg.ourwkrp.com',
+  'ourwkrp-staging.mzdano.workers.dev',
+  'ourwkrp-production.mzdano.workers.dev',
   'localhost',
   '127.0.0.1',
 ]);

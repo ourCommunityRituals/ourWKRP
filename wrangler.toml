@@ -41,8 +41,8 @@ WORKER_ENV = "staging"
 WORKER_VERSION = "0.1.0"
 # Fallback for local dev without Doppler — Doppler overrides in stg/prd
 SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
-SPOTIFY_REDIRECT_URI = "http://localhost:8787/auth/callback"
-APP_URL = "http://localhost:8787"
+SPOTIFY_REDIRECT_URI = "https://ourwkrp-staging.mzdano.workers.dev/auth/callback"
+APP_URL = "https://ourwkrp-staging.mzdano.workers.dev"
 # Last.fm — get API key at https://www.last.fm/api/account/create
 LASTFM_API_KEY = ""
 LASTFM_SHARED_SECRET = ""
@@ -50,14 +50,14 @@ LASTFM_SHARED_SECRET = ""
 # KV Namespace for auth/session state
 [[kv_namespaces]]
 binding = "WKRP_KV"
-id = "PLACEHOLDER_KV_STAGING"
-preview_id = "PLACEHOLDER_KV_PREVIEW"
+id = "aa9de79edebf4a1cac9a41a727ab85da"
+preview_id = "103eb5aabbf745d9913073d8159518bc"
 
 # D1 Database for catalog data
 [[d1_databases]]
 binding = "WKRP_DB"
 database_name = "ourwkrp-staging"
-database_id = "PLACEHOLDER_D1_STAGING"
+database_id = "f2a3a785-8a43-47b3-8a06-5ad4125e2a6d"
 
 # ============================================
 # Production environment
@@ -82,12 +82,12 @@ LASTFM_SHARED_SECRET = ""
 
 [[env.production.kv_namespaces]]
 binding = "WKRP_KV"
-id = "PLACEHOLDER_KV_PROD"
+id = "aa9de79edebf4a1cac9a41a727ab85da"
 
 [[env.production.d1_databases]]
 binding = "WKRP_DB"
 database_name = "ourwkrp-production"
-database_id = "PLACEHOLDER_D1_PROD"
+database_id = "3716b10e-a7b4-4869-b41e-bc7e422af749"
 
 # ============================================
 # Staging routes (uncomment when DNS is ready)
