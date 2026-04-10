@@ -57,12 +57,12 @@ describe('Catalog API Security', () => {
 
   describe('Playlist authentication', () => {
     it('handleCreatePlaylist requires authentication', () => {
-      expect(playlistContent).toContain('authenticate(request, env)');
+      expect(playlistContent).toContain('requireSession(request, env)');
     });
 
     it('handleAddPlaylistTracks requires authentication', () => {
-      // Count authenticate calls — should be at least 3 (create, add, remove)
-      const authCalls = (playlistContent.match(/authenticate\(request, env\)/g) || []).length;
+      // Count requireSession calls — should be at least 3 (create, add, remove)
+      const authCalls = (playlistContent.match(/requireSession\(request, env\)/g) || []).length;
       expect(authCalls).toBeGreaterThanOrEqual(3);
     });
 

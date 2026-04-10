@@ -46,6 +46,12 @@ export async function getSession(kv: KVNamespace, token: string): Promise<Sessio
   return JSON.parse(raw) as SessionData;
 }
 
+export async function deleteSession(kv: KVNamespace, token: string): Promise<void> {
+  const key = `wkrp:session:${token}`;
+  await kv.delete(key);
+  log('KV_DELETE', { key });
+}
+
 // Spotify tokens — no TTL (refresh handled in code)
 export async function storeTokens(kv: KVNamespace, userId: string, tokens: StoredTokens): Promise<void> {
   const key = `wkrp:tokens:${userId}`;

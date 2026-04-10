@@ -114,10 +114,15 @@ describe('Router', () => {
     expect(body.service).toBe('auth-callback');
   });
 
-  it('routes GET /auth/session/:token to auth-session handler', async () => {
-    const res = await route(makeRequest('/auth/session/abc123'), mockEnv);
+  it('routes GET /auth/session/me to auth-session handler', async () => {
+    const res = await route(makeRequest('/auth/session/me'), mockEnv);
     const body = await res.json() as { service: string };
     expect(body.service).toBe('auth-session');
+  });
+
+  it('rejects GET /auth/session/:token with arbitrary token (cookie-only)', async () => {
+    const res = await route(makeRequest('/auth/session/abc123'), mockEnv);
+    expect(res.status).toBe(404);
   });
 
   it('routes POST /spotify/sync/:userId to sync handler', async () => {

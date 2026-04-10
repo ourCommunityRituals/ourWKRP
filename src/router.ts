@@ -9,7 +9,8 @@
  *   GET  /create                    → playlist creation page
  *   GET  /auth/start                → initiate Spotify OAuth + PKCE
  *   GET  /auth/callback             → Spotify redirect handler
- *   GET  /auth/session/:token       → get contributor profile from session
+ *   POST /auth/logout               → clear session cookie + KV
+ *   GET  /auth/session/me           → get contributor profile from session cookie
  *   POST /spotify/sync/:userId      → sync playlists/tracks/audio-features
  *   POST /import/:contributorId     → import CSV library file
  *
@@ -44,6 +45,7 @@ import { handleAuthStart } from './handlers/auth-start';
 import { handleRegister } from './handlers/auth-register';
 import { handleAuthCallback } from './handlers/auth-callback';
 import { handleAuthSession } from './handlers/auth-session';
+import { handleLogout } from './handlers/auth-logout';
 import { handleSync } from './handlers/sync';
 import { handlePages } from './handlers/pages';
 import { handleImport } from './handlers/import';
@@ -88,7 +90,10 @@ export async function route(request: Request, env: Env): Promise<Response> {
   else if (method === 'GET' && path === '/auth/callback') {
     response = await handleAuthCallback(request, env);
   }
-  else if (method === 'GET' && path.startsWith('/auth/session/')) {
+  else if (method === 'POST' && path === '/auth/logout') {
+    response = await handleLogout(request, env);
+  }
+  else if (method === 'GET' && path === '/auth/session/me') {
     response = await handleAuthSession(request, env);
   }
   // Spotify sync (legacy, still functional for <=5 users)

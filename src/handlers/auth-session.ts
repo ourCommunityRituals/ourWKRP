@@ -1,10 +1,8 @@
 /**
- * GET /auth/session/:token
+ * GET /auth/session/me
  *
  * Frontend calls this on load to get contributor profile.
- * Accepts session token from:
- *   1. Cookie (preferred — :token = "me")
- *   2. URL path (legacy fallback — :token = actual token)
+ * Session token is read exclusively from the HttpOnly cookie.
  *
  * Returns contributor data if session is valid, 401 otherwise.
  * Never returns Spotify tokens.
@@ -16,21 +14,12 @@ import { getSessionToken } from '../lib/session-cookie';
 import { log } from '../lib/logger';
 
 export async function handleAuthSession(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url);
-  const pathToken = url.pathname.split('/auth/session/')[1];
+  const token = getSessionToken(request);
 
-  // Determine session token: cookie (if path is "me") or path param
-  let token: string | null;
-  if (pathToken === 'me') {
-    token = getSessionToken(request);
-  } else {
-    token = pathToken || null;
-  }
-
-  if (!token || token.length < 10) {
+  if (!token) {
     return Response.json(
-      { ok: false, error: 'Invalid session token' },
-      { status: 400 },
+      { ok: false, error: 'Authentication required' },
+      { status: 401 },
     );
   }
 

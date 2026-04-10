@@ -12,6 +12,7 @@
 import type { Env } from '../types';
 import { getSession } from '../lib/kv-storage';
 import { getSessionToken } from '../lib/session-cookie';
+import { requireSession } from '../lib/require-session';
 import { pushTrackToLibrary, addToDiscoveryPlaylist, detectPlatform } from '../lib/music-push';
 import { startSetBodySchema, addSetTrackBodySchema, createAttributionBodySchema } from '../lib/schemas';
 import { validateBody } from '../lib/validate';
@@ -23,7 +24,7 @@ import { log } from '../lib/logger';
  * Body: { venue_name?: string, event_id?: string }
  */
 export async function handleStartSet(request: Request, env: Env): Promise<Response> {
-  const auth = await authenticate(request, env);
+  const auth = await requireSession(request, env);
   if (auth instanceof Response) return auth;
 
   // Verify DJ role
@@ -64,7 +65,7 @@ export async function handleStartSet(request: Request, env: Env): Promise<Respon
  * Body: { track_id: string }
  */
 export async function handleAddSetTrack(request: Request, env: Env, setId: string): Promise<Response> {
-  const auth = await authenticate(request, env);
+  const auth = await requireSession(request, env);
   if (auth instanceof Response) return auth;
 
   // Verify ownership
@@ -104,7 +105,7 @@ export async function handleAddSetTrack(request: Request, env: Env, setId: strin
  * End a live set.
  */
 export async function handleEndSet(request: Request, env: Env, setId: string): Promise<Response> {
-  const auth = await authenticate(request, env);
+  const auth = await requireSession(request, env);
   if (auth instanceof Response) return auth;
 
   const set = await env.WKRP_DB.prepare(
@@ -295,16 +296,3 @@ export async function handleGetLiveSet(_request: Request, env: Env, djId: string
   });
 }
 
-// --- Auth helper ---
-
-async function authenticate(request: Request, env: Env): Promise<{ userId: string } | Response> {
-  const token = getSessionToken(request);
-  if (!token) {
-    return Response.json({ ok: false, error: 'Authentication required' }, { status: 401 });
-  }
-  const session = await getSession(env.WKRP_KV, token);
-  if (!session) {
-    return Response.json({ ok: false, error: 'Session expired' }, { status: 401 });
-  }
-  return { userId: session.userId };
-}

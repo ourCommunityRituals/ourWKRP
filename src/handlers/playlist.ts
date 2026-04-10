@@ -9,26 +9,13 @@
  */
 
 import type { Env } from '../types';
-import { getSession } from '../lib/kv-storage';
-import { getSessionToken } from '../lib/session-cookie';
+import { requireSession } from '../lib/require-session';
 import { extractBrandId } from '../lib/brand';
 import { createPlaylistBodySchema, playlistTracksBodySchema } from '../lib/schemas';
 import { validateBody } from '../lib/validate';
 import { log } from '../lib/logger';
 
 const ALLOWED_CREATOR_ROLES = ['founder', 'curator', 'dj'];
-
-async function authenticate(request: Request, env: Env): Promise<{ userId: string; brandId: string } | Response> {
-  const token = getSessionToken(request);
-  if (!token) {
-    return Response.json({ ok: false, error: 'Authentication required' }, { status: 401 });
-  }
-  const session = await getSession(env.WKRP_KV, token);
-  if (!session) {
-    return Response.json({ ok: false, error: 'Session expired' }, { status: 401 });
-  }
-  return { userId: session.userId, brandId: session.brand_id };
-}
 
 /** Verify the authenticated user owns a curated playlist. */
 async function requireOwnedPlaylist(
@@ -51,7 +38,7 @@ async function requireOwnedPlaylist(
  * Body: { name: string, description?: string }
  */
 export async function handleCreatePlaylist(request: Request, env: Env): Promise<Response> {
-  const auth = await authenticate(request, env);
+  const auth = await requireSession(request, env);
   if (auth instanceof Response) return auth;
 
   const brandId = extractBrandId(request);
@@ -133,7 +120,7 @@ export async function handleGetPlaylist(request: Request, env: Env, playlistId: 
  * Body: { track_ids: string[] }
  */
 export async function handleAddPlaylistTracks(request: Request, env: Env, playlistId: string): Promise<Response> {
-  const auth = await authenticate(request, env);
+  const auth = await requireSession(request, env);
   if (auth instanceof Response) return auth;
 
   const playlist = await requireOwnedPlaylist(env, playlistId, auth.userId);
@@ -173,7 +160,7 @@ export async function handleAddPlaylistTracks(request: Request, env: Env, playli
  * Body: { track_ids: string[] }
  */
 export async function handleRemovePlaylistTracks(request: Request, env: Env, playlistId: string): Promise<Response> {
-  const auth = await authenticate(request, env);
+  const auth = await requireSession(request, env);
   if (auth instanceof Response) return auth;
 
   const playlist = await requireOwnedPlaylist(env, playlistId, auth.userId);
