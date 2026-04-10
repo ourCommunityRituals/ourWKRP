@@ -13,7 +13,7 @@ import type { Env } from '../types';
 import { getSession } from '../lib/kv-storage';
 import { getSessionToken } from '../lib/session-cookie';
 import { requireSession } from '../lib/require-session';
-import { pushTrackToLibrary, addToDiscoveryPlaylist, detectPlatform } from '../lib/music-push';
+import { pushTrackToLibrary, addToDiscoveryPlaylist } from '../lib/music-push';
 import { startSetBodySchema, addSetTrackBodySchema, createAttributionBodySchema } from '../lib/schemas';
 import { validateBody } from '../lib/validate';
 import { log } from '../lib/logger';

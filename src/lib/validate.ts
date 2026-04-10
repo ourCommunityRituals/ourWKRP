@@ -5,7 +5,7 @@
  * frontend can highlight exactly what's wrong.
  */
 
-import { z, type ZodSchema } from 'zod';
+import { type ZodSchema } from 'zod';
 
 /**
  * Validate a request body against a Zod schema.
