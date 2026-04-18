@@ -16,7 +16,9 @@ function getAllowedOrigin(requestOrigin: string | null, env: Env): string | null
   // Build allowlist from environment
   const allowed = new Set<string>([
     env.APP_URL,                           // e.g. https://ourwkrp.com
+    // security-gate: allow forbidden_url_scan -- wrangler dev origins, unreachable from prod
     'http://localhost:8787',               // wrangler dev
+    // security-gate: allow forbidden_url_scan -- wrangler dev alt loopback, unreachable from prod
     'http://127.0.0.1:8787',              // wrangler dev alt
   ]);
 
