@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# Pin bash for self-hosted Windows runner. Default would be PowerShell;
+# every `run:` step in this file uses bash syntax (grep negation, pipes,
+# POSIX conditionals) and would otherwise fail with parser errors.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   # ============================================
   # Stage 1: Static Analysis (parallel)
@@ -29,14 +36,14 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Install gitleaks
-        run: |
-          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar xz
-          sudo mv gitleaks /usr/local/bin/
-      - name: Run gitleaks
-        run: gitleaks detect --source . --verbose --no-banner
+      # Drops the prior gitleaks-based scan. gitleaks ships a Linux-only
+      # binary; the self-hosted Windows runner can't execute it and the
+      # `sudo mv /usr/local/bin/` line fails on Windows regardless.
+      # Replaced with the vendored canonical security gate — same class
+      # of scan (secret + PII + forbidden-URL) + pragma policy audit,
+      # shared across OCR-docs, OSE, @ocr/flags, and now OW.
+      - name: Level 0 Security
+        run: py tests/level0_security.py
 
   dependency-audit:
     name: Dependency Audit

@@ -109,6 +109,7 @@ function getField(row: string[], headerMap: Map<string, number>, ...names: strin
 function sanitizeUrl(value: string): string | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
+  // security-gate: allow forbidden_url_scan -- scheme-prefix check, not an actual http:// URL
   if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) {
     return trimmed;
   }
