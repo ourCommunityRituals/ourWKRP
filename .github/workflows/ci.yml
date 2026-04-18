@@ -13,7 +13,7 @@ jobs:
 
   lint-and-typecheck:
     name: Lint & Type Check
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,7 +26,7 @@ jobs:
 
   secret-scanning:
     name: Secret Scanning
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,7 +40,7 @@ jobs:
 
   dependency-audit:
     name: Dependency Audit
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -68,7 +68,7 @@ jobs:
 
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: lint-and-typecheck
     steps:
       - uses: actions/checkout@v4
@@ -81,7 +81,7 @@ jobs:
 
   integration-tests:
     name: Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: lint-and-typecheck
     steps:
       - uses: actions/checkout@v4
@@ -94,7 +94,7 @@ jobs:
 
   contract-tests:
     name: Contract Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: lint-and-typecheck
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +107,7 @@ jobs:
 
   security-tests:
     name: Security Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: lint-and-typecheck
     steps:
       - uses: actions/checkout@v4
@@ -124,7 +124,7 @@ jobs:
 
   performance-tests:
     name: Performance Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [unit-tests, integration-tests]
     steps:
       - uses: actions/checkout@v4
@@ -141,7 +141,7 @@ jobs:
 
   all-checks:
     name: All Checks Passed
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs:
       - lint-and-typecheck
       - secret-scanning
@@ -164,7 +164,7 @@ jobs:
 
   deploy-staging:
     name: Deploy Staging
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: all-checks
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: staging
@@ -185,7 +185,7 @@ jobs:
 
   deploy-production:
     name: Deploy Production
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [deploy-staging]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
