@@ -1,3 +1,27 @@
+# ourWKRP – CI Pipeline
+#
+# S0 Security → Stage 1 (parallel) → Stage 2 (parallel) → Stage 3 → Gate → Deploy
+#
+#   S0: Security — Static vulnerability analysis + supply chain inventory
+#       - CodeQL SAST (JS/TS)          → github/codeql-action/analyze@v3
+#       - npm audit (CVE check)        → npm audit --omit=dev --audit-level=high
+#       - SBOM generation              → npx @cyclonedx/cyclonedx-npm --omit dev
+#
+#   Stage 1: Static Analysis (parallel)
+#       - Lint & typecheck             → tsc --noEmit + eslint src/
+#       - Secret scanning              → py tests/level0_security.py
+#
+#   Stage 2: Test Pyramid (parallel, after Stage 1)
+#       - Unit tests                   → vitest run tests/unit
+#       - Integration tests            → vitest run tests/integration
+#       - Contract tests               → vitest run tests/contract
+#       - Security tests               → vitest run tests/security
+#
+#   Stage 3: Performance (after Stage 2)
+#       - Performance tests            → vitest run tests/performance
+#
+#   Gate: All checks must pass → Deploy staging → Deploy production
+
 name: CI
 
 on:
@@ -15,18 +39,66 @@ defaults:
 
 jobs:
   # ============================================
+  # S0: Security (before everything)
+  # ============================================
+
+  security:
+    name: S0 Security
+    runs-on: self-hosted
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - run: npm ci
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'
+
+      - name: npm audit
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Generate SBOM
+        run: |
+          npx @cyclonedx/cyclonedx-npm --omit dev --output-file sbom.json --output-format JSON --spec-version 1.5
+          COMPONENT_COUNT=$(jq '.components | length' sbom.json 2>/dev/null || echo "unknown")
+          echo "## S0 Security" >> $GITHUB_STEP_SUMMARY
+          echo "- **CodeQL:** passed" >> $GITHUB_STEP_SUMMARY
+          echo "- **npm audit:** passed" >> $GITHUB_STEP_SUMMARY
+          echo "- **SBOM:** $COMPONENT_COUNT components (CycloneDX 1.5)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-cyclonedx-${{ github.run_number }}
+          path: sbom.json
+          retention-days: 90
+
+  # ============================================
   # Stage 1: Static Analysis (parallel)
   # ============================================
 
   lint-and-typecheck:
     name: Lint & Type Check
     runs-on: self-hosted
+    needs: [security]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
-          cache: 'npm'
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
@@ -34,40 +106,13 @@ jobs:
   secret-scanning:
     name: Secret Scanning
     runs-on: self-hosted
+    needs: [security]
     steps:
-      - uses: actions/checkout@v4
-      # Drops the prior gitleaks-based scan. gitleaks ships a Linux-only
-      # binary; the self-hosted Windows runner can't execute it and the
-      # `sudo mv /usr/local/bin/` line fails on Windows regardless.
-      # Replaced with the vendored canonical security gate — same class
-      # of scan (secret + PII + forbidden-URL) + pragma policy audit,
-      # shared across OCR-docs, OSE, @ocr/flags, and now OW.
+      - uses: actions/checkout@v6
+      # Vendored canonical security gate — secret + PII + forbidden-URL
+      # + pragma policy audit, shared across OCR repos.
       - name: Level 0 Security
         run: py tests/level0_security.py
-
-  dependency-audit:
-    name: Dependency Audit
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - run: npm ci
-      # Zero runtime deps — all vulnerabilities are in dev tooling (esbuild, vite, miniflare).
-      # Fail on critical only. High/moderate in dev deps are informational.
-      - name: Audit dependencies
-        run: |
-          npm audit --audit-level=critical || exit 1
-          npm audit --audit-level=high || echo "::warning::Dev dependency vulnerabilities found (non-blocking). Run npm audit for details."
-      # Also check for known vulnerable patterns in our code
-      - name: Check for dangerous patterns
-        run: |
-          echo "Checking for eval(), innerHTML, document.write..."
-          ! grep -rn 'eval(' src/ --include='*.ts' || true
-          ! grep -rn '\.innerHTML\s*=' src/ --include='*.ts' || echo "WARNING: innerHTML assignment found in TypeScript"
-          ! grep -rn 'document\.write' src/ --include='*.html' || echo "WARNING: document.write found in HTML"
 
   # ============================================
   # Stage 2: Test Pyramid (parallel, after lint)
@@ -76,52 +121,48 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: self-hosted
-    needs: lint-and-typecheck
+    needs: [security, lint-and-typecheck]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
-          cache: 'npm'
       - run: npm ci
       - run: npm run test:unit
 
   integration-tests:
     name: Integration Tests
     runs-on: self-hosted
-    needs: lint-and-typecheck
+    needs: [security, lint-and-typecheck]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
-          cache: 'npm'
       - run: npm ci
       - run: npm run test:integration
 
   contract-tests:
     name: Contract Tests
     runs-on: self-hosted
-    needs: lint-and-typecheck
+    needs: [security, lint-and-typecheck]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
-          cache: 'npm'
       - run: npm ci
       - run: npm run test:contract
 
   security-tests:
     name: Security Tests
     runs-on: self-hosted
-    needs: lint-and-typecheck
+    needs: [security, lint-and-typecheck]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
-          cache: 'npm'
       - run: npm ci
       - run: npm run test:security
 
@@ -132,13 +173,12 @@ jobs:
   performance-tests:
     name: Performance Tests
     runs-on: self-hosted
-    needs: [unit-tests, integration-tests]
+    needs: [security, unit-tests, integration-tests]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
-          cache: 'npm'
       - run: npm ci
       - run: npm run test:performance
 
@@ -150,9 +190,9 @@ jobs:
     name: All Checks Passed
     runs-on: self-hosted
     needs:
+      - security
       - lint-and-typecheck
       - secret-scanning
-      - dependency-audit
       - unit-tests
       - integration-tests
       - contract-tests
@@ -176,11 +216,10 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: staging
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
-          cache: 'npm'
       - run: npm ci
       - name: Install Doppler CLI
         uses: dopplerhq/cli-action@v3
@@ -197,11 +236,10 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
-          cache: 'npm'
       - run: npm ci
       - name: Install Doppler CLI
         uses: dopplerhq/cli-action@v3
