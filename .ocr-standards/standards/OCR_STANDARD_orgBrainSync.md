@@ -24,7 +24,7 @@ Three mechanisms keep the org in sync. Each operates at a different frequency an
               │                │                │
               ▼                ▼                ▼
       ┌──────────────────────────────────────────────┐
-      │  OSE  OW  OSG  OSR  OSP  OSM  OWL           │
+      │  OSE  OW  OSG  OSR  OSP  OSM  OA           │
       │  (product repos)                              │
       └──────────────────────────────────────────────┘
 ```
@@ -34,7 +34,7 @@ Three mechanisms keep the org in sync. Each operates at a different frequency an
 ## Mechanism 1: Propagate Standards (push down)
 
 **What:** When OCR-docs standards change, open PRs in all product repos.
-**Trigger:** Push to main touching `templates/`, `skills/`, `docs/OCR_VISION.md`, or `docs/OCR_DEPENDENCY_crossRepo.md`
+**Trigger:** Push to main touching `templates/`, `skills/`, `docs/OCR_VISION.md`, or `docs/references/OCR_DEPENDENCY_crossRepo.md`
 **Workflow:** `.github/workflows/propagate-standards.yml`
 **Frequency:** On change (event-driven)
 
@@ -45,7 +45,7 @@ Three mechanisms keep the org in sync. Each operates at a different frequency an
 | `templates/` | `.ocr-standards/` | CLAUDE-base, SKILL-template, OCR_TEMPLATE_adr |
 | `skills/` | `.ocr-standards/skills/` | CCR protocol, CCR template, CCR MVP |
 | `docs/OCR_VISION.md` | `.ocr-standards/docs/OCR_VISION.md` | Org-level source of truth |
-| `docs/OCR_DEPENDENCY_crossRepo.md` | `.ocr-standards/docs/OCR_DEPENDENCY_crossRepo.md` | Cross-repo dependencies |
+| `docs/references/OCR_DEPENDENCY_crossRepo.md` | `.ocr-standards/docs/OCR_DEPENDENCY_crossRepo.md` | Cross-repo dependencies |
 | `docs/standards/` | `.ocr-standards/standards/` | **NEW — naming, testing, D1, org-brain-sync** |
 
 ### Standards propagation (wired)
@@ -225,7 +225,7 @@ paths:
   - 'templates/**'
   - 'skills/**'
   - 'docs/OCR_VISION.md'
-  - 'docs/OCR_DEPENDENCY_crossRepo.md'
+  - 'docs/references/OCR_DEPENDENCY_crossRepo.md'
 ```
 
 It should also watch:
@@ -235,7 +235,7 @@ paths:
   - 'templates/**'
   - 'skills/**'
   - 'docs/OCR_VISION.md'
-  - 'docs/OCR_DEPENDENCY_crossRepo.md'
+  - 'docs/references/OCR_DEPENDENCY_crossRepo.md'
   - 'docs/standards/**'          # ← NEW: naming, testing, D1, org-brain-sync
 ```
 
