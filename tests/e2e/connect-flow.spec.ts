@@ -1,8 +1,10 @@
 /**
  * E2E tests — Connect flow (mobile viewport)
  *
- * Tests Screen 1 (contributor form) rendering and validation.
- * Spotify redirect is tested up to the redirect point.
+ * Simplified one-field flow: name input + three actions.
+ *   - Browse the Catalog (anonymous read)
+ *   - Bring Your Music (register + redirect to /import)
+ *   - Connect Spotify (OAuth — tertiary, 5-seat dev cap)
  */
 import { test, expect } from '@playwright/test';
 
@@ -11,10 +13,11 @@ test.describe('Connect Flow', () => {
     await page.goto('/');
   });
 
-  test('renders connect page with form', async ({ page }) => {
+  test('renders connect page with name input and three actions', async ({ page }) => {
     await expect(page.getByTestId('connect-form')).toBeVisible();
     await expect(page.getByTestId('input-name')).toBeVisible();
-    await expect(page.getByTestId('select-generation')).toBeVisible();
+    await expect(page.getByTestId('btn-bring')).toBeVisible();
+    await expect(page.getByTestId('btn-browse')).toBeVisible();
     await expect(page.getByTestId('btn-connect')).toBeVisible();
   });
 
@@ -28,35 +31,30 @@ test.describe('Connect Flow', () => {
     await expect(nameInput).toHaveValue('Matt');
   });
 
-  test('generation dropdown has all options', async ({ page }) => {
-    const select = page.getByTestId('select-generation');
-    const options = select.locator('option');
-    // 4 options: disabled placeholder + founder + gen2 + gen3
-    await expect(options).toHaveCount(4);
+  test('Browse the Catalog navigates without a name', async ({ page }) => {
+    await Promise.all([
+      page.waitForURL(/\/catalog/),
+      page.getByTestId('btn-browse').click(),
+    ]);
   });
 
-  test('connect button shows Spotify icon', async ({ page }) => {
-    const btn = page.getByTestId('btn-connect');
-    await expect(btn).toContainText('Connect with Spotify');
-    // SVG should be present
-    await expect(btn.locator('svg')).toBeVisible();
+  test('Bring Your Music surfaces an error when name is empty', async ({ page }) => {
+    await page.getByTestId('btn-bring').click();
+    const banner = page.getByTestId('error-banner');
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText('name');
   });
 
-  test('validates empty name on submit', async ({ page }) => {
-    // Select generation but leave name empty
-    await page.getByTestId('select-generation').selectOption('founder');
+  test('Spotify link surfaces an error when name is empty', async ({ page }) => {
     await page.getByTestId('btn-connect').click();
-
-    // HTML5 validation should prevent submit (required attribute)
-    // The form should still be visible (not navigated away)
-    await expect(page.getByTestId('connect-form')).toBeVisible();
+    const banner = page.getByTestId('error-banner');
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText('name');
   });
 
-  test('redirects to /auth/start with correct params', async ({ page }) => {
+  test('Connect Spotify redirects to /auth/start with name + gen=founder', async ({ page }) => {
     await page.getByTestId('input-name').fill('Matt');
-    await page.getByTestId('select-generation').selectOption('founder');
 
-    // Listen for navigation
     const [request] = await Promise.all([
       page.waitForRequest(req => req.url().includes('/auth/start')),
       page.getByTestId('btn-connect').click(),
@@ -71,11 +69,5 @@ test.describe('Connect Flow', () => {
     const banner = page.getByTestId('error-banner');
     await expect(banner).toBeVisible();
     await expect(banner).toContainText('denied');
-  });
-
-  test('redirects to catalog when session param exists', async ({ page }) => {
-    await page.goto('/?session=test-session-123');
-    // Should redirect to /catalog
-    await page.waitForURL(/\/catalog/);
   });
 });
