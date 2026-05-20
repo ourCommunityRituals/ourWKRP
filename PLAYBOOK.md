@@ -102,16 +102,17 @@ npx wrangler kv:namespace create WKRP_KV --preview
 #   PLACEHOLDER_KV_PREVIEW   → preview KV id
 #   PLACEHOLDER_KV_PROD      → production KV id
 
-# Run migrations (repeat for each .sql file)
+# Run migrations in order (repeat for each .sql file)
 npx wrangler d1 execute ourwkrp-staging --file=migrations/0001_initial.sql
 npx wrangler d1 execute ourwkrp-staging --file=migrations/0002_unique_spotify_user.sql
 npx wrangler d1 execute ourwkrp-staging --file=migrations/0003_multi_source_provenance.sql
 npx wrangler d1 execute ourwkrp-staging --file=migrations/0004_backfill_provenance.sql
 npx wrangler d1 execute ourwkrp-staging --file=migrations/0005_catalog_api_brands_fts.sql
+npx wrangler d1 execute ourwkrp-staging --file=migrations/0006_dj_attribution.sql
 
 # Repeat for production
 npx wrangler d1 execute ourwkrp-production --file=migrations/0001_initial.sql
-# ... (all 5 migration files)
+# ... (all 6 migration files)
 ```
 
 ### 2.4 Verify D1 setup
@@ -120,7 +121,7 @@ npx wrangler d1 execute ourwkrp-production --file=migrations/0001_initial.sql
 npx wrangler d1 execute ourwkrp-staging --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
 ```
 
-Expected tables: `brands`, `contributions`, `contributor_roles`, `contributors`, `playlist_tracks`, `playlists`, `track_identifiers`, `tracks`, `tracks_fts`
+Expected tables: `attributions`, `brands`, `contributions`, `contributor_roles`, `contributors`, `dj_sets`, `playlist_tracks`, `playlists`, `set_tracks`, `track_identifiers`, `tracks`, `tracks_fts`
 
 ---
 
