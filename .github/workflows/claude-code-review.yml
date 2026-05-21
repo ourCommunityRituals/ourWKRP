@@ -18,7 +18,9 @@ jobs:
     #   github.event.pull_request.user.login == 'new-developer' ||
     #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
 
-    runs-on: self-hosted
+    # GitHub-hosted Linux: anthropics/claude-code-action's installer does not
+    # support Windows, so this job cannot run on the self-hosted Windows runner.
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
