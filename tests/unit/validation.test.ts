@@ -78,8 +78,9 @@ describe('Zod Schemas', () => {
       if (!result.success) {
         const paths = result.error.issues.map(i => i.path[0]);
         expect(paths).toContain('name');
-        expect(paths).toContain('role');
-        expect(paths).toContain('generation');
+        // role and generation are optional with defaults — not required
+        expect(paths).not.toContain('role');
+        expect(paths).not.toContain('generation');
       }
     });
   });
