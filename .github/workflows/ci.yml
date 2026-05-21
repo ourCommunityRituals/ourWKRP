@@ -22,7 +22,10 @@
 #   Stage 3: Performance (after Stage 2)
 #       - Performance tests            → vitest run tests/performance
 #
-#   Gate: All checks must pass → Deploy staging → Deploy production
+#   Gate: All checks must pass → Deploy staging (automatic, on push to main)
+#
+#   Deploy production: MANUAL ONLY — workflow_dispatch. Policy is staging-only
+#   until further notice; see the deploy-production job for the procedure.
 
 name: CI
 
@@ -31,6 +34,8 @@ on:
     branches: [main, 'claude/**']
   pull_request:
     branches: [main]
+  # Production deploy is manual-only — triggered here. See the deploy-production job.
+  workflow_dispatch:
 
 # Pin bash for self-hosted Windows runner. Default would be PowerShell;
 # every `run:` step in this file uses bash syntax (grep negation, pipes,
@@ -275,11 +280,27 @@ jobs:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STG }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
+  # ============================================
+  # Deploy Production — MANUAL ONLY
+  # ============================================
+  # Policy: staging-only until further notice. Production does NOT deploy on a
+  # push to main — this job runs only via a manual workflow_dispatch.
+  #
+  # Production deploy procedure (run only when prod is explicitly approved):
+  #   1. Confirm staging is healthy:
+  #        curl https://ourwkrp-staging.mzdano.workers.dev/health
+  #   2. Apply D1 migrations to the production database — `wrangler deploy`
+  #      does NOT apply migrations, so this must be done first:
+  #        doppler run -c prd -- wrangler d1 migrations apply ourwkrp-production
+  #   3. Trigger this workflow: GitHub → Actions → CI → "Run workflow" on the
+  #      main branch. It re-runs the full gate (S0 → tests) then deploys prod.
+  #   4. Smoke test:  curl https://ourwkrp.com/health
+  # ============================================
   deploy-production:
     name: Deploy Production
     runs-on: self-hosted
-    needs: [deploy-staging]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [all-checks]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
     environment: production
     steps:
       - uses: actions/checkout@v6
