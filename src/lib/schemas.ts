@@ -30,8 +30,8 @@ export const spotifyTrackIdSchema = z.string().regex(
 
 export const registerBodySchema = z.object({
   name: nameSchema,
-  role: roleSchema,
-  generation: generationSchema,
+  role: roleSchema.default('contributor'),
+  generation: generationSchema.default('founder'),
 });
 
 // --- Playlists ---
