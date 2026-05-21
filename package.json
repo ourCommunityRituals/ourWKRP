@@ -17,7 +17,7 @@
     "test:integration": "vitest run tests/integration",
     "test:contract": "vitest run tests/contract",
     "test:security": "vitest run tests/security",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/seed-local-d1.mjs && playwright test",
     "test:performance": "vitest run tests/performance",
     "test:load": "k6 run k6/sync-load.js",
     "db:seed:local": "node scripts/seed-local-d1.mjs",

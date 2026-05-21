@@ -168,10 +168,6 @@ jobs:
       - run: npm ci
       - run: npm run test:security
 
-  # E2E runs on every PR and uploads its Playwright report, but is intentionally
-  # NOT in the all-checks gate yet: tests/e2e/catalog-browse.spec.ts has failures
-  # left by the PR #23 "anonymous catalog" merge (the spec was not updated to
-  # match the app). Add e2e-tests to the all-checks `needs` once that is repaired.
   e2e-tests:
     name: E2E Tests
     runs-on: self-hosted
@@ -245,6 +241,7 @@ jobs:
       - integration-tests
       - contract-tests
       - security-tests
+      - e2e-tests
       - postman-tests
       - performance-tests
     steps:

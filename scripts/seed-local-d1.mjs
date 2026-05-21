@@ -5,13 +5,13 @@
  * register, import, and query would 500 without tables. This applies every
  * migration in migrations/ to the local D1 used by `wrangler dev`.
  *
- * Migrations are additive and partially overlap (0005 re-declares two indexes
- * from 0001), so a "already exists" error on re-application is expected and
- * treated as a skip — matching the tolerance in scripts/setup-infra.sh.
+ * Migrations are additive and partially overlap, so an "already exists" error
+ * on re-application is expected and treated as a skip — matching the tolerance
+ * in scripts/setup-infra.sh.
  *
  * Usage: node scripts/seed-local-d1.mjs
  */
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -23,10 +23,9 @@ console.log(`Seeding local D1 "${DB_NAME}" with ${files.length} migration file(s
 
 for (const file of files) {
   try {
-    execFileSync(
-      'npx',
-      ['wrangler', 'd1', 'execute', DB_NAME, '--local', `--file=${join(MIGRATIONS_DIR, file)}`, '--yes'],
-      { stdio: ['ignore', 'ignore', 'inherit'], shell: true },
+    execSync(
+      `npx wrangler d1 execute ${DB_NAME} --local --file="${join(MIGRATIONS_DIR, file)}" --yes`,
+      { stdio: ['ignore', 'ignore', 'inherit'] },
     );
     console.log(`  [ok]   ${file}`);
   } catch {
