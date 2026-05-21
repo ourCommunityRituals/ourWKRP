@@ -438,8 +438,9 @@
 
           contributor = sessionData.contributor;
 
-          // Role check
-          var allowedRoles = ['founder', 'curator', 'dj'];
+          // Role check — contributors import their own library (the CSV-first
+          // "Bring Your Music" path); only listeners are browse-only.
+          var allowedRoles = ['founder', 'curator', 'dj', 'contributor'];
           if (!allowedRoles.includes(contributor.role)) {
             document.getElementById('loading-view').classList.add('hidden');
             document.getElementById('access-denied').classList.remove('hidden');
