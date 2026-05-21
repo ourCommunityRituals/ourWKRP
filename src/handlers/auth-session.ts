@@ -57,6 +57,7 @@ export async function handleAuthSession(request: Request, env: Env): Promise<Res
       brand_id: contributor.brand_id,
       spotify_display_name: contributor.spotify_display_name,
       last_sync_at: contributor.last_sync_at,
+      role: contributor.role,
     },
   });
 }
