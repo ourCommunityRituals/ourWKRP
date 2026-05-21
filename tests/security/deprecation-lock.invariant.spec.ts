@@ -27,6 +27,17 @@
  * STRUCTURAL test — reads source files and asserts code shape. Runs in CI
  * via `npm run test:security` (Security Tests job). Mirrors the existing
  * structural pattern in tests/security/ccr-invariants.test.ts.
+ *
+ * LIMITATIONS (recorded by the 5-loop CCR run, 2026-05-21). A structural
+ * test is a tripwire, not a proof: it catches a literal re-introduction of
+ * a forbidden pattern, not a flow rebuilt through computed strings or
+ * indirection. It is nonetheless the right-sized mechanism for WKRP's
+ * deprecated surface — a single OAuth file — and is a deliberate divergence
+ * from brain invariant #10's full four-layer model (scanner + allowlist +
+ * CI step + structural test). OSE needs all four for the sprawling Google
+ * Apps Script runtime; WKRP's surface does not warrant a standalone scanner
+ * + allowlist. If WKRP's auth surface ever grows beyond src/auth/, revisit
+ * this and add the scanner layer.
  */
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
