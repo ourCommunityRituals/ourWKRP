@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ourWKRP — Connect</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --border: #2a2a2a;
+      --text: #f0f0f0;
+      --text-muted: #888;
+      --accent: #D4954B;
+      --accent-hover: #E8A849;
+      --error: #e74c3c;
+      --radius: 12px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .logo h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .logo p {
+      color: var(--text-muted);
+      margin-top: 8px;
+      font-size: 0.875rem;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 1rem;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent);
+    }
+
+    input::placeholder {
+      color: var(--text-muted);
+    }
+
+    select {
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      padding-right: 40px;
+    }
+
+    select option {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: background-color 0.2s, transform 0.1s;
+      min-height: 52px;
+      touch-action: manipulation;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-spotify {
+      background: var(--accent);
+      color: #000;
+      margin-top: 32px;
+    }
+
+    .btn-spotify:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-spotify:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-spotify svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .error-banner {
+      background: rgba(231, 76, 60, 0.1);
+      border: 1px solid var(--error);
+      color: var(--error);
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      margin-bottom: 24px;
+      display: none;
+    }
+
+    .error-banner.visible {
+      display: block;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 48px;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+    }
+
+    @media (max-width: 390px) {
+      body { padding: 16px; }
+      .logo h1 { font-size: 1.75rem; }
+      .logo { margin-bottom: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <h1>ourWKRP</h1>
+      <p>The human answer to AI playlists.<br>Real people. Real taste. No algorithm.</p>
+    </div>
+
+    <div id="error-banner" class="error-banner" data-testid="error-banner"></div>
+
+    <!-- Step 1: Name -->
+    <form id="connect-form" data-testid="connect-form">
+      <div class="form-group" id="step-name">
+        <label for="name">What's your name?</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          placeholder="e.g. Matt"
+          required
+          maxlength="100"
+          autocomplete="name"
+          data-testid="input-name"
+        >
+      </div>
+
+      <!-- Step 2: Role (revealed after name) -->
+      <div class="form-group" id="step-role" style="opacity:0.3;pointer-events:none;transition:opacity 0.3s;">
+        <label for="role">What's your role?</label>
+        <select id="role" name="role" required data-testid="select-role">
+          <option value="" disabled selected>How do you contribute?</option>
+          <option value="dj">DJ — I play the records</option>
+          <option value="curator">Curator — I build the playlists</option>
+          <option value="contributor">Contributor — I bring the taste</option>
+          <option value="listener">Listener — I'm here for the music</option>
+        </select>
+      </div>
+
+      <!-- Step 3: Generation (revealed after role) -->
+      <div class="form-group" id="step-gen" style="opacity:0.3;pointer-events:none;transition:opacity 0.3s;">
+        <label for="generation">When did you join?</label>
+        <select id="generation" name="generation" required data-testid="select-generation">
+          <option value="" disabled selected>Your generation</option>
+          <option value="founder">Founder — day one</option>
+          <option value="gen2">Gen 2 — brought in by a founder</option>
+          <option value="gen3">Gen 3 — newest to the table</option>
+        </select>
+      </div>
+
+      <!-- Step 4: Actions (revealed after generation, changes based on role) -->
+      <div id="step-actions" style="opacity:0;pointer-events:none;transition:opacity 0.3s;">
+        <!-- DJ sees: Go to Dashboard -->
+        <a href="/dashboard" class="btn" id="action-dj" data-testid="btn-dashboard" style="display:none;background:var(--accent);color:#000;">
+          Set Up Your Dashboard
+        </a>
+
+        <!-- Curator/Contributor sees: Import Library -->
+        <a href="/import" class="btn" id="action-import" data-testid="btn-import" style="display:none;background:var(--accent);color:#000;">
+          Import Your Library
+        </a>
+
+        <!-- Listener sees: Browse Catalog -->
+        <a href="/catalog" class="btn" id="action-listener" data-testid="btn-listen" style="display:none;background:var(--accent);color:#000;">
+          Start Listening
+        </a>
+
+        <!-- Secondary action: always available -->
+        <a href="/catalog" class="btn" id="action-browse" data-testid="btn-browse" style="margin-top:10px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:0.85rem;">
+          Browse the Catalog
+        </a>
+
+        <!-- Spotify: tertiary, always available -->
+        <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+          <button type="submit" class="btn" id="connect-btn" data-testid="btn-connect" style="background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:0.8rem;min-height:44px;">
+            <svg viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px;opacity:0.5;"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+            Or connect with Spotify
+          </button>
+          <div style="font-size:0.6rem;color:var(--text-muted);margin-top:4px;">Limited to 5 users</div>
+        </div>
+      </div>
+    </form>
+
+    <div class="footer">
+      <p>ourCommunityRituals</p>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      const form = document.getElementById('connect-form');
+      const errorBanner = document.getElementById('error-banner');
+      const connectBtn = document.getElementById('connect-btn');
+
+      // Check for error in URL params
+      const params = new URLSearchParams(window.location.search);
+      const error = params.get('error');
+      if (error) {
+        const messages = {
+          'spotify_denied': 'Spotify access was denied. Please try again.',
+          'invalid_callback': 'Authentication failed. Please try again.',
+          'invalid_state': 'Session expired. Please try again.',
+          'auth_failed': 'Authentication failed. Please try again.',
+        };
+        showError(messages[error] || 'An error occurred. Please try again.');
+        // Clean URL
+        window.history.replaceState({}, '', '/');
+      }
+
+      // Check for existing session (cookie-based — call session endpoint)
+      fetch('/auth/session/me', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok && data.contributor) {
+            console.log('[WKRP] Session active, redirecting to catalog');
+            window.location.href = '/catalog';
+          }
+        })
+        .catch(function() { /* no session, stay on connect */ });
+
+      // --- Progressive reveal ---
+      var nameInput = document.getElementById('name');
+      var roleSelect = document.getElementById('role');
+      var genSelect = document.getElementById('generation');
+      var stepRole = document.getElementById('step-role');
+      var stepGen = document.getElementById('step-gen');
+      var stepActions = document.getElementById('step-actions');
+
+      // Reveal role after name is entered
+      nameInput.addEventListener('input', function() {
+        if (this.value.trim().length > 0) {
+          stepRole.style.opacity = '1';
+          stepRole.style.pointerEvents = 'auto';
+        } else {
+          stepRole.style.opacity = '0.3';
+          stepRole.style.pointerEvents = 'none';
+        }
+      });
+
+      // Reveal generation after role is selected
+      roleSelect.addEventListener('change', function() {
+        stepGen.style.opacity = '1';
+        stepGen.style.pointerEvents = 'auto';
+      });
+
+      // Reveal actions after generation is selected, tailored to role
+      genSelect.addEventListener('change', function() {
+        var role = roleSelect.value;
+        document.getElementById('action-dj').style.display = role === 'dj' ? 'flex' : 'none';
+        document.getElementById('action-import').style.display = (role === 'curator' || role === 'contributor') ? 'flex' : 'none';
+        document.getElementById('action-listener').style.display = role === 'listener' ? 'flex' : 'none';
+        // Hide browse if role-specific action is shown
+        document.getElementById('action-browse').style.display = role === 'listener' ? 'none' : 'flex';
+
+        stepActions.style.opacity = '1';
+        stepActions.style.pointerEvents = 'auto';
+      });
+
+      // --- Action handlers ---
+
+      // All primary actions register first, then redirect
+      ['action-dj', 'action-import', 'action-listener'].forEach(function(id) {
+        document.getElementById(id).addEventListener('click', function(e) {
+          e.preventDefault();
+          register(this.href.replace(window.location.origin, ''));
+        });
+      });
+
+      // Browse — register if form filled, otherwise just go
+      document.getElementById('action-browse').addEventListener('click', function(e) {
+        e.preventDefault();
+        var name = nameInput.value.trim();
+        if (name && roleSelect.value && genSelect.value) {
+          register('/catalog');
+        } else {
+          window.location.href = '/catalog';
+        }
+      });
+
+      // Spotify connect
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var name = nameInput.value.trim();
+        var gen = genSelect.value;
+        var role = roleSelect.value;
+        if (!name) { showError('Please enter your name.'); return; }
+        if (!gen) { showError('Please select your generation.'); return; }
+        connectBtn.disabled = true;
+        connectBtn.textContent = 'Connecting...';
+        var params = { name: name, gen: gen };
+        if (role) params.role = role;
+        window.location.href = '/auth/start?' + new URLSearchParams(params).toString();
+      });
+
+      function register(redirectTo) {
+        var name = nameInput.value.trim();
+        var role = roleSelect.value;
+        var gen = genSelect.value;
+        if (!name) { showError('Please enter your name.'); return; }
+        if (!role) { showError('Please select your role.'); return; }
+        if (!gen) { showError('Please select your generation.'); return; }
+
+        // Disable all action buttons
+        document.querySelectorAll('#step-actions .btn').forEach(function(b) {
+          b.style.opacity = '0.6';
+          b.style.pointerEvents = 'none';
+        });
+
+        fetch('/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ name: name, role: role, generation: gen }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok) {
+            window.location.href = redirectTo || data.redirect || '/catalog';
+          } else {
+            showError(data.error || 'Registration failed');
+            document.querySelectorAll('#step-actions .btn').forEach(function(b) {
+              b.style.opacity = '1';
+              b.style.pointerEvents = 'auto';
+            });
+          }
+        })
+        .catch(function(err) {
+          console.error('[WKRP] Register error:', err);
+          showError('Something went wrong. Please try again.');
+          document.querySelectorAll('#step-actions .btn').forEach(function(b) {
+            b.style.opacity = '1';
+            b.style.pointerEvents = 'auto';
+          });
+        });
+      }
+
+      function showError(message) {
+        errorBanner.textContent = message;
+        errorBanner.classList.add('visible');
+        console.error('[WKRP] Error:', message);
+      }
+    })();
+  </script>
+</body>
+</html>
