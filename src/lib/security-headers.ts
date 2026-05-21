@@ -8,9 +8,11 @@ export function addSecurityHeaders(response: Response): Response {
   const newResponse = new Response(response.body, response);
   const h = newResponse.headers;
 
-  // Prevent clickjacking
+  // Prevent clickjacking. frame-ancestors 'none' = nobody may frame us;
+  // frame-src open.spotify.com = we may embed Spotify playlist players
+  // (the portfolio feature). X-Frame-Options stays DENY for older browsers.
   h.set('X-Frame-Options', 'DENY');
-  h.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; frame-ancestors 'none'");
+  h.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; frame-src https://open.spotify.com; frame-ancestors 'none'");
 
   // Prevent MIME sniffing
   h.set('X-Content-Type-Options', 'nosniff');

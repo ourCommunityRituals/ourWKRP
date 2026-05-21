@@ -26,6 +26,11 @@ describe('Security Headers', () => {
       expect(source).toContain("frame-ancestors 'none'");
     });
 
+    it('scopes frame-src to Spotify (playlist embeds) and nothing wider', () => {
+      expect(source).toContain('frame-src https://open.spotify.com');
+      expect(source).not.toContain('frame-src *');
+    });
+
     it('sets X-Content-Type-Options nosniff', () => {
       expect(source).toContain('X-Content-Type-Options');
       expect(source).toContain('nosniff');

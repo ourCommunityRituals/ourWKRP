@@ -238,6 +238,10 @@
 
     .nav-item.active { color: var(--accent); }
     .nav-item svg { width: 22px; height: 22px; }
+    /* Mobile workability (OCR standard): 44px touch targets, 16px input fonts */
+    #min-energy, #min-valence, #min-dance, #min-tempo { height: 44px; font-size: 16px; }
+    #playlist-filter { min-height: 44px; font-size: 16px; }
+    #is-public { font-size: 16px; }
   </style>
 </head>
 <body>
@@ -327,7 +331,7 @@
       <div id="playlist-stats" data-testid="playlist-stats" style="display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;"></div>
 
       <!-- Filter within playlist -->
-      <input type="text" id="playlist-filter" placeholder="Filter this playlist..." data-testid="playlist-filter" style="margin-bottom:12px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.8rem;width:100%;font-family:var(--font);outline:none;">
+      <input type="text" id="playlist-filter" placeholder="Filter this playlist..." data-testid="playlist-filter" style="margin-bottom:12px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;width:100%;font-family:var(--font);outline:none;">
 
       <div id="playlist-track-list" data-testid="playlist-track-list"></div>
 

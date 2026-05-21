@@ -16,11 +16,16 @@
 #       - Integration tests            → vitest run tests/integration
 #       - Contract tests               → vitest run tests/contract
 #       - Security tests               → vitest run tests/security
+#       - E2E tests                    → playwright test (mobile browsers)
+#       - Postman API tests            → newman run (live wrangler dev)
 #
 #   Stage 3: Performance (after Stage 2)
 #       - Performance tests            → vitest run tests/performance
 #
-#   Gate: All checks must pass → Deploy staging → Deploy production
+#   Gate: All checks must pass → Deploy staging (automatic, on push to main)
+#
+#   Deploy production: MANUAL ONLY — workflow_dispatch. Policy is staging-only
+#   until further notice; see the deploy-production job for the procedure.
 
 name: CI
 
@@ -29,6 +34,8 @@ on:
     branches: [main, 'claude/**']
   pull_request:
     branches: [main]
+  # Production deploy is manual-only — triggered here. See the deploy-production job.
+  workflow_dispatch:
 
 # Pin bash for self-hosted Windows runner. Default would be PowerShell;
 # every `run:` step in this file uses bash syntax (grep negation, pipes,
@@ -166,6 +173,48 @@ jobs:
       - run: npm ci
       - run: npm run test:security
 
+  e2e-tests:
+    name: E2E Tests
+    runs-on: self-hosted
+    needs: [security, lint-and-typecheck]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install chromium webkit
+      # playwright.config.ts boots `wrangler dev` itself via its webServer block.
+      - run: npm run test:e2e
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ github.run_number }}
+          path: playwright-report/
+          retention-days: 14
+
+  postman-tests:
+    name: Postman API Tests
+    runs-on: self-hosted
+    needs: [security, lint-and-typecheck]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - run: npm ci
+      # test:postman seeds the local D1, boots `wrangler dev`, then runs Newman.
+      - run: npm run test:postman
+      - name: Upload Newman report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: newman-report-${{ github.run_number }}
+          path: postman/newman-report.html
+          retention-days: 14
+
   # ============================================
   # Stage 3: Performance + Gate (after tests)
   # ============================================
@@ -197,6 +246,8 @@ jobs:
       - integration-tests
       - contract-tests
       - security-tests
+      - e2e-tests
+      - postman-tests
       - performance-tests
     steps:
       - run: echo "All CI checks passed"
@@ -229,11 +280,27 @@ jobs:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STG }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
+  # ============================================
+  # Deploy Production — MANUAL ONLY
+  # ============================================
+  # Policy: staging-only until further notice. Production does NOT deploy on a
+  # push to main — this job runs only via a manual workflow_dispatch.
+  #
+  # Production deploy procedure (run only when prod is explicitly approved):
+  #   1. Confirm staging is healthy:
+  #        curl https://ourwkrp-staging.mzdano.workers.dev/health
+  #   2. Apply D1 migrations to the production database — `wrangler deploy`
+  #      does NOT apply migrations, so this must be done first:
+  #        doppler run -c prd -- wrangler d1 migrations apply ourwkrp-production
+  #   3. Trigger this workflow: GitHub → Actions → CI → "Run workflow" on the
+  #      main branch. It re-runs the full gate (S0 → tests) then deploys prod.
+  #   4. Smoke test:  curl https://ourwkrp.com/health
+  # ============================================
   deploy-production:
     name: Deploy Production
     runs-on: self-hosted
-    needs: [deploy-staging]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [all-checks]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
     environment: production
     steps:
       - uses: actions/checkout@v6

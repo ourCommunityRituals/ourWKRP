@@ -401,6 +401,18 @@
       <div id="playlist-list" data-testid="playlist-list"></div>
     </div>
 
+    <div class="section hidden" id="portfolio-section" data-testid="portfolio-section">
+      <div class="section-title">Preferred Playlists</div>
+      <div id="portfolio-add" data-testid="portfolio-add" class="hidden" style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="url" id="portfolio-url" data-testid="portfolio-url" placeholder="Paste a Spotify playlist link"
+          style="flex:1;min-height:44px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;font-family:var(--font);outline:none;">
+        <button type="button" id="portfolio-add-btn" data-testid="portfolio-add-btn"
+          style="min-height:44px;min-width:44px;padding:10px 18px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:16px;font-weight:600;font-family:var(--font);cursor:pointer;">Add</button>
+      </div>
+      <div id="portfolio-error" data-testid="portfolio-error" class="hidden" style="color:#e5484d;font-size:0.85rem;margin-bottom:10px;"></div>
+      <div id="portfolio-list" data-testid="portfolio-list"></div>
+    </div>
+
     <div class="section" id="attribution-section" class="hidden" data-testid="attribution-section">
       <div class="section-title">DJ Influence</div>
       <div id="attribution-stats" data-testid="attribution-stats" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px;text-align:center;">
@@ -480,6 +492,7 @@
           }
 
           renderProfile(data);
+          loadPortfolio(id);
         } catch (err) {
           console.error('[WKRP] Profile load error:', err);
           showNotFound();
@@ -587,6 +600,101 @@
         div.textContent = str;
         return div.innerHTML;
       }
+
+      // --- Preferred Playlists portfolio ---
+      async function loadPortfolio(id) {
+        var isOwner = false;
+        try {
+          var sres = await fetch('/auth/session/me', { credentials: 'same-origin' });
+          var sdata = await sres.json();
+          isOwner = !!(sdata.ok && sdata.contributor && sdata.contributor.id === id);
+        } catch (e) { /* anonymous viewer */ }
+
+        var playlists = [];
+        try {
+          var pres = await fetch('/api/contributors/' + encodeURIComponent(id) + '/portfolio');
+          var pdata = await pres.json();
+          if (pdata.ok) playlists = pdata.playlists || [];
+        } catch (e) { /* leave empty */ }
+
+        // A visitor with nothing to see doesn't get an empty section.
+        if (!isOwner && playlists.length === 0) return;
+
+        document.getElementById('portfolio-section').classList.remove('hidden');
+        renderPortfolio(playlists, isOwner);
+
+        if (isOwner) {
+          document.getElementById('portfolio-add').classList.remove('hidden');
+          document.getElementById('portfolio-add-btn').addEventListener('click', function() {
+            addPortfolioPlaylist(id, isOwner);
+          });
+        }
+      }
+
+      function renderPortfolio(playlists, isOwner) {
+        var list = document.getElementById('portfolio-list');
+        if (playlists.length === 0) {
+          list.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">No playlists yet — paste a Spotify playlist link above to start your portfolio.</div>';
+          return;
+        }
+        list.innerHTML = playlists.map(function(p) {
+          var remove = isOwner
+            ? '<button type="button" class="portfolio-remove" data-id="' + escapeHtml(p.id) + '" data-testid="portfolio-remove" style="margin-top:6px;min-height:44px;padding:8px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:0.85rem;font-family:var(--font);cursor:pointer;">Remove</button>'
+            : '';
+          return '<div class="portfolio-item" data-testid="portfolio-item" style="margin-bottom:16px;">' +
+            '<iframe data-testid="portfolio-embed" src="' + escapeHtml(p.embed_url) + '" width="100%" height="152" frameborder="0" loading="lazy" allow="encrypted-media" style="border-radius:12px;"></iframe>' +
+            remove +
+            '</div>';
+        }).join('');
+      }
+
+      async function addPortfolioPlaylist(id, isOwner) {
+        var input = document.getElementById('portfolio-url');
+        var btn = document.getElementById('portfolio-add-btn');
+        var url = input.value.trim();
+        hidePortfolioError();
+        if (!url) { showPortfolioError('Paste a Spotify playlist link.'); return; }
+        btn.disabled = true;
+        try {
+          var res = await fetch('/api/portfolio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ url: url }),
+          });
+          var data = await res.json();
+          if (!data.ok) { showPortfolioError(data.error || 'Could not add that playlist.'); btn.disabled = false; return; }
+          input.value = '';
+          var pres = await fetch('/api/contributors/' + encodeURIComponent(id) + '/portfolio');
+          var pdata = await pres.json();
+          renderPortfolio(pdata.ok ? (pdata.playlists || []) : [], isOwner);
+        } catch (e) {
+          showPortfolioError('Something went wrong. Please try again.');
+        }
+        btn.disabled = false;
+      }
+
+      function showPortfolioError(msg) {
+        var el = document.getElementById('portfolio-error');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+      }
+
+      function hidePortfolioError() {
+        document.getElementById('portfolio-error').classList.add('hidden');
+      }
+
+      document.getElementById('portfolio-list').addEventListener('click', async function(e) {
+        var btn = e.target.closest('.portfolio-remove');
+        if (!btn) return;
+        var item = btn.closest('.portfolio-item');
+        try {
+          await fetch('/api/portfolio/' + encodeURIComponent(btn.dataset.id), {
+            method: 'DELETE', credentials: 'same-origin',
+          });
+          if (item) item.remove();
+        } catch (e) { /* ignore */ }
+      });
 
       // --- Genre Discovery Popup ---
       var genrePopup = document.getElementById('genre-popup');
