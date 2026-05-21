@@ -1,0 +1,47 @@
+# ourWKRP — Mobile Workability Audit
+#
+# Enforces .ocr-standards/standards/OCR_STANDARD_mobileWorkability.md: every
+# customer-facing surface must be usable at a 375x812 viewport.
+#
+# Per the standard, the audit is INFORMATIONAL on pull_request / push and
+# BLOCKING on the nightly schedule + manual dispatch. It runs separately from
+# ci.yml and is not part of the all-checks deploy gate.
+
+name: Mobile Workability
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, 'claude/**']
+  schedule:
+    - cron: '0 7 * * *' # 07:00 UTC nightly
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  mobile-workability:
+    name: Mobile Workability Audit (375x812)
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install chromium webkit
+      - name: Audit customer-facing surfaces
+        # Informational on PR/push; blocking on schedule + manual dispatch.
+        continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+        run: npm run test:mobile-workability
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile-workability-report-${{ github.run_number }}
+          path: playwright-report/
+          retention-days: 14

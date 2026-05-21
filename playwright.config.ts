@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './tests',
+  // Scope Playwright to the e2e + playwright dirs only — never the vitest *.test.ts files.
+  testMatch: ['e2e/**/*.spec.ts', 'playwright/**/*.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
