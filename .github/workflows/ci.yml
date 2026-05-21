@@ -16,6 +16,8 @@
 #       - Integration tests            → vitest run tests/integration
 #       - Contract tests               → vitest run tests/contract
 #       - Security tests               → vitest run tests/security
+#       - E2E tests                    → playwright test (mobile browsers)
+#       - Postman API tests            → newman run (live wrangler dev)
 #
 #   Stage 3: Performance (after Stage 2)
 #       - Performance tests            → vitest run tests/performance
@@ -166,6 +168,52 @@ jobs:
       - run: npm ci
       - run: npm run test:security
 
+  # E2E runs on every PR and uploads its Playwright report, but is intentionally
+  # NOT in the all-checks gate yet: tests/e2e/catalog-browse.spec.ts has failures
+  # left by the PR #23 "anonymous catalog" merge (the spec was not updated to
+  # match the app). Add e2e-tests to the all-checks `needs` once that is repaired.
+  e2e-tests:
+    name: E2E Tests
+    runs-on: self-hosted
+    needs: [security, lint-and-typecheck]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install chromium webkit
+      # playwright.config.ts boots `wrangler dev` itself via its webServer block.
+      - run: npm run test:e2e
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ github.run_number }}
+          path: playwright-report/
+          retention-days: 14
+
+  postman-tests:
+    name: Postman API Tests
+    runs-on: self-hosted
+    needs: [security, lint-and-typecheck]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - run: npm ci
+      # test:postman seeds the local D1, boots `wrangler dev`, then runs Newman.
+      - run: npm run test:postman
+      - name: Upload Newman report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: newman-report-${{ github.run_number }}
+          path: postman/newman-report.html
+          retention-days: 14
+
   # ============================================
   # Stage 3: Performance + Gate (after tests)
   # ============================================
@@ -197,6 +245,7 @@ jobs:
       - integration-tests
       - contract-tests
       - security-tests
+      - postman-tests
       - performance-tests
     steps:
       - run: echo "All CI checks passed"
