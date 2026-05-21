@@ -79,7 +79,7 @@ async function applyMigrations(db: D1Database): Promise<void> {
         await db.prepare(stmt).run();
       } catch (err) {
         const msg = String(err);
-        // migrations/0005 re-declares idx_tracks_energy/valence from 0001.
+        // Defensive: tolerate idempotent re-declarations across additive migrations.
         if (/already exists|duplicate column/i.test(msg)) continue;
         throw new Error(`Migration ${file} failed:\n${stmt}\n→ ${msg}`);
       }
