@@ -49,6 +49,13 @@ export const playlistTracksBodySchema = z.object({
     .max(100, 'Maximum 100 tracks per request'),
 });
 
+// --- Portfolio (preferred playlists) ---
+
+export const addPortfolioBodySchema = z.object({
+  url: z.string().min(1, 'A playlist URL is required').max(500, 'URL must be 500 characters or less'),
+  title: z.string().max(200, 'Title must be 200 characters or less').transform(s => s.trim()).nullable().optional(),
+});
+
 // --- DJ Sets ---
 
 export const startSetBodySchema = z.object({

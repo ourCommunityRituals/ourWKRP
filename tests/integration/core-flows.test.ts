@@ -29,8 +29,8 @@ const BASE_URL = 'http://localhost:8787';
 
 // Data tables cleared between tests — `brands` is kept (seeded by migration 0005).
 const DATA_TABLES = [
-  'playlist_tracks', 'playlists', 'set_tracks', 'attributions', 'dj_sets',
-  'contributions', 'track_identifiers', 'contributor_roles', 'tracks', 'contributors',
+  'preferred_playlists', 'playlist_tracks', 'playlists', 'set_tracks', 'attributions',
+  'dj_sets', 'contributions', 'track_identifiers', 'contributor_roles', 'tracks', 'contributors',
 ];
 
 /**
@@ -309,5 +309,68 @@ describe('Core user flows', () => {
     const importPage = await call('GET', '/import');
     expect(importPage.status).toBe(200);
     expect(importPage.headers.get('Content-Type')).toContain('text/html');
+  }, 30000);
+});
+
+describe('Portfolio — preferred playlists', () => {
+  const SPOTIFY_URL = 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M';
+  const EXTERNAL_ID = '37i9dQZF1DXcBWIGoYBM5M';
+
+  it('adds a playlist URL and lists it in the contributor portfolio', async () => {
+    const { cookie, contributorId } = await register('Portfolio Pat', 'curator', 'gen2');
+
+    const addRes = await call('POST', '/api/portfolio', { cookie, json: { url: SPOTIFY_URL } });
+    expect(addRes.status).toBe(201);
+    const added = await addRes.json() as {
+      ok: boolean; playlist: { external_id: string; embed_url: string };
+    };
+    expect(added.ok).toBe(true);
+    expect(added.playlist.external_id).toBe(EXTERNAL_ID);
+    expect(added.playlist.embed_url).toBe(`https://open.spotify.com/embed/playlist/${EXTERNAL_ID}`);
+
+    const listRes = await call('GET', `/api/contributors/${contributorId}/portfolio`);
+    expect(listRes.status).toBe(200);
+    const list = await listRes.json() as { playlists: Array<{ external_id: string }> };
+    expect(list.playlists).toHaveLength(1);
+    expect(list.playlists[0].external_id).toBe(EXTERNAL_ID);
+  }, 30000);
+
+  it('rejects an unrecognized playlist URL', async () => {
+    const { cookie } = await register('Bad URL Bob', 'curator', 'gen2');
+    const res = await call('POST', '/api/portfolio', { cookie, json: { url: 'https://example.com/nope' } });
+    expect(res.status).toBe(400);
+  }, 30000);
+
+  it('rejects the same playlist added twice with 409', async () => {
+    const { cookie } = await register('Dup Dana', 'curator', 'gen2');
+    expect((await call('POST', '/api/portfolio', { cookie, json: { url: SPOTIFY_URL } })).status).toBe(201);
+    expect((await call('POST', '/api/portfolio', { cookie, json: { url: SPOTIFY_URL } })).status).toBe(409);
+  }, 30000);
+
+  it('requires a session to add to a portfolio', async () => {
+    const res = await call('POST', '/api/portfolio', { json: { url: SPOTIFY_URL } });
+    expect(res.status).toBe(401);
+  }, 30000);
+
+  it('lets the owner remove a playlist from their portfolio', async () => {
+    const { cookie, contributorId } = await register('Remove Rae', 'curator', 'gen2');
+    const addRes = await call('POST', '/api/portfolio', { cookie, json: { url: SPOTIFY_URL } });
+    const playlistId = (await addRes.json() as { playlist: { id: string } }).playlist.id;
+
+    const delRes = await call('DELETE', `/api/portfolio/${playlistId}`, { cookie });
+    expect(delRes.status).toBe(200);
+
+    const listRes = await call('GET', `/api/contributors/${contributorId}/portfolio`);
+    expect((await listRes.json() as { playlists: unknown[] }).playlists).toHaveLength(0);
+  }, 30000);
+
+  it("does not let a contributor remove another contributor's playlist", async () => {
+    const owner = await register('Owner Olive', 'curator', 'gen2');
+    const addRes = await call('POST', '/api/portfolio', { cookie: owner.cookie, json: { url: SPOTIFY_URL } });
+    const playlistId = (await addRes.json() as { playlist: { id: string } }).playlist.id;
+
+    const intruder = await register('Intruder Ike', 'curator', 'gen2');
+    const delRes = await call('DELETE', `/api/portfolio/${playlistId}`, { cookie: intruder.cookie });
+    expect(delRes.status).toBe(403);
   }, 30000);
 });

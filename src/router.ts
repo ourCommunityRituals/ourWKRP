@@ -30,6 +30,11 @@
  *   DELETE /api/playlists/:id/tracks   → remove tracks from playlist
  *   GET    /api/playlists/:id/export   → export playlist as JSON (ISRCs)
  *
+ *   --- Portfolio (preferred playlists) ---
+ *   POST   /api/portfolio                  → add a playlist URL to the portfolio
+ *   GET    /api/contributors/:id/portfolio → a contributor's portfolio
+ *   DELETE /api/portfolio/:id              → remove a playlist from the portfolio
+ *
  *   --- Last.fm Integration ---
  *   GET  /auth/lastfm/start         → redirect to Last.fm auth
  *   GET  /auth/lastfm/callback      → exchange token for session key
@@ -51,6 +56,7 @@ import { handlePages } from './handlers/pages';
 import { handleImport } from './handlers/import';
 import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, handleGetContributorProfile, handleGetStats, handleGetBrands, handleGetContributorBrands, handleGetLayers } from './handlers/catalog';
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
+import { handleAddPortfolioPlaylist, handleGetPortfolio, handleRemovePortfolioPlaylist } from './handlers/portfolio';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
 import { handleStartSet, handleAddSetTrack, handleEndSet, handleCreateAttribution, handleGetDjStats, handleGetLiveSet } from './handlers/dj';
 import { handleExportTracks } from './handlers/export';
@@ -122,7 +128,15 @@ export async function route(request: Request, env: Env): Promise<Response> {
       response = await handleGetContributorBrands(request, env, contributorId);
     }
   }
-  else if (method === 'GET' && path.startsWith('/api/contributors/') && !path.includes('/brands')) {
+  else if (method === 'GET' && path.startsWith('/api/contributors/') && path.endsWith('/portfolio')) {
+    const contributorId = path.slice('/api/contributors/'.length, -'/portfolio'.length);
+    if (!UUID_RE.test(contributorId)) {
+      response = Response.json({ ok: false, error: 'Invalid contributor ID format' }, { status: 400 });
+    } else {
+      response = await handleGetPortfolio(request, env, contributorId);
+    }
+  }
+  else if (method === 'GET' && path.startsWith('/api/contributors/') && !path.includes('/brands') && !path.endsWith('/portfolio')) {
     const contributorId = path.slice('/api/contributors/'.length);
     if (!UUID_RE.test(contributorId)) {
       response = Response.json({ ok: false, error: 'Invalid contributor ID format' }, { status: 400 });
@@ -174,6 +188,19 @@ export async function route(request: Request, env: Env): Promise<Response> {
     } else {
       // Treat as contributor ID for contributor playlists
       response = await handleGetContributorPlaylists(request, env, id);
+    }
+  }
+
+  // --- Portfolio (preferred playlists) ---
+  else if (method === 'POST' && path === '/api/portfolio') {
+    response = await handleAddPortfolioPlaylist(request, env);
+  }
+  else if (method === 'DELETE' && path.startsWith('/api/portfolio/')) {
+    const id = path.slice('/api/portfolio/'.length);
+    if (!UUID_RE.test(id)) {
+      response = Response.json({ ok: false, error: 'Invalid playlist ID' }, { status: 400 });
+    } else {
+      response = await handleRemovePortfolioPlaylist(request, env, id);
     }
   }
 
