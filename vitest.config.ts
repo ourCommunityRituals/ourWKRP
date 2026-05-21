@@ -21,7 +21,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    // *.test.ts is the default suite. *.invariant.spec.ts is the OCR brain
+    // invariant-test naming convention (architectural-invariants.yaml gives
+    // each invariant a `<name>.invariant.spec.ts` test_file) — include it so
+    // those structural tests actually execute in CI rather than being inert
+    // files that only satisfy the brain's file-presence glob.
+    include: ['tests/**/*.test.ts', 'tests/**/*.invariant.spec.ts'],
     exclude: ['tests/e2e/**'],
     coverage: {
       provider: 'v8',
