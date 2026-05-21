@@ -10,11 +10,6 @@
  * migration drifts from what the handlers expect.
  *
  * Notes on intentional deviations from a naive reading of the flow spec:
- *   - POST /auth/register requires { name, role, generation } (registerBodySchema
- *     has no defaults). "Defaults to contributor" is exercised by registering a
- *     contributor and asserting the stored role.
- *   - GET /auth/session/me returns the contributor profile (id/name/generation/
- *     brand_id) but not `role`. Role is verified via GET /api/contributors/:id.
  *   - POST /api/playlists takes { name, description? }; tracks are attached via
  *     POST /api/playlists/:id/tracks. Flow 3 does both.
  *   - The /import page gates roles client-side (its "Import Restricted" banner is
@@ -173,30 +168,27 @@ const importBody = { csv: FIXTURE_CSV, source_type: 'liked', source_name: 'Integ
 
 describe('Core user flows', () => {
   it('Flow 1: register → session → role check', async () => {
-    const { cookie, contributorId, body } = await register('TestUser', 'contributor', 'gen2');
-
-    // Registration echoes the created contributor with role "contributor".
+    // Register with only a name — role and generation default server-side.
+    const res = await call('POST', '/auth/register', { json: { name: 'TestUser' } });
+    expect(res.status).toBe(201);
+    const setCookie = res.headers.get('Set-Cookie');
+    expect(setCookie).toContain('wkrp_session=');
+    const cookie = setCookie!.split(';')[0];
+    const body = await res.json() as { ok: boolean; contributor: { id: string; role: string } };
     expect(body.ok).toBe(true);
     expect(body.contributor.role).toBe('contributor');
 
-    // Session cookie resolves to the contributor profile.
+    // Session cookie resolves to the contributor profile, including role.
     const sessionRes = await call('GET', '/auth/session/me', { cookie });
     expect(sessionRes.status).toBe(200);
-    const sessionBody = await sessionRes.json() as { ok: boolean; contributor: { id: string; name: string } };
+    const sessionBody = await sessionRes.json() as {
+      ok: boolean;
+      contributor: { id: string; name: string; role: string };
+    };
     expect(sessionBody.ok).toBe(true);
-    expect(sessionBody.contributor.id).toBe(contributorId);
+    expect(sessionBody.contributor.id).toBe(body.contributor.id);
     expect(sessionBody.contributor.name).toBe('TestUser');
-
-    // Role is exposed via the contributor profile endpoint, and defaults to "contributor".
-    const profileRes = await call('GET', `/api/contributors/${contributorId}`);
-    expect(profileRes.status).toBe(200);
-    const profile = await profileRes.json() as { contributor: { role: string }; roles: string[] };
-    expect(profile.contributor.role).toBe('contributor');
-    expect(profile.roles).toContain('contributor');
-
-    // Contract check: register requires role + generation (no schema defaults).
-    const incomplete = await call('POST', '/auth/register', { json: { name: 'NoRole' } });
-    expect(incomplete.status).toBe(400);
+    expect(sessionBody.contributor.role).toBe('contributor');
   }, 30000);
 
   it('Flow 2: register → import CSV → catalog shows imported tracks', async () => {
