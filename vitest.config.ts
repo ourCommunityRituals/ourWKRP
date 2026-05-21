@@ -27,7 +27,11 @@ export default defineConfig({
     // those structural tests actually execute in CI rather than being inert
     // files that only satisfy the brain's file-presence glob.
     include: ['tests/**/*.test.ts', 'tests/**/*.invariant.spec.ts'],
-    exclude: ['tests/e2e/**'],
+    // tests/e2e and tests/playwright are Playwright suites — keep vitest out
+    // of them. tests/playwright is excluded explicitly so a future
+    // *.invariant.spec.ts placed there cannot be picked up by the include
+    // glob above and run under the wrong runner.
+    exclude: ['tests/e2e/**', 'tests/playwright/**'],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
