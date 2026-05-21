@@ -28,6 +28,8 @@ export const spotifyTrackIdSchema = z.string().regex(
 
 // --- Auth ---
 
+// Role + generation default so the simplest sign-up is just a name.
+// Callers (e.g. DJ-specific onboarding) can still pass explicit values.
 export const registerBodySchema = z.object({
   name: nameSchema,
   role: roleSchema.default('contributor'),

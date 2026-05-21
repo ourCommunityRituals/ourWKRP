@@ -96,8 +96,23 @@ export async function handleImport(
       csvContent = body.csv;
       sourceType = body.source_type as SourceType | undefined;
       sourceName = body.source_name;
+    } else if (
+      contentType.includes('text/csv') ||
+      contentType.includes('text/plain') ||
+      contentType === ''
+    ) {
+      // Raw CSV body — used by the import UI and the documented curl flow.
+      // source_type is left undefined; the CSV engine auto-detects the format.
+      csvContent = await request.text();
+
+      if (csvContent.length > MAX_CSV_SIZE) {
+        return new Response(JSON.stringify({ error: 'CSV content too large (max 10MB)' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
     } else {
-      return new Response(JSON.stringify({ error: 'Unsupported content type. Use multipart/form-data or application/json.' }), {
+      return new Response(JSON.stringify({ error: 'Unsupported content type. Use text/csv, multipart/form-data, or application/json.' }), {
         status: 415,
         headers: { 'Content-Type': 'application/json' },
       });

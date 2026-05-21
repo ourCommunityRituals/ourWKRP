@@ -592,29 +592,37 @@
 
           setTimeout(function() {
             progressSection.classList.remove('visible');
-            showResult(data);
+            showResult(data, res.ok);
           }, 500);
         } catch (err) {
           console.error('[WKRP] Import error:', err);
           progressSection.classList.remove('visible');
-          showResult({ ok: false, error: 'Upload failed — please try again.' });
+          showResult({ errors: ['Upload failed — please try again.'] }, false);
         }
       });
 
-      function showResult(data) {
+      // `data` is the ImportResult shape from POST /import/:id:
+      //   { tracks_new, tracks_matched, contributions_created,
+      //     contributions_skipped, errors, duration_ms }
+      // `httpOk` is res.ok — the handler returns 200 for a (partial) success
+      // and 422 only when nothing could be imported.
+      function showResult(data, httpOk) {
         var resultSection = document.getElementById('result-section');
         var resultSuccess = document.getElementById('result-success');
         var resultError = document.getElementById('result-error');
         var resultStats = document.getElementById('result-stats');
 
-        if (data.ok) {
-          var imp = data.import || {};
+        var errors = data.errors || [];
+        var imported = data.contributions_created || 0;
+        var skipped = data.contributions_skipped || 0;
+
+        if (httpOk) {
           resultStats.textContent =
-            (imp.tracks_imported || 0) + ' tracks imported, ' +
-            (imp.duplicates_skipped || 0) + ' duplicates skipped';
+            imported + ' tracks imported, ' + skipped + ' duplicates skipped' +
+            (errors.length > 0 ? ', ' + errors.length + ' errors' : '');
           resultSuccess.querySelector('h3').textContent = 'Import Complete';
         } else {
-          resultStats.textContent = data.error || 'Import failed';
+          resultStats.textContent = errors.length > 0 ? errors[0] : 'Import failed';
           resultSuccess.querySelector('h3').textContent = 'Import Failed';
           resultSuccess.style.borderColor = 'rgba(255, 65, 54, 0.3)';
           resultSuccess.style.background = 'rgba(255, 65, 54, 0.1)';
@@ -622,13 +630,13 @@
         }
 
         // Show errors if any
-        if (data.errors && data.errors.length > 0) {
+        if (errors.length > 0) {
           var errorList = document.getElementById('error-list');
-          errorList.innerHTML = data.errors.slice(0, 20).map(function(err) {
+          errorList.innerHTML = errors.slice(0, 20).map(function(err) {
             return '<li>' + escapeHtml(err) + '</li>';
           }).join('');
-          if (data.errors.length > 20) {
-            errorList.innerHTML += '<li>...and ' + (data.errors.length - 20) + ' more</li>';
+          if (errors.length > 20) {
+            errorList.innerHTML += '<li>...and ' + (errors.length - 20) + ' more</li>';
           }
           resultError.classList.remove('hidden');
         }

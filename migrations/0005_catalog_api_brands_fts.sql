@@ -65,6 +65,10 @@ END;
 CREATE INDEX idx_tracks_genre_year ON tracks(genre, release_year);
 
 -- Audio feature filtering (progressive enhancement)
+-- 0001 created non-partial energy/valence indexes; drop them first so the
+-- partial versions below replace them (CREATE INDEX errors on a name clash).
+DROP INDEX IF EXISTS idx_tracks_energy;
+DROP INDEX IF EXISTS idx_tracks_valence;
 CREATE INDEX idx_tracks_energy ON tracks(energy) WHERE energy IS NOT NULL;
 CREATE INDEX idx_tracks_valence ON tracks(valence) WHERE valence IS NOT NULL;
 CREATE INDEX idx_tracks_danceability ON tracks(danceability) WHERE danceability IS NOT NULL;

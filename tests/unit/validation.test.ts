@@ -72,15 +72,19 @@ describe('Zod Schemas', () => {
       expect(result.generation).toBe('founder');
     });
 
-    it('returns field errors for missing fields', () => {
+    it('defaults role and generation so name alone is enough', () => {
+      const result = registerBodySchema.parse({ name: 'Matt' });
+      expect(result.name).toBe('Matt');
+      expect(result.role).toBe('contributor');
+      expect(result.generation).toBe('founder');
+    });
+
+    it('requires a name', () => {
       const result = registerBodySchema.safeParse({});
       expect(result.success).toBe(false);
       if (!result.success) {
         const paths = result.error.issues.map(i => i.path[0]);
         expect(paths).toContain('name');
-        // role and generation are optional with defaults — not required
-        expect(paths).not.toContain('role');
-        expect(paths).not.toContain('generation');
       }
     });
   });
