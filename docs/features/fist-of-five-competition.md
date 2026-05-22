@@ -85,6 +85,34 @@ A mobile link with **one-button voting**, alongside the in-venue QR.
   stronger anti-gaming than the in-venue QR (rate limits, device attestation,
   geofencing, or proof-of-presence). Scope the integrity work before shipping.
 
+## The Triple A belt — open challenge
+
+ourWKRP runs **two belts**:
+
+- **The Champion belt** — the monthly competition described above. Scheduled,
+  multi-team, prestige. The season and the standings.
+- **The Triple A belt** — *Anyone, Anywhere, Anytime.* An open-challenge title
+  with no card and no schedule: a team calls out the holder, and a 1v1
+  showdown is on.
+
+The Triple A belt exists to kill the dead air. A monthly-only competition goes
+quiet for 29 days; the Triple A belt keeps Fist of Five **always live** — there
+is always a showdown that *could* drop. The Champion belt is prestige; the
+Triple A belt is the one that is always trending. It is the virality engine.
+
+**A Triple A showdown is a lighter event** than the monthly card — **1v1, two
+playlists, head-to-head** — the simplest possible bracket, and faster to build.
+
+**Mobile-link voting is load-bearing here, not a stretch.** "Anywhere, anytime"
+means a showdown cannot rely on a venue's QR poster — so the mobile-link
+one-button voting described above is the mechanism that *makes the Triple A
+belt possible*. The two ideas are one system. (The public-link integrity
+caveat applies in full — an open belt is the most gameable surface.)
+
+The Triple A format originated in the OCR bocce league. The belt is a
+**cross-product mechanic** — bocce, Fist of Five, and OSP's belted leagues all
+share a "belt culture," with "Triple A" as one portable belt *format* within it.
+
 ## Builds on / net-new
 
 **Builds on (exists today):**
@@ -98,7 +126,9 @@ A mobile link with **one-button voting**, alongside the in-venue QR.
 **Net-new:**
 - A **team** entity + **team membership** (profiles → teams).
 - A **competition / season** entity (groups monthly cards).
-- The **belt / title** (held by a team, defended).
+- The **Champion belt / title** (held by a team, defended monthly).
+- The **Triple A belt** — an open-challenge title, the 1v1 showdown format,
+  and challenge/defense rules.
 - **Team-tagging on tracks** in the shared playlist, so votes can roll up.
 - **Vote → team** rollup + per-night and per-season **standings**.
 - The **SharedReports** (WKRP ↔ OSE) integration.
@@ -120,8 +150,11 @@ platform-agnostic catalog (populated via CSV import and/or Spotify embeds). The
   rules, standings and tiebreakers.
 - **"Shared playlist" shape** — one interleaved mix of all teams' tracks, or
   per-team segments within the night.
-- **Public-link integrity** — the anti-gaming model for the mobile-link
-  stretch.
+- **Public-link integrity** — the anti-gaming model for mobile-link voting
+  (load-bearing for the Triple A belt).
+- **Triple A belt rules** — who can challenge, challenge frequency and
+  cooldowns, defense obligations, and what keeps it lively without becoming
+  pure noise.
 
 ## Placement
 
