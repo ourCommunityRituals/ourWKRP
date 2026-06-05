@@ -60,6 +60,23 @@ database_name = "ourwkrp-staging"
 database_id = "f2a3a785-8a43-47b3-8a06-5ad4125e2a6d"
 
 # ============================================
+# Durable Objects — atomic rate limiter (OW-79)
+# ============================================
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiterDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["RateLimiterDO"]
+
+# ============================================
+# Cron triggers — audit retention purge (OW-83), 04:17 UTC daily
+# ============================================
+[triggers]
+crons = ["17 4 * * *"]
+
+# ============================================
 # Production environment
 # ============================================
 [env.production]
@@ -79,6 +96,17 @@ SPOTIFY_REDIRECT_URI = ""
 APP_URL = ""
 LASTFM_API_KEY = ""
 LASTFM_SHARED_SECRET = ""
+
+[[env.production.durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiterDO"
+
+[[env.production.migrations]]
+tag = "v1"
+new_classes = ["RateLimiterDO"]
+
+[env.production.triggers]
+crons = ["17 4 * * *"]
 
 [[env.production.kv_namespaces]]
 binding = "WKRP_KV"

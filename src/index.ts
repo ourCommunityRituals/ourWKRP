@@ -7,6 +7,8 @@
  */
 
 import { route } from './router';
+import { purgeExpiredAudit } from './lib/audit';
+import { log, logError } from './lib/logger';
 import type { Env } from './types';
 
 export type { Env };
@@ -33,6 +35,19 @@ export default {
         { ok: false, status: 500, error: 'Internal server error' },
         { status: 500 },
       );
+    }
+  },
+
+  // Cron trigger (see [triggers] crons in wrangler.toml) — enforces the audit
+  // retention boundary by purging rows past AUDIT_RETENTION_MS. Without this the
+  // append-only table grows unbounded and retention is a paper policy. Failures
+  // are logged, never thrown: a missed purge must not page anyone.
+  async scheduled(event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    try {
+      const purged = await purgeExpiredAudit(env);
+      log('SCHEDULED_AUDIT_PURGE', { cron: event.cron, purged });
+    } catch (err) {
+      logError('SCHEDULED_AUDIT_PURGE_FAILED', err, { cron: event.cron });
     }
   },
 };
