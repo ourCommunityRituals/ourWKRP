@@ -80,6 +80,13 @@ export async function getTokens(kv: KVNamespace, userId: string): Promise<Stored
   return JSON.parse(raw) as StoredTokens;
 }
 
+// Right-to-erasure: purge a contributor's Spotify tokens.
+export async function deleteTokens(kv: KVNamespace, userId: string): Promise<void> {
+  const key = `wkrp:tokens:${userId}`;
+  await kv.delete(key);
+  log('KV_DELETE', { key });
+}
+
 // Last.fm session keys — permanent (no expiry)
 export async function storeLastfmSession(kv: KVNamespace, contributorId: string, data: { username: string; session_key: string }): Promise<void> {
   const key = `wkrp:lastfm:${contributorId}`;
@@ -96,6 +103,20 @@ export async function getLastfmSession(kv: KVNamespace, contributorId: string): 
   }
   log('KV_HIT', { key });
   return JSON.parse(raw) as { username: string; session_key: string };
+}
+
+// Right-to-erasure: purge a contributor's Last.fm session key.
+export async function deleteLastfmSession(kv: KVNamespace, contributorId: string): Promise<void> {
+  const key = `wkrp:lastfm:${contributorId}`;
+  await kv.delete(key);
+  log('KV_DELETE', { key });
+}
+
+// Right-to-erasure: purge a contributor's last-sync marker.
+export async function deleteLastSync(kv: KVNamespace, userId: string): Promise<void> {
+  const key = `wkrp:last_sync:${userId}`;
+  await kv.delete(key);
+  log('KV_DELETE', { key });
 }
 
 // Last sync timestamp

@@ -50,6 +50,7 @@ import { handleSync } from './handlers/sync';
 import { handlePages } from './handlers/pages';
 import { handleImport } from './handlers/import';
 import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, handleGetContributorProfile, handleGetStats, handleGetBrands, handleGetContributorBrands, handleGetLayers } from './handlers/catalog';
+import { handleEraseIdentity } from './handlers/privacy';
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
 import { handleStartSet, handleAddSetTrack, handleEndSet, handleCreateAttribution, handleGetDjStats, handleGetLiveSet } from './handlers/dj';
@@ -58,9 +59,10 @@ import { handleSponsorReport } from './handlers/sponsor';
 import { handleGetEventMusic } from './handlers/events';
 import { addCorsHeaders } from './lib/cors';
 import { addSecurityHeaders } from './lib/security-headers';
+import { enforceRateLimit } from './lib/rate-limit';
+import { isAllowedMutation } from './lib/origin-check';
+import { extractUuid, UUID_RE } from './lib/route-path';
 import { log } from './lib/logger';
-
-const UUID_RE = /^[0-9a-f-]{36}$/;
 
 export async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -72,6 +74,22 @@ export async function route(request: Request, env: Env): Promise<Response> {
   // CORS preflight
   if (method === 'OPTIONS') {
     return addCorsHeaders(new Response(null, { status: 204 }), request, env);
+  }
+
+  // Rate limiting — throttle expensive/abuse-prone routes before dispatch.
+  const limited = await enforceRateLimit(request, env, method, path);
+  if (limited) {
+    return addCorsHeaders(addSecurityHeaders(limited), request, env);
+  }
+
+  // CSRF defense-in-depth: reject cross-origin mutations (atop SameSite=Lax).
+  if (!isAllowedMutation(request, env, method)) {
+    log('CSRF_ORIGIN_BLOCKED', { method, path, origin: request.headers.get('Origin') });
+    const blocked = Response.json(
+      { ok: false, status: 403, error: 'Cross-origin request blocked' },
+      { status: 403 },
+    );
+    return addCorsHeaders(addSecurityHeaders(blocked), request, env);
   }
 
   let response: Response;
@@ -102,8 +120,8 @@ export async function route(request: Request, env: Env): Promise<Response> {
   }
   // CSV import
   else if (method === 'POST' && path.startsWith('/import/')) {
-    const contributorId = path.slice('/import/'.length);
-    if (!contributorId || !UUID_RE.test(contributorId)) {
+    const contributorId = extractUuid(path, '/import/');
+    if (!contributorId) {
       response = Response.json({ ok: false, error: 'Invalid contributor ID format' }, { status: 400 });
     } else {
       response = await handleImport(request, env, contributorId);
@@ -114,17 +132,25 @@ export async function route(request: Request, env: Env): Promise<Response> {
   else if (method === 'GET' && path === '/api/tracks') {
     response = await handleGetTracks(request, env);
   }
+  else if (method === 'DELETE' && path.startsWith('/api/contributors/') && path.endsWith('/identity')) {
+    const contributorId = extractUuid(path, '/api/contributors/', '/identity');
+    if (!contributorId) {
+      response = Response.json({ ok: false, error: 'Invalid contributor ID format' }, { status: 400 });
+    } else {
+      response = await handleEraseIdentity(request, env, contributorId);
+    }
+  }
   else if (method === 'GET' && path.startsWith('/api/contributors/') && path.endsWith('/brands')) {
-    const contributorId = path.slice('/api/contributors/'.length, -'/brands'.length);
-    if (!UUID_RE.test(contributorId)) {
+    const contributorId = extractUuid(path, '/api/contributors/', '/brands');
+    if (!contributorId) {
       response = Response.json({ ok: false, error: 'Invalid contributor ID format' }, { status: 400 });
     } else {
       response = await handleGetContributorBrands(request, env, contributorId);
     }
   }
   else if (method === 'GET' && path.startsWith('/api/contributors/') && !path.includes('/brands')) {
-    const contributorId = path.slice('/api/contributors/'.length);
-    if (!UUID_RE.test(contributorId)) {
+    const contributorId = extractUuid(path, '/api/contributors/');
+    if (!contributorId) {
       response = Response.json({ ok: false, error: 'Invalid contributor ID format' }, { status: 400 });
     } else {
       response = await handleGetContributorProfile(request, env, contributorId);
@@ -148,16 +174,16 @@ export async function route(request: Request, env: Env): Promise<Response> {
     response = await handleCreatePlaylist(request, env);
   }
   else if (method === 'GET' && path.startsWith('/api/playlists/') && path.endsWith('/export')) {
-    const playlistId = path.slice('/api/playlists/'.length, -'/export'.length);
-    if (!UUID_RE.test(playlistId)) {
+    const playlistId = extractUuid(path, '/api/playlists/', '/export');
+    if (!playlistId) {
       response = Response.json({ ok: false, error: 'Invalid playlist ID' }, { status: 400 });
     } else {
       response = await handleExportPlaylist(request, env, playlistId);
     }
   }
   else if (path.startsWith('/api/playlists/') && path.endsWith('/tracks')) {
-    const playlistId = path.slice('/api/playlists/'.length, -'/tracks'.length);
-    if (!UUID_RE.test(playlistId)) {
+    const playlistId = extractUuid(path, '/api/playlists/', '/tracks');
+    if (!playlistId) {
       response = Response.json({ ok: false, error: 'Invalid playlist ID' }, { status: 400 });
     } else if (method === 'POST') {
       response = await handleAddPlaylistTracks(request, env, playlistId);
