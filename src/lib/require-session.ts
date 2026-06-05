@@ -6,8 +6,8 @@
  */
 
 import type { Env, SessionData } from '../types';
-import { getSession } from './kv-storage';
 import { getSessionToken } from './session-cookie';
+import { validateSession } from './session';
 
 export async function requireSession(
   request: Request,
@@ -21,13 +21,13 @@ export async function requireSession(
     );
   }
 
-  const session = await getSession(env.WKRP_KV, token);
-  if (!session) {
+  const check = await validateSession(env.WKRP_KV, token);
+  if (!check.ok) {
     return Response.json(
       { ok: false, error: 'Session expired' },
       { status: 401 },
     );
   }
 
-  return session;
+  return check.session;
 }
