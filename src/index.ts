@@ -11,6 +11,10 @@ import type { Env } from './types';
 
 export type { Env };
 
+// Durable Object class must be exported from the entry module so the runtime
+// can instantiate it for the RATE_LIMITER binding.
+export { RateLimiterDO } from './lib/rate-limiter-do';
+
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     try {
