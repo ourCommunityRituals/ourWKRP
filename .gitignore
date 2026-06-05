@@ -14,3 +14,10 @@ __pycache__/
 
 # Claude Code local settings (contains per-repo overrides)
 .claude/settings.local.json
+
+# Claude Code agent worktrees (local scratch, never committed)
+.claude/worktrees/
+
+# Editor / local-history artifacts
+.history/
+.vscode/
