@@ -11,15 +11,31 @@ interface CursorData {
   v?: string | number; // sort column value (optional)
 }
 
+// btoa/atob operate on Latin1 only and throw on code points > 0xFF. Sort values
+// are user-derived (track titles, artist names) and routinely contain emoji or
+// non-Latin scripts, so round-trip through UTF-8 bytes to avoid a 500 on encode.
+function toBase64(s: string): string {
+  const bytes = new TextEncoder().encode(s);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+function fromBase64(b64: string): string {
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 export function encodeCursor(id: string, sortValue?: string | number): string {
   const data: CursorData = { id };
   if (sortValue !== undefined) data.v = sortValue;
-  return btoa(JSON.stringify(data));
+  return toBase64(JSON.stringify(data));
 }
 
 export function decodeCursor(cursor: string): CursorData | null {
   try {
-    const decoded = atob(cursor);
+    const decoded = fromBase64(cursor);
     const data = JSON.parse(decoded) as CursorData;
     if (!data.id || typeof data.id !== 'string') return null;
     return data;

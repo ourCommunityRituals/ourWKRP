@@ -8,6 +8,7 @@
 
 import type { Env } from '../types';
 import { extractBrandId } from '../lib/brand';
+import { buildPageCsp } from '../lib/security-headers';
 import { log } from '../lib/logger';
 
 // HTML templates imported as text via wrangler.toml [[rules]]
@@ -63,7 +64,15 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
   // Inject brand CSS custom properties from D1
   html = await injectBrandStyles(html, brandId, env);
 
-  return new Response(html, { headers: HTML_HEADERS });
+  // CSP nonce — every inline <script> is tagged with this request's nonce so
+  // the policy can forbid all other inline script (XSS defense) without
+  // 'unsafe-inline'. Templates contain only plain inline <script> blocks.
+  const nonce = crypto.randomUUID().replace(/-/g, '');
+  html = html.replace(/<script>/g, `<script nonce="${nonce}">`);
+
+  return new Response(html, {
+    headers: { ...HTML_HEADERS, 'Content-Security-Policy': buildPageCsp(nonce) },
+  });
 }
 
 /**

@@ -11,6 +11,25 @@ import type { NormalizedTrackData, SourceType } from '../types';
 
 export type CsvFormat = 'exportify' | 'lastfm' | 'apple_music' | 'unknown';
 
+/**
+ * Hard bounds on parser work, enforced regardless of upstream byte-size caps.
+ * A file under the byte cap can still encode pathological structure (millions
+ * of rows, a single multi-MB line, thousands of fields) that translates into
+ * memory blowup or one awaited DB write per row. These bound that to a fixed
+ * envelope; excess is dropped, not silently corrupted, and reported upstream.
+ *
+ * MAX_ROWS is derived from Cloudflare's ~1000-subrequest-per-invocation budget.
+ * The batched import engine (see csv-engine.ts) spends roughly one subrequest
+ * per ~10 rows — chunked IN lookups plus db.batch() writes of ~50 statements —
+ * so 8,000 rows costs on the order of ~800 subrequests, leaving headroom for
+ * the auth/session lookups already spent before the import runs. This covers
+ * realistic libraries (Spotify exports run to a few thousand tracks) while
+ * keeping a single invocation safely under budget.
+ */
+export const MAX_ROWS = 8_000;
+export const MAX_LINE_LENGTH = 64 * 1024; // 64KB — far above any real CSV row
+export const MAX_FIELDS_PER_ROW = 256;
+
 /** Detect the CSV format from header row */
 export function detectFormat(headers: string[]): CsvFormat {
   const normalized = headers.map((h) => h.trim().toLowerCase());
@@ -44,7 +63,10 @@ export function parseCsvRows(csv: string): string[][] {
   const lines = csv.split('\n');
 
   for (const line of lines) {
+    if (rows.length >= MAX_ROWS) break;
     if (line.trim() === '') continue;
+    // Skip pathologically long lines rather than spend O(n) building them.
+    if (line.length > MAX_LINE_LENGTH) continue;
     rows.push(parseCsvLine(line));
   }
 
@@ -75,6 +97,7 @@ function parseCsvLine(line: string): string[] {
       if (char === '"') {
         inQuotes = true;
       } else if (char === ',') {
+        if (fields.length >= MAX_FIELDS_PER_ROW) break;
         fields.push(current.trim());
         current = '';
       } else {
@@ -83,7 +106,7 @@ function parseCsvLine(line: string): string[] {
     }
   }
 
-  fields.push(current.trim());
+  if (fields.length < MAX_FIELDS_PER_ROW) fields.push(current.trim());
   return fields;
 }
 
@@ -284,20 +307,22 @@ export function parseCsv(
   csvContent: string,
   sourceType?: SourceType,
   sourceName?: string,
-): { format: CsvFormat; tracks: NormalizedTrackData[] } {
+): { format: CsvFormat; tracks: NormalizedTrackData[]; truncated: boolean } {
   const rows = parseCsvRows(csvContent);
-  if (rows.length < 2) return { format: 'unknown', tracks: [] };
+  // rows.length === MAX_ROWS means the cap was hit and later rows were dropped.
+  const truncated = rows.length >= MAX_ROWS;
+  if (rows.length < 2) return { format: 'unknown', tracks: [], truncated };
 
   const format = detectFormat(rows[0]);
 
   switch (format) {
     case 'exportify':
-      return { format, tracks: parseExportifyCsv(rows, sourceType ?? 'liked', sourceName) };
+      return { format, tracks: parseExportifyCsv(rows, sourceType ?? 'liked', sourceName), truncated };
     case 'lastfm':
-      return { format, tracks: parseLastfmCsv(rows) };
+      return { format, tracks: parseLastfmCsv(rows), truncated };
     case 'apple_music':
-      return { format, tracks: parseAppleMusicCsv(rows) };
+      return { format, tracks: parseAppleMusicCsv(rows), truncated };
     default:
-      return { format: 'unknown', tracks: [] };
+      return { format: 'unknown', tracks: [], truncated };
   }
 }

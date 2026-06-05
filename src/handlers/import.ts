@@ -77,6 +77,15 @@ export async function handleImport(
       sourceType = (formData.get('source_type') as SourceType) || undefined;
       sourceName = (formData.get('source_name') as string) || undefined;
     } else if (contentType.includes('application/json')) {
+      // Reject oversized payloads before buffering/parsing the JSON body.
+      const declaredSize = Number(request.headers.get('content-length') ?? 0);
+      if (declaredSize > MAX_CSV_SIZE) {
+        return new Response(JSON.stringify({ error: 'CSV content too large (max 10MB)' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
       const body = await request.json() as { csv?: string; source_type?: string; source_name?: string };
 
       if (!body.csv || typeof body.csv !== 'string') {

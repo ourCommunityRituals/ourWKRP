@@ -33,11 +33,11 @@ export async function handleGetTracks(request: Request, env: Env): Promise<Respo
   const brandId = extractBrandId(request);
   const { cursor, limit } = parsePaginationParams(url);
 
-  const q = url.searchParams.get('q');
-  const genre = url.searchParams.get('genre');
-  const artist = url.searchParams.get('artist');
-  const contributorId = url.searchParams.get('contributor');
-  const layer = url.searchParams.get('layer'); // dj, crew, community, or null (all)
+  const q = boundParam(url.searchParams.get('q'));
+  const genre = boundParam(url.searchParams.get('genre'));
+  const artist = boundParam(url.searchParams.get('artist'));
+  const contributorId = boundParam(url.searchParams.get('contributor'));
+  const layer = boundParam(url.searchParams.get('layer')); // dj, crew, community, or null (all)
   const yearMin = parseIntParam(url.searchParams.get('year_min'));
   const yearMax = parseIntParam(url.searchParams.get('year_max'));
   const energyMin = parseFloatParam(url.searchParams.get('energy_min'));
@@ -94,8 +94,10 @@ export async function handleGetTracks(request: Request, env: Env): Promise<Respo
     binds.push(genre);
   }
   if (artist) {
-    conditions.push('t.artist LIKE ?');
-    binds.push(`%${artist}%`);
+    // Escape LIKE metacharacters so user-supplied % / _ are matched literally
+    // (otherwise they alter query semantics and can force full-table scans).
+    conditions.push("t.artist LIKE ? ESCAPE '\\'");
+    binds.push(`%${escapeLike(artist)}%`);
   }
   if (contributorId) {
     if (brandId === 'wkrp' && !fromClause.includes('contributions')) {
@@ -165,7 +167,7 @@ export async function handleGetTracks(request: Request, env: Env): Promise<Respo
     LIMIT ?
   `;
 
-  log('CATALOG_QUERY', { sql: sql.trim(), binds, brand_id: brandId });
+  log('CATALOG_QUERY', { conditions: conditions.length, has_search: !!q, brand_id: brandId, limit });
 
   const result = await env.WKRP_DB.prepare(sql).bind(...binds).all();
   const rows = result.results;
@@ -457,13 +459,29 @@ export async function handleGetContributorBrands(_request: Request, env: Env, co
 
 // --- Helpers ---
 
-function parseIntParam(value: string | null): number | null {
+export const MAX_PARAM_LENGTH = 200;
+export const MAX_FTS_WORDS = 32;
+
+/** Trim and length-bound a free-text query param; empty/oversized -> null. */
+export function boundParam(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  return trimmed.slice(0, MAX_PARAM_LENGTH);
+}
+
+/** Escape SQL LIKE metacharacters (\ % _) for use with ESCAPE '\'. */
+export function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+export function parseIntParam(value: string | null): number | null {
   if (!value) return null;
   const n = parseInt(value, 10);
   return isNaN(n) ? null : n;
 }
 
-function parseFloatParam(value: string | null): number | null {
+export function parseFloatParam(value: string | null): number | null {
   if (!value) return null;
   const n = parseFloat(value);
   return isNaN(n) ? null : Math.max(0, Math.min(1, n));
@@ -473,11 +491,12 @@ function parseFloatParam(value: string | null): number | null {
  * Sanitize FTS5 query to prevent injection.
  * FTS5 has its own query syntax — strip dangerous operators.
  */
-function sanitizeFtsQuery(query: string): string {
+export function sanitizeFtsQuery(query: string): string {
   // Remove FTS5 special characters that could cause syntax errors
   const cleaned = query.replace(/[*"():^{}[\]\\]/g, ' ').trim();
   // Split into words and join with implicit AND
-  const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+  // Cap word count so a fuzzed query can't expand into thousands of MATCH terms.
+  const words = cleaned.split(/\s+/).filter(w => w.length > 0).slice(0, MAX_FTS_WORDS);
   if (words.length === 0) return '""';
   // Quote each word to prevent operator interpretation
   return words.map(w => `"${w}"`).join(' ');

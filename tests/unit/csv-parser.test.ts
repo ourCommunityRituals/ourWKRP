@@ -6,6 +6,9 @@ import {
   parseLastfmCsv,
   parseAppleMusicCsv,
   parseCsv,
+  MAX_ROWS,
+  MAX_LINE_LENGTH,
+  MAX_FIELDS_PER_ROW,
 } from '../../src/import/csv-parser';
 
 describe('CSV Parser', () => {
@@ -54,6 +57,25 @@ describe('CSV Parser', () => {
     it('skips empty lines', () => {
       const rows = parseCsvRows('a,b\n\n1,2\n\n');
       expect(rows).toEqual([['a', 'b'], ['1', '2']]);
+    });
+
+    it('caps the number of rows to bound hostile input', () => {
+      const line = 'a,b,c';
+      const csv = Array.from({ length: MAX_ROWS + 50 }, () => line).join('\n');
+      const rows = parseCsvRows(csv);
+      expect(rows.length).toBe(MAX_ROWS);
+    });
+
+    it('drops pathologically long lines instead of building them', () => {
+      const longLine = 'x'.repeat(MAX_LINE_LENGTH + 1);
+      const rows = parseCsvRows(`a,b\n${longLine}\n1,2`);
+      expect(rows).toEqual([['a', 'b'], ['1', '2']]);
+    });
+
+    it('caps the number of fields per row', () => {
+      const manyFields = Array.from({ length: MAX_FIELDS_PER_ROW + 100 }, (_, i) => String(i)).join(',');
+      const rows = parseCsvRows(manyFields);
+      expect(rows[0].length).toBeLessThanOrEqual(MAX_FIELDS_PER_ROW);
     });
   });
 
