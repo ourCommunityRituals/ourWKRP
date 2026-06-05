@@ -4,13 +4,34 @@
  * Defense-in-depth headers per OWASP recommendations.
  */
 
+/**
+ * Default CSP for non-HTML responses (JSON/CSV) — no inline scripts exist on
+ * these, so script execution is fully disallowed. HTML pages set their own
+ * nonce-based CSP in handlePages (see buildPageCsp); we never overwrite it.
+ *
+ * style-src retains 'unsafe-inline' because the templates use ~70 inline
+ * style="" attributes (not coverable by a nonce). Style injection is far lower
+ * risk than script injection; tightening this would require refactoring those
+ * attributes to classes — tracked as a follow-up, not a blocker.
+ */
+const DEFAULT_CSP =
+  "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+
+/** CSP for an HTML page: inline scripts allowed only with this request's nonce. */
+export function buildPageCsp(nonce: string): string {
+  return `default-src 'self'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`;
+}
+
 export function addSecurityHeaders(response: Response): Response {
   const newResponse = new Response(response.body, response);
   const h = newResponse.headers;
 
   // Prevent clickjacking
   h.set('X-Frame-Options', 'DENY');
-  h.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; frame-ancestors 'none'");
+  // Do not clobber a page's nonce-based CSP set upstream.
+  if (!h.has('Content-Security-Policy')) {
+    h.set('Content-Security-Policy', DEFAULT_CSP);
+  }
 
   // Prevent MIME sniffing
   h.set('X-Content-Type-Options', 'nosniff');
