@@ -45,6 +45,7 @@ jobs:
   security:
     name: S0 Security
     runs-on: self-hosted
+    timeout-minutes: 20
     permissions:
       security-events: write
       contents: read
@@ -93,6 +94,7 @@ jobs:
   lint-and-typecheck:
     name: Lint & Type Check
     runs-on: self-hosted
+    timeout-minutes: 10
     needs: [security]
     steps:
       - uses: actions/checkout@v6
@@ -106,6 +108,7 @@ jobs:
   secret-scanning:
     name: Secret Scanning
     runs-on: self-hosted
+    timeout-minutes: 10
     needs: [security]
     steps:
       - uses: actions/checkout@v6
@@ -121,6 +124,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: self-hosted
+    timeout-minutes: 10
     needs: [security, lint-and-typecheck]
     steps:
       - uses: actions/checkout@v6
@@ -133,6 +137,7 @@ jobs:
   integration-tests:
     name: Integration Tests
     runs-on: self-hosted
+    timeout-minutes: 10
     needs: [security, lint-and-typecheck]
     steps:
       - uses: actions/checkout@v6
@@ -145,6 +150,7 @@ jobs:
   contract-tests:
     name: Contract Tests
     runs-on: self-hosted
+    timeout-minutes: 10
     needs: [security, lint-and-typecheck]
     steps:
       - uses: actions/checkout@v6
@@ -157,6 +163,7 @@ jobs:
   security-tests:
     name: Security Tests
     runs-on: self-hosted
+    timeout-minutes: 10
     needs: [security, lint-and-typecheck]
     steps:
       - uses: actions/checkout@v6
@@ -173,6 +180,7 @@ jobs:
   performance-tests:
     name: Performance Tests
     runs-on: self-hosted
+    timeout-minutes: 15
     needs: [security, unit-tests, integration-tests]
     steps:
       - uses: actions/checkout@v6
@@ -189,6 +197,7 @@ jobs:
   all-checks:
     name: All Checks Passed
     runs-on: self-hosted
+    timeout-minutes: 5
     needs:
       - security
       - lint-and-typecheck
@@ -212,6 +221,7 @@ jobs:
   deploy-staging:
     name: Deploy Staging
     runs-on: self-hosted
+    timeout-minutes: 15
     needs: all-checks
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: staging
@@ -232,6 +242,7 @@ jobs:
   deploy-production:
     name: Deploy Production
     runs-on: self-hosted
+    timeout-minutes: 15
     needs: [deploy-staging]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
