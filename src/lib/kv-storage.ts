@@ -28,11 +28,21 @@ export async function deleteAuthState(kv: KVNamespace, state: string): Promise<v
   await kv.delete(`wkrp:auth:${state}`);
 }
 
-// Session (maps session token -> contributor) — 30 day TTL
-export async function storeSession(kv: KVNamespace, token: string, data: SessionData): Promise<void> {
+// Session (maps session token -> contributor). Default 30 day TTL; callers may
+// pass a shorter remaining TTL so KV expiry tracks the absolute-lifetime cap.
+export const SESSION_TTL_SEC = 2592000; // 30 days
+
+export async function storeSession(
+  kv: KVNamespace,
+  token: string,
+  data: SessionData,
+  ttlSec: number = SESSION_TTL_SEC,
+): Promise<void> {
   const key = `wkrp:session:${token}`;
-  await kv.put(key, JSON.stringify(data), { expirationTtl: 2592000 });
-  log('KV_WRITE', { key, ttl: 2592000 });
+  // KV rejects TTLs below 60s; floor to keep near-expiry writes valid.
+  const ttl = Math.max(60, Math.floor(ttlSec));
+  await kv.put(key, JSON.stringify(data), { expirationTtl: ttl });
+  log('KV_WRITE', { key, ttl });
 }
 
 export async function getSession(kv: KVNamespace, token: string): Promise<SessionData | null> {

@@ -178,6 +178,10 @@ export interface SessionData {
   name: string;
   gen: string;
   brand_id: string;
+  // Epoch ms. Anchors absolute lifetime and idle timeout. Optional so sessions
+  // written before these fields existed validate (backfilled to "now" on read).
+  createdAt?: number;
+  lastSeenAt?: number;
 }
 
 export interface StoredTokens {

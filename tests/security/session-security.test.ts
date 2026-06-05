@@ -67,7 +67,7 @@ describe('Session Security Invariants', () => {
     });
 
     it('validates session against KV', () => {
-      expect(source).toContain('getSession(');
+      expect(source).toContain('validateSession(');
     });
 
     it('returns 401 for missing session', () => {

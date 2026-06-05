@@ -35,6 +35,8 @@ describe('requireSession', () => {
     name: 'Matt',
     gen: 'founder',
     brand_id: 'wkrp',
+    createdAt: Date.now(),
+    lastSeenAt: Date.now(),
   };
 
   beforeEach(() => {

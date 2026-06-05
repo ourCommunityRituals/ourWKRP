@@ -9,8 +9,8 @@
  */
 
 import type { Env } from '../types';
-import { getSession } from '../lib/kv-storage';
 import { getSessionToken } from '../lib/session-cookie';
+import { validateSession } from '../lib/session';
 import { log } from '../lib/logger';
 
 export async function handleAuthSession(request: Request, env: Env): Promise<Response> {
@@ -23,14 +23,15 @@ export async function handleAuthSession(request: Request, env: Env): Promise<Res
     );
   }
 
-  const session = await getSession(env.WKRP_KV, token);
-  if (!session) {
-    log('SESSION_INVALID', { token: token.substring(0, 8) + '...' });
+  const check = await validateSession(env.WKRP_KV, token);
+  if (!check.ok) {
+    log('SESSION_INVALID', { token: token.substring(0, 8) + '...', reason: check.reason });
     return Response.json(
       { ok: false, error: 'Session not found or expired' },
       { status: 401 },
     );
   }
+  const session = check.session;
 
   // Fetch contributor details from D1
   const contributor = await env.WKRP_DB.prepare(
