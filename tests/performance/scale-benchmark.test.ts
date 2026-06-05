@@ -17,6 +17,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('../../src/lib/logger', () => ({
   log: vi.fn(),
   logError: vi.fn(),
+  redact: (v: unknown) => v,
 }));
 
 // --- Helpers ---

@@ -8,6 +8,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockGetSession = vi.fn();
 vi.mock('../../src/lib/kv-storage', () => ({
   getSession: (...args: unknown[]) => mockGetSession(...args),
+  // validateSession touches/backfills sessions via storeSession on read.
+  storeSession: vi.fn(),
+  deleteSession: vi.fn(),
 }));
 
 // Mock session-cookie
@@ -24,6 +27,8 @@ vi.mock('../../src/lib/brand', () => ({
 // Mock logger
 vi.mock('../../src/lib/logger', () => ({
   log: vi.fn(),
+  logError: vi.fn(),
+  redact: (v: unknown) => v,
 }));
 
 import {

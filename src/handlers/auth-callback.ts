@@ -13,7 +13,9 @@
 import type { Env, SpotifyUserProfile, StoredTokens } from '../types';
 import { exchangeCodeForTokens } from '../auth/spotify-oauth';
 import { getAuthState, deleteAuthState, storeSession, storeTokens } from '../lib/kv-storage';
+import { newSessionData } from '../lib/session';
 import { buildSessionCookie } from '../lib/session-cookie';
+import { recordAudit } from '../lib/audit';
 import { log, logError } from '../lib/logger';
 
 export async function handleAuthCallback(request: Request, env: Env): Promise<Response> {
@@ -83,14 +85,18 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
 
     // Create session — stored in KV, delivered via HttpOnly cookie
     const sessionToken = crypto.randomUUID();
-    await storeSession(env.WKRP_KV, sessionToken, {
+    await storeSession(env.WKRP_KV, sessionToken, newSessionData({
       userId: contributorId,
       name: authState.name,
       gen: authState.gen,
       brand_id: 'wkrp',
-    });
+    }));
 
     log('AUTH_CALLBACK_SUCCESS', { contributorId, name: authState.name, gen: authState.gen });
+    await recordAudit(env, request, {
+      action: 'auth.callback', resourceType: 'session', resourceId: contributorId,
+      outcome: 'success', actorId: contributorId,
+    });
 
     // Redirect to catalog — session is in the cookie, NOT in the URL
     return new Response(null, {
@@ -103,6 +109,9 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
 
   } catch (err) {
     logError('AUTH_CALLBACK_ERROR', err);
+    await recordAudit(env, request, {
+      action: 'auth.callback', resourceType: 'session', outcome: 'failure', actorId: null,
+    });
     return Response.redirect(`${appUrl}/?error=auth_failed`, 302);
   }
 }
