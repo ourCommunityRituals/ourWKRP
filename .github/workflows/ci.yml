@@ -18,6 +18,7 @@
 #       - Security tests               → vitest run tests/security
 #       - E2E tests                    → playwright test (mobile browsers)
 #       - Postman API tests            → newman run (live wrangler dev)
+#       - Fuzz / property tests        → vitest run tests/fuzz (fast-check)
 #
 #   Stage 3: Performance (after Stage 2)
 #       - Performance tests            → vitest run tests/performance
@@ -224,6 +225,21 @@ jobs:
           path: postman/newman-report.html
           retention-days: 14
 
+  fuzz-tests:
+    name: Fuzz / Property Tests
+    runs-on: self-hosted
+    timeout-minutes: 10
+    needs: [security, lint-and-typecheck]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - run: npm ci
+      # Property-based fuzzing (fast-check) over the untrusted input boundaries:
+      # CSV parser, pagination cursors, catalog query-param sanitizers.
+      - run: npm run test:fuzz
+
   # ============================================
   # Stage 3: Performance + Gate (after tests)
   # ============================================
@@ -259,6 +275,7 @@ jobs:
       - security-tests
       - e2e-tests
       - postman-tests
+      - fuzz-tests
       - performance-tests
     steps:
       - run: echo "All CI checks passed"
