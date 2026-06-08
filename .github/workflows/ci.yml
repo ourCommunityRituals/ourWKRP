@@ -25,6 +25,12 @@
 #
 #   Gate: All checks must pass → Deploy staging (automatic, on push to main)
 #
+#   Deploy is itself VERIFIED end-to-end, not a bare `wrangler deploy`:
+#       preflight (wiring) → D1 migrations → deploy → smoke (controls live)
+#       Missing security wiring or a dormant control FAILS the deploy. The same
+#       chain runs locally via `npm run deploy:staging` (pre/post npm hooks), and
+#       each step is runnable standalone (preflight:*, smoke:staging|prod).
+#
 #   Deploy production: MANUAL ONLY — workflow_dispatch. Policy is staging-only
 #   until further notice; see the deploy-production job for the procedure.
 
@@ -301,16 +307,39 @@ jobs:
         with:
           node-version: '20'
       - run: npm ci
+
+      # Preflight: refuse to deploy if security wiring is missing from
+      # wrangler.toml. Static, no secrets — the same gate the predeploy:* npm
+      # hook runs locally, pulled into CI so the deploy path can't bypass it.
+      - name: Preflight — security wiring present
+        run: npm run preflight:staging
+
+      # wrangler deploy does NOT apply migrations — do it first, explicitly.
       # Doppler CLI is pre-installed on the self-hosted runner (on PATH).
       # dopplerhq/cli-action@v3 is deliberately NOT used — its installer fails
       # on the Windows runner: it downloads to an extension-less temp file and
       # PowerShell Expand-Archive rejects it (NotSupportedArchiveFileExtension).
       # wrangler is run via npx so it resolves from node_modules after npm ci.
+      # The DOPPLER_TOKEN service token already scopes project+config, so no -p/-c.
+      - name: Apply D1 migrations (staging)
+        run: doppler run -- npx wrangler d1 migrations apply ourwkrp-staging --remote
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STG }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
       - name: Deploy to Staging
         run: doppler run -- npx wrangler deploy
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STG }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      # Runtime control-liveness proof (T3): hit the deployed Worker and assert
+      # the controls actually FIRE — recognized rate-limiter backend, CSP nonce,
+      # JSON script-src 'none', cross-origin 403, 429-under-burst. A dormant
+      # control fails the deploy here, not silently in production. No secrets —
+      # it only touches the public URL.
+      - name: Smoke — prove controls are live (staging)
+        run: npm run smoke:staging
 
   # ============================================
   # Deploy Production — MANUAL ONLY
@@ -321,12 +350,10 @@ jobs:
   # Production deploy procedure (run only when prod is explicitly approved):
   #   1. Confirm staging is healthy:
   #        curl https://ourwkrp-staging.mzdano.workers.dev/health
-  #   2. Apply D1 migrations to the production database — `wrangler deploy`
-  #      does NOT apply migrations, so this must be done first:
-  #        doppler run -c prd -- wrangler d1 migrations apply ourwkrp-production
-  #   3. Trigger this workflow: GitHub → Actions → CI → "Run workflow" on the
-  #      main branch. It re-runs the full gate (S0 → tests) then deploys prod.
-  #   4. Smoke test:  curl https://ourwkrp.com/health
+  #   2. Trigger this workflow: GitHub → Actions → CI → "Run workflow" on the
+  #      main branch. It re-runs the full gate (S0 → tests), then the verified
+  #      deploy chain: preflight → D1 migrations → deploy → smoke. The job
+  #      applies migrations and proves controls live itself — no manual steps.
   # ============================================
   deploy-production:
     name: Deploy Production
@@ -341,10 +368,24 @@ jobs:
         with:
           node-version: '20'
       - run: npm ci
+
+      - name: Preflight — security wiring present
+        run: npm run preflight:prod
+
       # Doppler CLI pre-installed on the runner; wrangler via npx — see the
-      # deploy-staging note above.
+      # deploy-staging note above. The DOPPLER_TOKEN service token scopes
+      # project+config, so no -p/-c flags.
+      - name: Apply D1 migrations (production)
+        run: doppler run -- npx wrangler d1 migrations apply ourwkrp-production --remote --env production
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PRD }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
       - name: Deploy to Production
         run: doppler run -- npx wrangler deploy --env production
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PRD }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Smoke — prove controls are live (production)
+        run: npm run smoke:prod

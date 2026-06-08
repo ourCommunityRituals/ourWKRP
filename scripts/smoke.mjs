@@ -18,11 +18,15 @@
  * tombstoning — needs a seeded test contributor and is a documented follow-up,
  * not asserted here. Better to leave that honestly uncovered than fake it.
  *
- * Usage: BASE_URL=https://ourwkrp-staging.mzdano.workers.dev npm run smoke
+ * Usage:
+ *   npm run smoke:staging                  (URL baked in, see package.json)
+ *   npm run smoke:prod
+ *   node scripts/smoke.mjs https://host     (URL as first arg)
+ *   BASE_URL=https://host npm run smoke      (URL via env)
  */
-const BASE = (process.env.BASE_URL || '').replace(/\/$/, '');
+const BASE = (process.env.BASE_URL || process.argv[2] || '').replace(/\/$/, '');
 if (!BASE) {
-  console.error('✗ BASE_URL is required, e.g. BASE_URL=https://ourwkrp-staging.mzdano.workers.dev npm run smoke');
+  console.error('✗ A base URL is required: `npm run smoke:staging`, `node scripts/smoke.mjs https://host`, or BASE_URL=https://host npm run smoke');
   process.exit(2);
 }
 
