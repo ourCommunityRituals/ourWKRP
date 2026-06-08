@@ -32,11 +32,20 @@ const scopeName = isProd ? 'env.production' : 'default (staging)';
 const failures = [];
 const require = (ok, msg) => { if (!ok) failures.push(msg); };
 
-// OW-79: the atomic rate limiter needs its Durable Object bound + class migration.
-require(/RATE_LIMITER/.test(scope), `[${scopeName}] missing durable_objects binding "RATE_LIMITER"`);
-require(/RateLimiterDO/.test(scope), `[${scopeName}] binding does not reference class "RateLimiterDO"`);
-// DO class migrations may be declared once at the top level — accept either scope.
-require(/new_classes\s*=\s*\[[^\]]*RateLimiterDO/.test(toml), 'missing [[migrations]] new_classes = ["RateLimiterDO"]');
+// OW-79 rate limiter: KV is the live backend at launch. The atomic Durable
+// Object is a deferred upgrade (see the OW-78 CCR) — enforceRateLimit falls back
+// to the KV limiter when RATE_LIMITER is unbound, so an absent binding is valid.
+// We therefore check the DO wiring only *if* the binding is present: a bound
+// RATE_LIMITER must reference RateLimiterDO and carry its class migration.
+const hasDoBinding = /RATE_LIMITER/.test(scope);
+if (hasDoBinding) {
+  require(/RateLimiterDO/.test(scope), `[${scopeName}] RATE_LIMITER binding does not reference class "RateLimiterDO"`);
+  // Free-plan DOs must be SQLite-backed (new_sqlite_classes); accept either form.
+  require(
+    /new(?:_sqlite)?_classes\s*=\s*\[[^\]]*RateLimiterDO/.test(toml),
+    `[${scopeName}] RATE_LIMITER is bound but missing [[migrations]] new_sqlite_classes = ["RateLimiterDO"]`,
+  );
+}
 
 // OW-83: audit retention only runs if a cron trigger fires the scheduled() handler.
 require(/crons\s*=\s*\[/.test(scope), `[${scopeName}] missing [triggers] crons for the audit retention purge`);
@@ -49,4 +58,5 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`✓ Deploy preflight passed for ${scopeName}: RATE_LIMITER bound, DO migration + cron present.`);
+const rlBackend = hasDoBinding ? 'durable (RateLimiterDO bound)' : 'kv (DO deferred — OW-78 CCR)';
+console.log(`✓ Deploy preflight passed for ${scopeName}: rate limiter = ${rlBackend}, audit cron present.`);

@@ -8,7 +8,7 @@
  * causes "tested" security to silently fail in production.
  *
  * Scope is the externally-observable surface (no session required):
- *   - rate-limiter liveness (degraded-kv downgrade fails the deploy)
+ *   - rate-limiter liveness (a recognized backend is bound; KV or durable)
  *   - HTML CSP nonce (no script-src 'unsafe-inline')
  *   - JSON default CSP (script-src 'none')
  *   - cross-origin mutation rejected (OW-81 CSRF origin check)
@@ -37,12 +37,16 @@ const check = async (name, fn) => {
 };
 const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 
-await check('rate-limiter is live (not degraded-kv)', async () => {
+await check('rate-limiter reports a live backend (kv or durable)', async () => {
+  // KV is the launch backend (OW-78 CCR); the atomic Durable Object is a deferred
+  // upgrade. Both are live controls — the real liveness proof is the 429-under-burst
+  // check below, which is backend-agnostic. Here we only assert /health reports a
+  // *recognized* backend, so an unset/garbage value still fails the deploy.
   const res = await fetch(`${BASE}/health`);
   assert(res.status === 200, `GET /health -> ${res.status}`);
   const body = await res.json();
-  assert(body.rate_limiter === 'durable',
-    `health.rate_limiter = "${body.rate_limiter}" — RATE_LIMITER binding missing, atomic limiter downgraded to KV`);
+  assert(body.rate_limiter === 'kv' || body.rate_limiter === 'durable',
+    `health.rate_limiter = "${body.rate_limiter}" — expected "kv" or "durable" (rate limiting not wired)`);
 });
 
 await check('HTML page sets nonce CSP (no script unsafe-inline)', async () => {

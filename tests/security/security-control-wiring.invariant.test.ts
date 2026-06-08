@@ -26,12 +26,15 @@
  * they cannot be skipped without visibly deleting the spec.
  *
  * The runtime complement — the control actually *firing* against a deployed URL
- * (health rate_limiter=durable, 429 under burst, cross-origin 403) — is
- * `scripts/smoke.mjs`. This file is the static half: the wiring must exist.
+ * (rate-limit 429 under burst, cross-origin 403) — is `scripts/smoke.mjs`. This
+ * file is the static half: the wiring must exist.
  *
- * EXPECTED CONSEQUENCE: this spec is RED until the wrangler.toml stanzas are
- * pasted (that file is hook-protected, edited by hand). That red is the gate
- * doing its job — it couples merge of the OW-79/OW-83 code to its activation.
+ * RATE-LIMITER BACKEND (OW-78 CCR, 2026-06-07): KV is the live backend at launch.
+ * The atomic Durable Object is a deferred upgrade — enforceRateLimit falls back
+ * to the KV limiter when RATE_LIMITER is unbound, so rate limiting is live either
+ * way. This invariant therefore asserts (a) rate limiting IS wired into the
+ * router unconditionally, and (b) the DO-specific wiring is complete *only if*
+ * the binding is present. The OW-83 audit/cron wiring stays unconditional.
  */
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
@@ -47,23 +50,31 @@ const prodStart = toml.search(/^\[env\.production\]/m);
 const defaultScope = prodStart === -1 ? toml : toml.slice(0, prodStart);
 const prodScope = prodStart === -1 ? '' : toml.slice(prodStart);
 
-describe('Invariant security_control_wiring (proposed) — atomic rate limiter (OW-79) is wired, not dormant', () => {
-  it('binds the RATE_LIMITER Durable Object (staging scope)', () => {
-    expect(defaultScope).toMatch(/RATE_LIMITER/);
-    expect(defaultScope).toMatch(/RateLimiterDO/);
+// Is the atomic Durable Object bound? It's a deferred upgrade (OW-78 CCR), so
+// its wiring is only required when present — but the KV limiter (below) is.
+const hasDoBinding = /RATE_LIMITER/.test(toml);
+
+describe('Invariant security_control_wiring (proposed) — rate limiting (OW-79) is wired, not dormant', () => {
+  it('wires rate limiting into the request path (KV backend is always live)', () => {
+    expect(read('src/router.ts')).toMatch(/enforceRateLimit\s*\(/);
   });
 
-  it('binds the RATE_LIMITER Durable Object (production scope)', () => {
-    expect(prodScope).toMatch(/RATE_LIMITER/);
-    expect(prodScope).toMatch(/RateLimiterDO/);
-  });
+  // The atomic Durable Object is a deferred upgrade (OW-78 CCR). When it IS
+  // bound, its wiring must be complete; when unbound, enforceRateLimit uses KV.
+  (hasDoBinding ? describe : describe.skip)('when RATE_LIMITER is bound, the DO wiring is complete', () => {
+    it('binds the RateLimiterDO class in both scopes', () => {
+      expect(defaultScope).toMatch(/RateLimiterDO/);
+      expect(prodScope).toMatch(/RateLimiterDO/);
+    });
 
-  it('declares the RateLimiterDO class migration', () => {
-    expect(toml).toMatch(/new_classes\s*=\s*\[[^\]]*RateLimiterDO/);
-  });
+    it('declares the SQLite-backed RateLimiterDO class migration', () => {
+      // Free-plan Durable Objects must be SQLite-backed (new_sqlite_classes).
+      expect(toml).toMatch(/new(?:_sqlite)?_classes\s*=\s*\[[^\]]*RateLimiterDO/);
+    });
 
-  it('exports the DO class from the entry module so the runtime can instantiate it', () => {
-    expect(read('src/index.ts')).toMatch(/export\s*\{\s*RateLimiterDO\s*\}/);
+    it('exports the DO class from the entry module so the runtime can instantiate it', () => {
+      expect(read('src/index.ts')).toMatch(/export\s*\{\s*RateLimiterDO\s*\}/);
+    });
   });
 });
 

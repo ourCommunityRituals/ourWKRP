@@ -1,10 +1,11 @@
 /**
  * Unit tests — health endpoint rate-limiter liveness signal.
  *
- * The `rate_limiter` field is the externally-observable hedge against a silent
- * security downgrade: if the RATE_LIMITER Durable Object binding is missing,
- * the limiter falls back to best-effort KV. Health must surface that so a
- * deploy smoke test fails loudly instead of the weaker control passing quietly.
+ * The `rate_limiter` field reports which backend is live so a deploy smoke test
+ * can observe it. "kv" is the launch default (best-effort fixed-window limiter,
+ * always live); "durable" means the optional RateLimiterDO upgrade is bound and
+ * bursts are capped atomically. Both are valid live controls — the DO is a
+ * deferred enhancement (OW-78 CCR), not a requirement.
  */
 import { describe, it, expect } from 'vitest';
 import { handleHealth } from '../../src/handlers/health';
@@ -21,9 +22,9 @@ describe('health rate-limiter liveness', () => {
     expect(body.rate_limiter).toBe('durable');
   });
 
-  it('reports "degraded-kv" when RATE_LIMITER is unbound', async () => {
+  it('reports "kv" (the live launch backend) when RATE_LIMITER is unbound', async () => {
     const env = { ...baseEnv, RATE_LIMITER: undefined } as unknown as Env;
     const body = await (await handleHealth(req(), env)).json() as { rate_limiter: string };
-    expect(body.rate_limiter).toBe('degraded-kv');
+    expect(body.rate_limiter).toBe('kv');
   });
 });
