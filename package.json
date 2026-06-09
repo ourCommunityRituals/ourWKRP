@@ -17,7 +17,7 @@
     "deploy:prod": "doppler run -p ourwkrp -c prd -- wrangler deploy --env production",
     "postdeploy:prod": "npm run smoke:prod",
     "smoke": "node scripts/smoke.mjs",
-    "smoke:staging": "node scripts/smoke.mjs https://ourwkrp-staging.mzdano.workers.dev",
+    "smoke:staging": "node scripts/smoke.mjs https://stg.ourwkrp.com",
     "smoke:prod": "node scripts/smoke.mjs https://ourwkrp.com",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
