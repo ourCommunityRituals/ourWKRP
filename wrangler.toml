@@ -23,7 +23,7 @@
 # when Doppler is not available. Doppler env vars override these.
 # ============================================
 
-name = "ourwkrp-staging"
+name = "ourwkrp-stg"
 main = "src/index.ts"
 compatibility_date = "2024-06-01"
 
