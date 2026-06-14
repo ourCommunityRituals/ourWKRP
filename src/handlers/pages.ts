@@ -64,11 +64,14 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
   // Inject brand CSS custom properties from D1
   html = await injectBrandStyles(html, brandId, env);
 
-  // CSP nonce — every inline <script> is tagged with this request's nonce so
-  // the policy can forbid all other inline script (XSS defense) without
-  // 'unsafe-inline'. Templates contain only plain inline <script> blocks.
+  // CSP nonce — every inline <script> in a template carries the literal
+  // placeholder nonce="__CSP_NONCE__"; we substitute this request's nonce here
+  // and pin the same value in the CSP header below, so the policy can forbid all
+  // other inline script (XSS defense) without 'unsafe-inline'. Substituting a
+  // fixed sentinel (rather than regex-matching <script> tags) avoids the
+  // bad-tag-filter bug class — uppercase/attribute variants can't slip past.
   const nonce = crypto.randomUUID().replace(/-/g, '');
-  html = html.replace(/<script>/g, `<script nonce="${nonce}">`);
+  html = html.replaceAll('__CSP_NONCE__', nonce);
 
   return new Response(html, {
     headers: { ...HTML_HEADERS, 'Content-Security-Policy': buildPageCsp(nonce) },
