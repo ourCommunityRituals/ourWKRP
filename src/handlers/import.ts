@@ -15,6 +15,7 @@ import type { Env, SourceType } from '../types';
 import { importCsv } from '../import/csv-engine';
 import { getSession } from '../lib/kv-storage';
 import { getSessionToken } from '../lib/session-cookie';
+import { recordAudit } from '../lib/audit';
 import { log, logError } from '../lib/logger';
 
 const VALID_SOURCE_TYPES: SourceType[] = [
@@ -77,6 +78,15 @@ export async function handleImport(
       sourceType = (formData.get('source_type') as SourceType) || undefined;
       sourceName = (formData.get('source_name') as string) || undefined;
     } else if (contentType.includes('application/json')) {
+      // Reject oversized payloads before buffering/parsing the JSON body.
+      const declaredSize = Number(request.headers.get('content-length') ?? 0);
+      if (declaredSize > MAX_CSV_SIZE) {
+        return new Response(JSON.stringify({ error: 'CSV content too large (max 10MB)' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
       const body = await request.json() as { csv?: string; source_type?: string; source_name?: string };
 
       if (!body.csv || typeof body.csv !== 'string') {
@@ -140,6 +150,17 @@ export async function handleImport(
   const result = await importCsv(env, contributorId, csvContent, sourceType, sourceName);
 
   const status = result.errors.length > 0 && result.contributions_created === 0 ? 422 : 200;
+
+  await recordAudit(env, request, {
+    action: 'import.csv', resourceType: 'import', resourceId: contributorId,
+    outcome: status === 200 ? 'success' : 'failure', actorId: contributorId,
+    meta: {
+      source_type: sourceType ?? null,
+      tracks_new: result.tracks_new,
+      contributions_created: result.contributions_created,
+      error_count: result.errors.length,
+    },
+  });
 
   return new Response(JSON.stringify(result), {
     status,

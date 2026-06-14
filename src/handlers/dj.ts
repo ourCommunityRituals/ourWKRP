@@ -16,6 +16,7 @@ import { requireSession } from '../lib/require-session';
 import { pushTrackToLibrary, addToDiscoveryPlaylist } from '../lib/music-push';
 import { startSetBodySchema, addSetTrackBodySchema, createAttributionBodySchema } from '../lib/schemas';
 import { validateBody } from '../lib/validate';
+import { recordAudit } from '../lib/audit';
 import { log } from '../lib/logger';
 
 /**
@@ -52,6 +53,10 @@ export async function handleStartSet(request: Request, env: Env): Promise<Respon
   `).bind(setId, auth.userId, body.event_id ?? null, body.venue_name ?? null).run();
 
   log('DJ_SET_STARTED', { set_id: setId, dj_id: auth.userId, venue: body.venue_name });
+  await recordAudit(env, request, {
+    action: 'set.start', resourceType: 'set', resourceId: setId,
+    outcome: 'success', actorId: auth.userId,
+  });
 
   return Response.json({
     ok: true,
@@ -96,6 +101,10 @@ export async function handleAddSetTrack(request: Request, env: Env, setId: strin
   `).bind(setId, body.track_id, (posResult?.next_pos ?? 0) + 1).run();
 
   log('DJ_SET_TRACK_ADDED', { set_id: setId, track_id: body.track_id });
+  await recordAudit(env, request, {
+    action: 'set.track.add', resourceType: 'set', resourceId: setId,
+    outcome: 'success', actorId: auth.userId, meta: { track_id: body.track_id },
+  });
 
   return Response.json({ ok: true });
 }
@@ -124,6 +133,10 @@ export async function handleEndSet(request: Request, env: Env, setId: string): P
   ).bind(setId).run();
 
   log('DJ_SET_ENDED', { set_id: setId });
+  await recordAudit(env, request, {
+    action: 'set.end', resourceType: 'set', resourceId: setId,
+    outcome: 'success', actorId: auth.userId,
+  });
 
   return Response.json({ ok: true });
 }
@@ -167,6 +180,13 @@ export async function handleCreateAttribution(request: Request, env: Env): Promi
 
   log('ATTRIBUTION_CREATED', {
     id, dj_id: body.dj_id, listener_id: listenerId, track_id: body.track_id,
+  });
+  // actorId is null for the anonymous identity rung — the attribution still
+  // credits the DJ (resource) without binding a real listener.
+  await recordAudit(env, request, {
+    action: 'attribution.create', resourceType: 'attribution', resourceId: id,
+    outcome: 'success', actorId: listenerId,
+    meta: { dj_id: body.dj_id, track_id: body.track_id },
   });
 
   // 2. Push to listener's music service (if authenticated and connected)

@@ -6,6 +6,9 @@ export interface Env {
   // Bindings
   WKRP_KV: KVNamespace;
   WKRP_DB: D1Database;
+  // Atomic rate-limit counters for hot buckets (import/auth). Optional: when
+  // unbound, the limiter falls back to the best-effort KV path.
+  RATE_LIMITER?: DurableObjectNamespace;
 
   // Environment variables
   WORKER_ENV: string;
@@ -175,6 +178,10 @@ export interface SessionData {
   name: string;
   gen: string;
   brand_id: string;
+  // Epoch ms. Anchors absolute lifetime and idle timeout. Optional so sessions
+  // written before these fields existed validate (backfilled to "now" on read).
+  createdAt?: number;
+  lastSeenAt?: number;
 }
 
 export interface StoredTokens {

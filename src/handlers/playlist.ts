@@ -13,6 +13,7 @@ import { requireSession } from '../lib/require-session';
 import { extractBrandId } from '../lib/brand';
 import { createPlaylistBodySchema, playlistTracksBodySchema } from '../lib/schemas';
 import { validateBody } from '../lib/validate';
+import { recordAudit } from '../lib/audit';
 import { log } from '../lib/logger';
 
 const ALLOWED_CREATOR_ROLES = ['founder', 'curator', 'dj'];
@@ -52,6 +53,10 @@ export async function handleCreatePlaylist(request: Request, env: Env): Promise<
     return Response.json({ ok: false, error: 'Contributor not found' }, { status: 404 });
   }
   if (!ALLOWED_CREATOR_ROLES.includes(contributor.role as string)) {
+    await recordAudit(env, request, {
+      action: 'playlist.create', resourceType: 'playlist', outcome: 'denied',
+      actorId: auth.userId, brandId, meta: { reason: 'insufficient_role' },
+    });
     return Response.json(
       { ok: false, error: 'Only founders, curators, and DJs can create playlists' },
       { status: 403 },
@@ -71,6 +76,10 @@ export async function handleCreatePlaylist(request: Request, env: Env): Promise<
   `).bind(id, auth.userId, name, description, brandId).run();
 
   log('PLAYLIST_CREATED', { id, name, creator: auth.userId, brand_id: brandId });
+  await recordAudit(env, request, {
+    action: 'playlist.create', resourceType: 'playlist', resourceId: id,
+    outcome: 'success', actorId: auth.userId, brandId,
+  });
 
   return Response.json({
     ok: true,
@@ -151,6 +160,10 @@ export async function handleAddPlaylistTracks(request: Request, env: Env, playli
   await env.WKRP_DB.batch(statements);
 
   log('PLAYLIST_TRACKS_ADDED', { playlist_id: playlistId, count: trackIds.length });
+  await recordAudit(env, request, {
+    action: 'playlist.tracks.add', resourceType: 'playlist', resourceId: playlistId,
+    outcome: 'success', actorId: auth.userId, meta: { count: trackIds.length },
+  });
 
   return Response.json({ ok: true, added: trackIds.length });
 }
@@ -189,6 +202,10 @@ export async function handleRemovePlaylistTracks(request: Request, env: Env, pla
   await env.WKRP_DB.batch(statements);
 
   log('PLAYLIST_TRACKS_REMOVED', { playlist_id: playlistId, count: trackIds.length });
+  await recordAudit(env, request, {
+    action: 'playlist.tracks.remove', resourceType: 'playlist', resourceId: playlistId,
+    outcome: 'success', actorId: auth.userId, meta: { count: trackIds.length },
+  });
 
   return Response.json({ ok: true, removed: trackIds.length });
 }

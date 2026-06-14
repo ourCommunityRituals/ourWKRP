@@ -28,11 +28,21 @@ export async function deleteAuthState(kv: KVNamespace, state: string): Promise<v
   await kv.delete(`wkrp:auth:${state}`);
 }
 
-// Session (maps session token -> contributor) — 30 day TTL
-export async function storeSession(kv: KVNamespace, token: string, data: SessionData): Promise<void> {
+// Session (maps session token -> contributor). Default 30 day TTL; callers may
+// pass a shorter remaining TTL so KV expiry tracks the absolute-lifetime cap.
+export const SESSION_TTL_SEC = 2592000; // 30 days
+
+export async function storeSession(
+  kv: KVNamespace,
+  token: string,
+  data: SessionData,
+  ttlSec: number = SESSION_TTL_SEC,
+): Promise<void> {
   const key = `wkrp:session:${token}`;
-  await kv.put(key, JSON.stringify(data), { expirationTtl: 2592000 });
-  log('KV_WRITE', { key, ttl: 2592000 });
+  // KV rejects TTLs below 60s; floor to keep near-expiry writes valid.
+  const ttl = Math.max(60, Math.floor(ttlSec));
+  await kv.put(key, JSON.stringify(data), { expirationTtl: ttl });
+  log('KV_WRITE', { key, ttl });
 }
 
 export async function getSession(kv: KVNamespace, token: string): Promise<SessionData | null> {
@@ -70,6 +80,13 @@ export async function getTokens(kv: KVNamespace, userId: string): Promise<Stored
   return JSON.parse(raw) as StoredTokens;
 }
 
+// Right-to-erasure: purge a contributor's Spotify tokens.
+export async function deleteTokens(kv: KVNamespace, userId: string): Promise<void> {
+  const key = `wkrp:tokens:${userId}`;
+  await kv.delete(key);
+  log('KV_DELETE', { key });
+}
+
 // Last.fm session keys — permanent (no expiry)
 export async function storeLastfmSession(kv: KVNamespace, contributorId: string, data: { username: string; session_key: string }): Promise<void> {
   const key = `wkrp:lastfm:${contributorId}`;
@@ -86,6 +103,20 @@ export async function getLastfmSession(kv: KVNamespace, contributorId: string): 
   }
   log('KV_HIT', { key });
   return JSON.parse(raw) as { username: string; session_key: string };
+}
+
+// Right-to-erasure: purge a contributor's Last.fm session key.
+export async function deleteLastfmSession(kv: KVNamespace, contributorId: string): Promise<void> {
+  const key = `wkrp:lastfm:${contributorId}`;
+  await kv.delete(key);
+  log('KV_DELETE', { key });
+}
+
+// Right-to-erasure: purge a contributor's last-sync marker.
+export async function deleteLastSync(kv: KVNamespace, userId: string): Promise<void> {
+  const key = `wkrp:last_sync:${userId}`;
+  await kv.delete(key);
+  log('KV_DELETE', { key });
 }
 
 // Last sync timestamp

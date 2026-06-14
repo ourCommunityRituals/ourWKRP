@@ -8,12 +8,10 @@
 import type { Env } from '../types';
 
 /**
- * Returns allowed origin or null. Checks APP_URL and known dev origins.
+ * Build the set of allowed origins from environment. Single source of truth for
+ * both CORS reflection and the mutation Origin/Referer check (see origin-check).
  */
-function getAllowedOrigin(requestOrigin: string | null, env: Env): string | null {
-  if (!requestOrigin) return null;
-
-  // Build allowlist from environment
+export function buildAllowedOrigins(env: Env): Set<string> {
   const allowed = new Set<string>([
     env.APP_URL,                           // e.g. https://ourwkrp.com
     // security-gate: allow forbidden_url_scan -- wrangler dev origins, unreachable from prod
@@ -27,6 +25,15 @@ function getAllowedOrigin(requestOrigin: string | null, env: Env): string | null
     allowed.add('https://stg.ourwkrp.com');
   }
 
+  return allowed;
+}
+
+/**
+ * Returns allowed origin or null. Checks APP_URL and known dev origins.
+ */
+function getAllowedOrigin(requestOrigin: string | null, env: Env): string | null {
+  if (!requestOrigin) return null;
+  const allowed = buildAllowedOrigins(env);
   return allowed.has(requestOrigin) ? requestOrigin : null;
 }
 

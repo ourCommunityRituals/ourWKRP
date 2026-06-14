@@ -24,6 +24,7 @@ jobs:
   lint-and-check:
     name: Markdown lint + DAC compliance
     runs-on: self-hosted
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 

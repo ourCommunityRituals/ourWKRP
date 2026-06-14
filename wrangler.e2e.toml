@@ -1,0 +1,56 @@
+# ============================================
+# ourWKRP — LOCAL / E2E Worker Configuration
+# ============================================
+# Why this file exists:
+#   The deploy config (wrangler.toml) carries the production route
+#   `stg.ourwkrp.com/*` + `workers_dev = false`. When `wrangler dev` reads a
+#   config with a custom-domain route, it EMULATES requests as arriving at that
+#   host — it rewrites the incoming `Origin` header to `http://stg.ourwkrp.com`.
+#   That tripped the OW-81 CSRF origin allowlist (which holds the *https* staging
+#   origin + localhost), so every browser-driven mutation (register/import) 403'd
+#   and the Playwright E2E opt-in flow timed out. (Root-caused 2026-06-14.)
+#
+#   This config is identical to wrangler.toml's default scope MINUS the route +
+#   workers_dev, with localhost dev vars. `wrangler dev` against it serves a clean
+#   localhost origin, so the CSRF check passes as it does for a real browser.
+#
+# Used by:
+#   - playwright.config.ts webServer  (npx wrangler dev -c wrangler.e2e.toml)
+#   - manual local dev that needs browser mutations to work
+#
+# KEEP IN SYNC: if wrangler.toml's bindings/vars change, mirror them here.
+# This is NOT a deploy config — it has no routes and is never `wrangler deploy`'d.
+# ============================================
+
+name = "ourwkrp-staging"
+main = "src/index.ts"
+compatibility_date = "2024-06-01"
+
+# Import HTML templates as text strings
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
+# Local dev vars (mirror Doppler `dev` config — localhost origins)
+[vars]
+WORKER_ENV = "development"
+WORKER_VERSION = "0.1.0"
+SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
+SPOTIFY_REDIRECT_URI = "http://localhost:8787/auth/callback"
+APP_URL = "http://localhost:8787"
+LASTFM_API_KEY = ""
+LASTFM_SHARED_SECRET = ""
+
+# KV Namespace for auth/session state (same id as wrangler.toml → shared local state)
+[[kv_namespaces]]
+binding = "WKRP_KV"
+id = "aa9de79edebf4a1cac9a41a727ab85da"
+preview_id = "103eb5aabbf745d9913073d8159518bc"
+
+# D1 Database for catalog data (same id as wrangler.toml → shared local D1 state,
+# so scripts/seed-local-d1.mjs seeds the same store this dev server reads)
+[[d1_databases]]
+binding = "WKRP_DB"
+database_name = "ourwkrp-staging"
+database_id = "f2a3a785-8a43-47b3-8a06-5ad4125e2a6d"

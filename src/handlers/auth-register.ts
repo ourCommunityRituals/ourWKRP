@@ -11,6 +11,7 @@
 
 import type { Env } from '../types';
 import { storeSession } from '../lib/kv-storage';
+import { newSessionData } from '../lib/session';
 import { buildSessionCookie } from '../lib/session-cookie';
 import { extractBrandId } from '../lib/brand';
 import { registerBodySchema } from '../lib/schemas';
@@ -40,12 +41,12 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
 
   // Create session
   const sessionToken = crypto.randomUUID();
-  await storeSession(env.WKRP_KV, sessionToken, {
+  await storeSession(env.WKRP_KV, sessionToken, newSessionData({
     userId: contributorId,
     name,
     gen: generation,
     brand_id: brandId,
-  });
+  }));
 
   const isProduction = env.WORKER_ENV === 'production';
 

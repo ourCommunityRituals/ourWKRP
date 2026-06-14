@@ -11,12 +11,12 @@
 # Configs: dev, stg, prd
 #
 # Doppler injects these as environment variables at runtime:
-#   SPOTIFY_CLIENT_ID      → Spotify app client ID
-#   SPOTIFY_REDIRECT_URI   → OAuth callback URL (per environment)
-#   APP_URL                → Frontend base URL (per environment)
+#   SPOTIFY_CLIENT_ID      -> Spotify app client ID
+#   SPOTIFY_REDIRECT_URI   -> OAuth callback URL (per environment)
+#   APP_URL                -> Frontend base URL (per environment)
 #
 # Local dev setup:
-#   doppler setup           → select ourwkrp project + dev config
+#   doppler setup           -> select ourwkrp project + dev config
 #   doppler run -- wrangler dev
 #
 # The [vars] block below provides fallback defaults for local dev
@@ -26,6 +26,16 @@
 name = "ourwkrp-stg"
 main = "src/index.ts"
 compatibility_date = "2024-06-01"
+
+# Staging on the ourwkrp.com Cloudflare zone. MUST be top-level (before any
+# [table] header) so it binds to the default/staging env, not env.production.
+# Requires the stg.ourwkrp.com Custom Domain in Cloudflare. workers_dev=false
+# closes the *.workers.dev URL -- staging is reachable only at the custom domain,
+# so the host always matches the Spotify redirect_uri.
+routes = [
+  { pattern = "stg.ourwkrp.com/*", zone_name = "ourwkrp.com" }
+]
+workers_dev = false
 
 # Import HTML templates as text strings
 [[rules]]
@@ -39,11 +49,11 @@ fallthrough = true
 [vars]
 WORKER_ENV = "staging"
 WORKER_VERSION = "0.1.0"
-# Fallback for local dev without Doppler — Doppler overrides in stg/prd
+# Fallback for local dev without Doppler -- Doppler overrides in stg/prd
 SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
 SPOTIFY_REDIRECT_URI = "https://ourwkrp-staging.mzdano.workers.dev/auth/callback"
 APP_URL = "https://ourwkrp-staging.mzdano.workers.dev"
-# Last.fm — get API key at https://www.last.fm/api/account/create
+# Last.fm -- get API key at https://www.last.fm/api/account/create
 LASTFM_API_KEY = ""
 LASTFM_SHARED_SECRET = ""
 
@@ -58,6 +68,26 @@ preview_id = "103eb5aabbf745d9913073d8159518bc"
 binding = "WKRP_DB"
 database_name = "ourwkrp-staging"
 database_id = "f2a3a785-8a43-47b3-8a06-5ad4125e2a6d"
+
+# ============================================
+# Durable Objects -- atomic rate limiter (OW-79): DEFERRED, intentionally unbound.
+# ============================================
+# Launch decision (OW-78 CCR, commit dda814e): KV is the live rate-limit backend.
+# enforceRateLimit() falls back to KV when the binding is absent, so rate limiting
+# is LIVE without the DO. The RateLimiterDO class stays in-tree and unit-tested.
+# Reactivated at multi-site expansion (branded subdomains) -- the named trigger.
+#
+# The binding-name token is deliberately NOT written here: preflight and the
+# security-control-wiring invariant detect "DO bound" by that token and would then
+# demand a class migration that no longer exists. To reactivate, restore a
+# durable_objects binding + [[migrations]] new_sqlite_classes = ["RateLimiterDO"]
+# (SQLite-backed -- the Workers free plan requires it, NOT new_classes).
+
+# ============================================
+# Cron triggers -- audit retention purge (OW-83), 04:17 UTC daily
+# ============================================
+[triggers]
+crons = ["17 4 * * *"]
 
 # ============================================
 # Production environment
@@ -80,6 +110,13 @@ APP_URL = ""
 LASTFM_API_KEY = ""
 LASTFM_SHARED_SECRET = ""
 
+# Durable Object rate limiter DEFERRED in production too -- KV is the live backend
+# at launch (see the staging note above). Reactivate with a SQLite-backed
+# new_sqlite_classes migration when promoting the atomic limiter.
+
+[env.production.triggers]
+crons = ["17 4 * * *"]
+
 [[env.production.kv_namespaces]]
 binding = "WKRP_KV"
 id = "aa9de79edebf4a1cac9a41a727ab85da"
@@ -88,11 +125,3 @@ id = "aa9de79edebf4a1cac9a41a727ab85da"
 binding = "WKRP_DB"
 database_name = "ourwkrp-production"
 database_id = "3716b10e-a7b4-4869-b41e-bc7e422af749"
-
-# ============================================
-# Staging routes (uncomment when DNS is ready)
-# ============================================
-# routes = [
-#   { pattern = "stg.ourwkrp.com/*", zone_name = "ourwkrp.com" },
-#   { pattern = "*.stg.ourwkrp.com/*", zone_name = "ourwkrp.com" }
-# ]

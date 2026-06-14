@@ -9,6 +9,7 @@ import type { Env } from '../types';
 import { deleteSession } from '../lib/kv-storage';
 import { getSessionToken } from '../lib/session-cookie';
 import { buildClearSessionCookie } from '../lib/session-cookie';
+import { recordAudit } from '../lib/audit';
 import { log } from '../lib/logger';
 
 export async function handleLogout(request: Request, env: Env): Promise<Response> {
@@ -17,6 +18,9 @@ export async function handleLogout(request: Request, env: Env): Promise<Response
   if (token) {
     await deleteSession(env.WKRP_KV, token);
     log('LOGOUT', { token: token.substring(0, 8) + '...' });
+    await recordAudit(env, request, {
+      action: 'auth.logout', resourceType: 'session', outcome: 'success', actorId: null,
+    });
   }
 
   return new Response(
