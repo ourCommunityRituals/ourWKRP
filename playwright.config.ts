@@ -24,7 +24,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npx wrangler dev --port 8787',
+    // Route-less local config: wrangler.toml's deploy route (stg.ourwkrp.com)
+    // makes `wrangler dev` rewrite the request Origin to that host, which the
+    // OW-81 CSRF allowlist rejects — breaking every browser mutation. See the
+    // header of wrangler.e2e.toml for the full root cause.
+    command: 'npx wrangler dev -c wrangler.e2e.toml --port 8787',
     url: 'http://localhost:8787/health',
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
