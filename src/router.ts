@@ -3,6 +3,7 @@
  *
  * Route table:
  *
+ *   GET  /ui.css                    → shared OCR stylesheet (@ocr/ui)
  *   GET  /health                    → health check
  *   GET  /                          → connect page (or catalog if session)
  *   GET  /catalog                   → catalog page
@@ -44,6 +45,7 @@
  *   *                               → 404
  */
 
+import { serveCss } from '@ocr/ui';
 import type { Env } from './types';
 import { handleHealth } from './handlers/health';
 import { handleAuthStart } from './handlers/auth-start';
@@ -82,8 +84,12 @@ export async function route(request: Request, env: Env): Promise<Response> {
 
   let response: Response;
 
+  // Shared stylesheet
+  if (method === 'GET' && path === '/ui.css') {
+    response = serveCss();
+  }
   // Health
-  if (method === 'GET' && path === '/health') {
+  else if (method === 'GET' && path === '/health') {
     response = await handleHealth(request, env);
   }
   // Auth endpoints
