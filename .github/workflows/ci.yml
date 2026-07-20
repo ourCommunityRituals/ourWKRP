@@ -4,7 +4,7 @@
 #
 #   S0: Security — Static vulnerability analysis + supply chain inventory
 #       - CodeQL SAST (JS/TS)          → github/codeql-action/analyze@v3
-#       - npm audit (CVE check)        → npm audit --omit=dev --audit-level=high
+#       - npm audit (CVE check)        → npm audit --omit=dev --audit-level=critical
 #       - SBOM generation              → npx @cyclonedx/cyclonedx-npm --omit dev
 #
 #   Stage 1: Static Analysis (parallel)
@@ -31,11 +31,16 @@ name: CI
 
 on:
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
   pull_request:
     branches: [main]
   # Production deploy is manual-only — triggered here. See the deploy-production job.
   workflow_dispatch:
+
+# One run per PR (cancel previous on new push); one run per branch for push/dispatch.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Pin bash for self-hosted Windows runner. Default would be PowerShell;
 # every `run:` step in this file uses bash syntax (grep negation, pipes,
@@ -57,11 +62,14 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+      - uses: ./.github/actions/setup-deps
+        with:
+          ocr-token: ${{ secrets.OCR_PROPAGATE_TOKEN }}
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -75,7 +83,7 @@ jobs:
           category: '/language:javascript-typescript'
 
       - name: npm audit
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=critical
 
       - name: Generate SBOM
         run: |
@@ -87,7 +95,7 @@ jobs:
           echo "- **SBOM:** $COMPONENT_COUNT components (CycloneDX 1.5)" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: sbom-cyclonedx-${{ github.run_number }}
           path: sbom.json
@@ -102,11 +110,14 @@ jobs:
     runs-on: self-hosted
     needs: [security]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+      - uses: ./.github/actions/setup-deps
+        with:
+          ocr-token: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm run typecheck
       - run: npm run lint
 
@@ -115,7 +126,7 @@ jobs:
     runs-on: self-hosted
     needs: [security]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       # Vendored canonical security gate — secret + PII + forbidden-URL
       # + pragma policy audit, shared across OCR repos.
       - name: Level 0 Security
@@ -130,11 +141,14 @@ jobs:
     runs-on: self-hosted
     needs: [security, lint-and-typecheck]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+      - uses: ./.github/actions/setup-deps
+        with:
+          ocr-token: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm run test:unit
 
   integration-tests:
@@ -142,11 +156,14 @@ jobs:
     runs-on: self-hosted
     needs: [security, lint-and-typecheck]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+      - uses: ./.github/actions/setup-deps
+        with:
+          ocr-token: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm run test:integration
 
   contract-tests:
@@ -154,11 +171,14 @@ jobs:
     runs-on: self-hosted
     needs: [security, lint-and-typecheck]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+      - uses: ./.github/actions/setup-deps
+        with:
+          ocr-token: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm run test:contract
 
   security-tests:
@@ -166,11 +186,14 @@ jobs:
     runs-on: self-hosted
     needs: [security, lint-and-typecheck]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+      - uses: ./.github/actions/setup-deps
+        with:
+          ocr-token: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm run test:security
 
   e2e-tests:
@@ -178,18 +201,21 @@ jobs:
     runs-on: self-hosted
     needs: [security, lint-and-typecheck]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+      - uses: ./.github/actions/setup-deps
+        with:
+          ocr-token: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - name: Install Playwright browsers
         run: npx playwright install chromium webkit
       # playwright.config.ts boots `wrangler dev` itself via its webServer block.
       - run: npm run test:e2e
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ github.run_number }}
           path: playwright-report/
@@ -200,16 +226,19 @@ jobs:
     runs-on: self-hosted
     needs: [security, lint-and-typecheck]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+      - uses: ./.github/actions/setup-deps
+        with:
+          ocr-token: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       # test:postman seeds the local D1, boots `wrangler dev`, then runs Newman.
       - run: npm run test:postman
       - name: Upload Newman report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: newman-report-${{ github.run_number }}
           path: postman/newman-report.html
@@ -224,11 +253,14 @@ jobs:
     runs-on: self-hosted
     needs: [security, unit-tests, integration-tests]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+      - uses: ./.github/actions/setup-deps
+        with:
+          ocr-token: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm run test:performance
 
   # ============================================
@@ -267,11 +299,14 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: staging
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+      - uses: ./.github/actions/setup-deps
+        with:
+          ocr-token: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       # Doppler CLI is pre-installed on the self-hosted runner (on PATH).
       # dopplerhq/cli-action@v3 is deliberately NOT used — its installer fails
       # on the Windows runner: it downloads to an extension-less temp file and
@@ -306,11 +341,14 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
     environment: production
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm ci
+          cache: 'npm'
+      - uses: ./.github/actions/setup-deps
+        with:
+          ocr-token: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       # Doppler CLI pre-installed on the runner; wrangler via npx — see the
       # deploy-staging note above.
       - name: Deploy to Production

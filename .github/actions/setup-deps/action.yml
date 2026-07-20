@@ -1,0 +1,43 @@
+name: Setup WKRP dependencies
+description: |
+  Sparse-clones @ocr/ui from the OCR hub monorepo so that the
+  file: dependency in package.json resolves, then runs npm ci.
+  Prerequisite: actions/setup-node must run before this action.
+
+inputs:
+  ocr-token:
+    description: PAT with read access to ourCommunityRituals/ourCommunityRituals
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Stage @ocr/ui from hub
+      shell: bash
+      env:
+        OCR_TOKEN: ${{ inputs.ocr-token }}
+      run: |
+        # package.json has "@ocr/ui": "file:../packages/ui".
+        # On CI the runner workspace is at $GITHUB_WORKSPACE so
+        # ../packages/ui resolves to the sibling directory below.
+        PACKAGES_DIR="${GITHUB_WORKSPACE}/../packages"
+        HUB_TMP="${GITHUB_WORKSPACE}/../_ocr-hub-tmp"
+        mkdir -p "$PACKAGES_DIR"
+        git clone \
+          --depth=1 \
+          --filter=blob:none \
+          --sparse \
+          --quiet \
+          "https://x-access-token:${OCR_TOKEN}@github.com/ourCommunityRituals/ourCommunityRituals.git" \
+          "$HUB_TMP"
+        cd "$HUB_TMP"
+        git sparse-checkout set packages/ui
+        git checkout --quiet
+        cp -r packages/ui "$PACKAGES_DIR/"
+        cd "$GITHUB_WORKSPACE"
+        rm -rf "$HUB_TMP"
+        echo "Staged @ocr/ui at $PACKAGES_DIR/ui"
+
+    - name: npm ci
+      shell: bash
+      run: npm ci
