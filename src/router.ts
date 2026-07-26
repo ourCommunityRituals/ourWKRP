@@ -4,6 +4,7 @@
  * Route table:
  *
  *   GET  /health                    → health check
+ *   GET  /ui.css                    → shared design system CSS (@ocr/ui)
  *   GET  /                          → connect page (or catalog if session)
  *   GET  /catalog                   → catalog page
  *   GET  /create                    → playlist creation page
@@ -45,6 +46,7 @@
  */
 
 import type { Env } from './types';
+import { serveCss } from '@ocr/ui';
 import { handleHealth } from './handlers/health';
 import { handleAuthStart } from './handlers/auth-start';
 import { handleRegister } from './handlers/auth-register';
@@ -103,6 +105,10 @@ export async function route(request: Request, env: Env): Promise<Response> {
   // Health
   if (method === 'GET' && path === '/health') {
     response = await handleHealth(request, env);
+  }
+  // Shared design system CSS
+  else if (method === 'GET' && path === '/ui.css') {
+    response = serveCss();
   }
   // Auth endpoints
   else if (method === 'POST' && path === '/auth/register') {

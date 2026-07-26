@@ -69,6 +69,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
 
       - name: Initialize CodeQL
@@ -115,6 +117,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
@@ -145,6 +149,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
       - run: npm run test:unit
 
@@ -158,6 +164,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
       - run: npm run test:integration
 
@@ -171,6 +179,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
       - run: npm run test:contract
 
@@ -184,6 +194,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
       - run: npm run test:security
 
@@ -197,6 +209,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install chromium webkit
@@ -220,6 +234,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
       # test:postman seeds the local D1, boots `wrangler dev`, then runs Newman.
       - run: npm run test:postman
@@ -241,6 +257,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
       # Property-based fuzzing (fast-check) over the untrusted input boundaries:
       # CSV parser, pagination cursors, catalog query-param sanitizers.
@@ -260,6 +278,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
       - run: npm run test:performance
 
@@ -306,6 +326,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
 
       # Preflight: refuse to deploy if security wiring is missing from
@@ -367,6 +389,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
 
       - name: Preflight — security wiring present
