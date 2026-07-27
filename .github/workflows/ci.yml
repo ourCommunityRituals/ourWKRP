@@ -122,6 +122,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      # Tier-1 static preflight: validates manifest anchors exist in templates
+      # without a browser. Catches manifest/template drift in seconds.
+      - name: Smoke manifest preflight (static)
+        run: WKRP_TPL=src/templates npx tsx --test tests/e2e/smoke/static-check.test.ts
 
   secret-scanning:
     name: Secret Scanning
@@ -214,6 +218,10 @@ jobs:
       - run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install chromium webkit
+      # Tier-1 page smoke: 9 surfaces, 8 assertions each, one mobile browser.
+      # Runs before the Tier-2 journeys so a broken page surface fails fast.
+      - name: Tier-1 page smoke
+        run: SMOKE_APP=wkrp npx playwright test tests/e2e/smoke/tier1.spec.ts --project="Mobile Safari"
       # playwright.config.ts boots `wrangler dev` itself via its webServer block.
       - run: npm run test:e2e
       - name: Upload Playwright report
