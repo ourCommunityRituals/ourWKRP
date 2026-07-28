@@ -122,6 +122,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      # Invariant #13: templates must link /ui.css, no local :root block, ≤400 chars inline CSS
+      - name: Drift guard — shared stylesheet contract
+        run: npx tsx scripts/check-templates.ts
       # Tier-1 static preflight: validates manifest anchors exist in templates
       # without a browser. Catches manifest/template drift in seconds.
       - name: Smoke manifest preflight (static)

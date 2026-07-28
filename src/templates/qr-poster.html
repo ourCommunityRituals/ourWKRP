@@ -4,147 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ourWKRP — DJ Display</title>
+  <link rel="stylesheet" href="/ui.css">
   <style>
-    :root {
-      --bg: #0a0a0a;
-      --surface: #141414;
-      --border: #2a2a2a;
-      --text: #f0f0f0;
-      --text-muted: #888;
-      --accent: #D4954B;
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: var(--font);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 24px;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .display-card {
-      width: 100%;
-      max-width: 360px;
-      text-align: center;
-    }
-
-    .brand {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.15em;
-      color: var(--accent);
-      margin-bottom: 24px;
-    }
-
-    .dj-name {
-      font-size: 2rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .venue-name {
-      font-size: 0.9rem;
-      color: var(--text-muted);
-      margin-bottom: 32px;
-    }
-
-    .qr-frame {
-      background: #fff;
-      border-radius: 16px;
-      padding: 24px;
-      margin: 0 auto 32px;
-      display: inline-block;
-    }
-
-    .qr-frame canvas, .qr-frame img {
-      display: block;
-      width: 200px;
-      height: 200px;
-    }
-
-    .qr-placeholder {
-      width: 200px;
-      height: 200px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.8rem;
-      color: #666;
-    }
-
-    .cta {
-      font-size: 1.1rem;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-
-    .cta-sub {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-bottom: 32px;
-      line-height: 1.4;
-    }
-
-    .now-playing {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-      margin-top: 8px;
-    }
-
-    .now-playing-label {
-      font-size: 0.6rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--accent);
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-
-    .now-playing-track {
-      font-size: 1rem;
-      font-weight: 500;
-    }
-
-    .now-playing-artist {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-    }
-
-    .sponsor-slot {
-      margin-top: 32px;
-      padding: 16px;
-      border-top: 1px solid var(--border);
-      font-size: 0.7rem;
-      color: var(--text-muted);
-    }
-
-    .sponsor-slot .sponsor-name {
-      color: var(--text);
-      font-weight: 500;
-    }
-
-    .hidden { display: none; }
-
-    /* Landscape tablet / display mode */
-    @media (min-width: 768px) {
-      .display-card { max-width: 480px; }
-      .dj-name { font-size: 2.5rem; }
-      .qr-frame { padding: 32px; }
-      .qr-frame canvas, .qr-frame img, .qr-placeholder { width: 260px; height: 260px; }
-    }
+body{padding:40px 24px}.brand{margin-bottom:24px}.dj-name{font-size:2rem;font-weight:700;margin-bottom:4px}.venue-name{margin-bottom:32px}.now-playing-track{font-size:1rem;font-weight:500}.sponsor-name{color:var(--text);font-weight:500}@media(min-width:768px){.dj-name{font-size:2.5rem}}
   </style>
 </head>
-<body>
+<body class="body-centered">
   <div class="display-card" data-testid="display-card">
     <div class="brand">ourWKRP</div>
     <div class="dj-name" id="dj-name" data-testid="dj-name"></div>
@@ -160,7 +25,7 @@
     <div class="now-playing" id="now-playing" data-testid="now-playing">
       <div class="now-playing-label">Now Playing</div>
       <div class="now-playing-track" id="np-track" data-testid="np-track">—</div>
-      <div class="now-playing-artist" id="np-artist" data-testid="np-artist"></div>
+      <div id="np-artist" style="font-size:.85rem;color:var(--text-muted)" data-testid="np-artist"></div>
     </div>
 
     <div class="sponsor-slot" id="sponsor-slot" data-testid="sponsor-slot"></div>
