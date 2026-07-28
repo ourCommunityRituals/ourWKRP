@@ -5,6 +5,7 @@
  * Uses mocked Spotify responses to isolate Worker performance.
  */
 import { describe, it, expect, vi } from 'vitest';
+import { syncContributor } from '../../src/spotify/sync-engine';
 
 // Mock spotify client with realistic response sizes
 vi.mock('../../src/spotify/client', () => ({
@@ -56,7 +57,7 @@ vi.mock('../../src/lib/kv-storage', () => ({
 }));
 
 describe('Sync Performance', () => {
-  it('sync engine processes 20 playlists x 50 tracks in under 5 seconds', async () => {
+  it('sync engine processes 20 playlists x 50 tracks in under 5 seconds', { timeout: 15000 }, async () => {
     const mockD1 = {
       prepare: vi.fn(() => ({
         bind: vi.fn(() => ({
@@ -76,8 +77,6 @@ describe('Sync Performance', () => {
       WKRP_DB: mockD1,
       WKRP_KV: mockKV,
     };
-
-    const { syncContributor } = await import('../../src/spotify/sync-engine');
 
     const start = performance.now();
     const result = await syncContributor(

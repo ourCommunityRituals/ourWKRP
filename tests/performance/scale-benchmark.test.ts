@@ -12,8 +12,13 @@
  *   - Catalog at 10k, 50k, 100k tracks
  */
 import { describe, it, expect, vi } from 'vitest';
+import { handleGetTracks, handleGetStats, handleGetLayers } from '../../src/handlers/catalog';
+import { handleCreateAttribution, handleStartSet, handleAddSetTrack, handleEndSet } from '../../src/handlers/dj';
+import { handleSponsorReport } from '../../src/handlers/sponsor';
+import { handleRegister } from '../../src/handlers/auth-register';
+import { handleExportTracks } from '../../src/handlers/export';
 
-// Mock logger
+// Mock logger — vi.mock is hoisted above the static imports above
 vi.mock('../../src/lib/logger', () => ({
   log: vi.fn(),
   logError: vi.fn(),
@@ -81,8 +86,7 @@ function mockEnv(trackCount = 1000) {
 
 describe('Scale Benchmarks', () => {
   describe('Catalog query performance', () => {
-    it('handles 100 concurrent track queries in under 2 seconds', async () => {
-      const { handleGetTracks } = await import('../../src/handlers/catalog');
+    it('handles 100 concurrent track queries in under 2 seconds', { timeout: 15000 }, async () => {
       const env = mockEnv(10000);
 
       const start = performance.now();
@@ -105,8 +109,7 @@ describe('Scale Benchmarks', () => {
       expect(elapsed).toBeLessThan(2000);
     });
 
-    it('handles catalog query with all filters in under 50ms', async () => {
-      const { handleGetTracks } = await import('../../src/handlers/catalog');
+    it('handles catalog query with all filters in under 50ms', { timeout: 15000 }, async () => {
       const env = mockEnv(50000);
 
       const params = new URLSearchParams({
@@ -134,8 +137,7 @@ describe('Scale Benchmarks', () => {
       expect(elapsed).toBeLessThan(50);
     });
 
-    it('layer filter query performs within 50ms', async () => {
-      const { handleGetTracks } = await import('../../src/handlers/catalog');
+    it('layer filter query performs within 50ms', { timeout: 15000 }, async () => {
       const env = mockEnv(10000);
 
       const layers = ['dj', 'crew', 'community'];
@@ -156,8 +158,7 @@ describe('Scale Benchmarks', () => {
   });
 
   describe('Attribution burst performance', () => {
-    it('handles 50 concurrent attributions (Friday night at RIPH)', async () => {
-      const { handleCreateAttribution } = await import('../../src/handlers/dj');
+    it('handles 50 concurrent attributions (Friday night at RIPH)', { timeout: 15000 }, async () => {
       const env = mockEnv();
 
       const start = performance.now();
@@ -185,8 +186,7 @@ describe('Scale Benchmarks', () => {
       expect(elapsed).toBeLessThan(3000);
     });
 
-    it('handles 250 concurrent attributions (5-venue Saturday)', async () => {
-      const { handleCreateAttribution } = await import('../../src/handlers/dj');
+    it('handles 250 concurrent attributions (5-venue Saturday)', { timeout: 15000 }, async () => {
       const env = mockEnv();
 
       const venues = ['riph', 'reckless', 'transit', 'honkytonk', 'gallery'];
@@ -218,8 +218,7 @@ describe('Scale Benchmarks', () => {
   });
 
   describe('DJ set operations', () => {
-    it('start set + add 30 tracks + end set in under 2 seconds', async () => {
-      const { handleStartSet, handleAddSetTrack, handleEndSet } = await import('../../src/handlers/dj');
+    it('start set + add 30 tracks + end set in under 2 seconds', { timeout: 15000 }, async () => {
       const env = mockEnv();
 
       // Simulate session
@@ -275,8 +274,7 @@ describe('Scale Benchmarks', () => {
   });
 
   describe('Stats + reporting at scale', () => {
-    it('stats endpoint responds in under 100ms', async () => {
-      const { handleGetStats } = await import('../../src/handlers/catalog');
+    it('stats endpoint responds in under 100ms', { timeout: 15000 }, async () => {
       const env = mockEnv(100000);
 
       const start = performance.now();
@@ -291,8 +289,7 @@ describe('Scale Benchmarks', () => {
       expect(elapsed).toBeLessThan(100);
     });
 
-    it('sponsor report responds in under 200ms', async () => {
-      const { handleSponsorReport } = await import('../../src/handlers/sponsor');
+    it('sponsor report responds in under 200ms', { timeout: 15000 }, async () => {
       const env = mockEnv();
 
       const start = performance.now();
@@ -308,8 +305,7 @@ describe('Scale Benchmarks', () => {
       expect(elapsed).toBeLessThan(200);
     });
 
-    it('layers endpoint responds in under 100ms', async () => {
-      const { handleGetLayers } = await import('../../src/handlers/catalog');
+    it('layers endpoint responds in under 100ms', { timeout: 15000 }, async () => {
       const env = mockEnv(50000);
 
       const start = performance.now();
@@ -326,8 +322,7 @@ describe('Scale Benchmarks', () => {
   });
 
   describe('Registration burst (event night)', () => {
-    it('handles 20 concurrent registrations', async () => {
-      const { handleRegister } = await import('../../src/handlers/auth-register');
+    it('handles 20 concurrent registrations', { timeout: 15000 }, async () => {
       const env = mockEnv();
 
       const roles = ['dj', 'curator', 'contributor', 'listener'];
@@ -360,8 +355,7 @@ describe('Scale Benchmarks', () => {
   });
 
   describe('Export at scale', () => {
-    it('catalog export (JSON) responds in under 500ms for 10k tracks', async () => {
-      const { handleExportTracks } = await import('../../src/handlers/export');
+    it('catalog export (JSON) responds in under 500ms for 10k tracks', { timeout: 15000 }, async () => {
       const env = mockEnv(10000);
 
       // Mock session
@@ -384,8 +378,7 @@ describe('Scale Benchmarks', () => {
       expect(elapsed).toBeLessThan(500);
     });
 
-    it('catalog export (CSV) responds in under 500ms for 10k tracks', async () => {
-      const { handleExportTracks } = await import('../../src/handlers/export');
+    it('catalog export (CSV) responds in under 500ms for 10k tracks', { timeout: 15000 }, async () => {
       const env = mockEnv(10000);
 
       (env.WKRP_KV as ReturnType<typeof mockKV>).put(

@@ -2,8 +2,8 @@
  * Unit tests — Token refresh logic
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { getValidAccessToken } from '../../src/auth/token-refresh';
 
-// We test the refresh logic by mocking fetch and KV
 describe('Token Refresh', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -28,8 +28,6 @@ describe('Token Refresh', () => {
       SPOTIFY_CLIENT_ID: 'test-client-id',
     };
 
-    // Dynamic import to allow mocking
-    const { getValidAccessToken } = await import('../../src/auth/token-refresh');
     const result = await getValidAccessToken(mockEnv as never, 'user-123');
     expect(result).toBe('valid-token');
   });
@@ -46,7 +44,6 @@ describe('Token Refresh', () => {
       SPOTIFY_CLIENT_ID: 'test-client-id',
     };
 
-    const { getValidAccessToken } = await import('../../src/auth/token-refresh');
     const result = await getValidAccessToken(mockEnv as never, 'user-123');
     expect(result).toBeNull();
   });
@@ -81,7 +78,6 @@ describe('Token Refresh', () => {
 
     vi.stubGlobal('fetch', mockFetch);
 
-    const { getValidAccessToken } = await import('../../src/auth/token-refresh');
     const result = await getValidAccessToken(mockEnv as never, 'user-123');
 
     expect(result).toBe('new-access-token');

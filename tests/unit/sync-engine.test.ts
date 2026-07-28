@@ -2,8 +2,9 @@
  * Unit tests — Sync engine
  */
 import { describe, it, expect, vi } from 'vitest';
+import { syncContributor } from '../../src/spotify/sync-engine';
 
-// Mock the spotify client
+// Mock the spotify client — hoisted above the static import above
 vi.mock('../../src/spotify/client', () => ({
   getUserPlaylists: vi.fn(async () => [
     {
@@ -49,8 +50,7 @@ vi.mock('../../src/lib/kv-storage', () => ({
 }));
 
 describe('Sync Engine', () => {
-  it('exports syncContributor function', async () => {
-    const { syncContributor } = await import('../../src/spotify/sync-engine');
+  it('exports syncContributor function', () => {
     expect(typeof syncContributor).toBe('function');
   });
 
@@ -76,7 +76,6 @@ describe('Sync Engine', () => {
       WKRP_KV: mockKV,
     };
 
-    const { syncContributor } = await import('../../src/spotify/sync-engine');
     const result = await syncContributor(
       mockEnv as never,
       'contributor-123',
