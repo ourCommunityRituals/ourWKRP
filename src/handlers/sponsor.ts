@@ -3,16 +3,23 @@
  *
  * GET /api/sponsors/:eventId/report — engagement report for a sponsored event
  *
- * Verified engagement data backed by real attributions:
- *   - Total attributions during event
- *   - Unique QR scans (unique listeners)
- *   - Top discovered tracks
- *   - DJ performance breakdown
- *   - Platform breakdown (Spotify vs Apple Music)
+ * Verified engagement backed by real attributions, published under the uniform
+ * count floor (lib/count-floor.ts — OW facet of OSE-665/683/711):
+ *   - listener-derived counts are floored server-side; sub-K rows are DROPPED,
+ *     never marked (a present-but-suppressed row still discloses "a small
+ *     cohort was here")
+ *   - totals are sums of SURVIVING buckets, so no published total can be
+ *     differenced against the row list the same reader sees
+ *   - honesty lexicon (#27): counts are named for what they compute
+ *     (distinct_listeners = COUNT(DISTINCT listener_id)), never for the
+ *     people they imply
+ *   - DJs stay named — presenters opted into public attribution (the named
+ *     pole); listeners are counts only (the boundary in lib/privacy.ts)
  */
 
 import type { Env } from '../types';
 import { log } from '../lib/logger';
+import { applyCountFloor, dropSubFloorRows, sumContributingBuckets } from '../lib/count-floor';
 
 /**
  * GET /api/sponsors/:eventId/report
@@ -22,18 +29,12 @@ export async function handleSponsorReport(_request: Request, env: Env, eventId: 
   log('SPONSOR_REPORT', { event_id: eventId });
 
   const [
-    totalResult,
     listenersResult,
     topTracksResult,
     djBreakdownResult,
     timelineResult,
   ] = await env.WKRP_DB.batch([
-    // Total attributions for this event
-    env.WKRP_DB.prepare(
-      'SELECT COUNT(*) as count FROM attributions WHERE event_id = ?'
-    ).bind(eventId),
-
-    // Unique listeners
+    // Distinct listeners (floored below before it leaves the building)
     env.WKRP_DB.prepare(
       'SELECT COUNT(DISTINCT listener_id) as count FROM attributions WHERE event_id = ? AND listener_id IS NOT NULL'
     ).bind(eventId),
@@ -47,17 +48,17 @@ export async function handleSponsorReport(_request: Request, env: Env, eventId: 
        GROUP BY t.id ORDER BY attribution_count DESC LIMIT 20`
     ).bind(eventId),
 
-    // DJ performance breakdown
+    // DJ performance breakdown (DJ names are public by design; their
+    // listener-derived counts still take the floor)
     env.WKRP_DB.prepare(
-      `SELECT c.name as dj_name, c.id as dj_id, COUNT(*) as attribution_count,
-              COUNT(DISTINCT a.listener_id) as unique_listeners
+      `SELECT c.name as dj_name, c.id as dj_id, COUNT(*) as attribution_count
        FROM attributions a
        INNER JOIN contributors c ON a.dj_id = c.id
        WHERE a.event_id = ?
        GROUP BY c.id ORDER BY attribution_count DESC`
     ).bind(eventId),
 
-    // Hourly timeline
+    // Hourly timeline (hour granularity mirrors OSE scan_bucket; sub-K hours drop)
     env.WKRP_DB.prepare(
       `SELECT strftime('%Y-%m-%d %H:00', attributed_at) as hour, COUNT(*) as count
        FROM attributions
@@ -66,31 +67,45 @@ export async function handleSponsorReport(_request: Request, env: Env, eventId: 
     ).bind(eventId),
   ]);
 
-  const totalAttributions = (totalResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
-  const uniqueListeners = (listenersResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
+  const countOf = (r: unknown): number =>
+    Number((r as Record<string, unknown>).attribution_count ?? (r as Record<string, unknown>).count ?? 0);
+
+  // Floor every listener-derived figure before it reaches the response.
+  const distinctListeners = applyCountFloor(countOf(listenersResult.results[0] ?? {}));
+  const timeline = dropSubFloorRows(timelineResult.results, countOf);
+  const topTracks = dropSubFloorRows(topTracksResult.results, countOf);
+  const djBreakdown = dropSubFloorRows(djBreakdownResult.results, countOf);
+
+  // Differencing-safe total: sum of surviving hourly buckets only (OSE-683).
+  const totalAttributions = sumContributingBuckets(timelineResult.results, countOf);
 
   // Get event context from dj_sets if available
   const eventContext = await env.WKRP_DB.prepare(
     'SELECT venue_name, started_at FROM dj_sets WHERE event_id = ? ORDER BY started_at ASC LIMIT 1'
   ).bind(eventId).first<{ venue_name: string; started_at: string }>();
 
-  // Privacy boundary: sponsor reports show aggregates, never individual identities.
-  // DJs are named (they opted into public attribution). Listeners are counts only.
+  // Privacy boundary: sponsor reports show floored aggregates, never individual
+  // identities. DJs are named (they opted into public attribution).
   return Response.json({
     ok: true,
-    privacy: 'aggregate_listeners_named_djs',
+    privacy: 'floored_aggregate_listeners_named_djs',
     report: {
       event_id: eventId,
       venue: eventContext?.venue_name ?? null,
       event_date: eventContext?.started_at ?? null,
       summary: {
         total_attributions: totalAttributions,
-        unique_listeners: uniqueListeners,
-        total_djs: djBreakdownResult.results.length,
+        distinct_listeners: distinctListeners.count,
+        distinct_listeners_suppressed: distinctListeners.suppressed,
+        total_djs: djBreakdown.rows.length,
+        reporting_floor: distinctListeners.floor,
       },
-      top_tracks: topTracksResult.results,
-      dj_breakdown: djBreakdownResult.results,
-      timeline: timelineResult.results,
+      top_tracks: topTracks.rows,
+      top_tracks_below_floor: topTracks.suppressed_rows,
+      dj_breakdown: djBreakdown.rows,
+      djs_below_floor: djBreakdown.suppressed_rows,
+      timeline: timeline.rows,
+      hours_below_floor: timeline.suppressed_rows,
       generated_at: new Date().toISOString(),
     },
   });
