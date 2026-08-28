@@ -8,6 +8,7 @@
  */
 
 import type { Env } from '../types';
+import type { AudioFeaturesStatus } from './client';
 import { getUserPlaylists, getPlaylistTracks, getAudioFeatures } from './client';
 import { storeLastSync } from '../lib/kv-storage';
 import { normalizeTitle, normalizeArtist, extractReleaseYear } from '../lib/normalize';
@@ -18,6 +19,11 @@ export interface SyncResult {
   playlists_skipped: number;
   tracks_synced: number;
   audio_features_synced: number;
+  /**
+   * Outcome of the audio-features stage. `unavailable` means Spotify refused
+   * the endpoint for this app — playlists and tracks still persisted.
+   */
+  audio_features_status: AudioFeaturesStatus;
   contributions_created: number;
   duration_ms: number;
 }
@@ -36,6 +42,7 @@ export async function syncContributor(
     playlists_skipped: 0,
     tracks_synced: 0,
     audio_features_synced: 0,
+    audio_features_status: 'ok',
     contributions_created: 0,
     duration_ms: 0,
   };
@@ -211,7 +218,8 @@ export async function syncContributor(
   const trackIdsArray = Array.from(allTrackIds);
   if (trackIdsArray.length > 0) {
     try {
-      const features = await getAudioFeatures(trackIdsArray, accessToken);
+      const { features, status } = await getAudioFeatures(trackIdsArray, accessToken);
+      result.audio_features_status = status;
 
       // Batch update audio features — 1 statement per track
       const FEATURE_BATCH_SIZE = 100;
@@ -234,8 +242,23 @@ export async function syncContributor(
         result.audio_features_synced += batch.length;
       }
 
-      log('SYNC_AUDIO_FEATURES', { total: features.length });
+      log('SYNC_AUDIO_FEATURES', { total: features.length, status });
+
+      if (status !== 'ok') {
+        // Not a sync failure — playlists and tracks persisted. Recorded so the
+        // response can say so instead of claiming a clean run.
+        log('SYNC_AUDIO_FEATURES_DEGRADED', {
+          contributorId,
+          status,
+          tracks_requested: trackIdsArray.length,
+          features_found: features.length,
+        });
+      }
     } catch (err) {
+      // Writes (or something unexpected) failed after the fetch. Report the
+      // honest half-state rather than resetting to 'ok'.
+      result.audio_features_status =
+        result.audio_features_synced > 0 ? 'partial' : 'unavailable';
       logError('SYNC_AUDIO_FEATURES_ERROR', err);
     }
   }

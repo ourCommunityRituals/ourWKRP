@@ -98,9 +98,21 @@ export async function handleSync(request: Request, env: Env): Promise<Response> 
 
     log('SYNC_RESPONSE', { userId, name: contributor.name, ...result });
 
+    // ok stays true — playlists and tracks did persist. The audio-features
+    // stage reports its own outcome so the user is never told that a stage
+    // that returned nothing "synced successfully".
+    const featuresStatus = result.audio_features_status;
+    const message =
+      featuresStatus === 'unavailable'
+        ? `${contributor.name}'s library synced. Audio features unavailable for this Spotify app.`
+        : featuresStatus === 'partial'
+          ? `${contributor.name}'s library synced. Some audio features could not be fetched.`
+          : `${contributor.name} synced successfully`;
+
     return Response.json({
       ok: true,
-      message: `${contributor.name} synced successfully`,
+      message,
+      audio_features_status: featuresStatus,
       sync: result,
     });
   } catch (err) {
