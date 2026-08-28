@@ -224,3 +224,69 @@ describe('audio-features batching (OW-120)', () => {
     });
   });
 });
+
+// ============================================
+// Where: a token-bearing Spotify request that fails — the bearer token must
+// never ride out on the thrown error or into any log line (primary risk,
+// OW-120: SpotifyApiError adds status/path/code, and the failure paths add new
+// log lines — none may serialize the credential).
+// ============================================
+describe('access token never leaks through a failure (OW-120)', () => {
+  // A value distinctive enough that a substring match is conclusive; shaped
+  // like a real Spotify bearer token so no accidental redaction masks a leak.
+  const SECRET_TOKEN = 'BQD-super-secret-bearer-abc123XYZ-do-not-log';
+
+  /** Every string a caller/operator could observe from the console spies. */
+  function consoleOutput(): string {
+    const calls = (fn: unknown) =>
+      (fn as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    return [...calls(console.log), ...calls(console.error)]
+      .map((args) => args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '))
+      .join('\n');
+  }
+
+  describe('SpotifyApiError surfaced by a failing request', () => {
+    test('carries no bearer token in its message, path, stack, or serialized form (OW-120)', async () => {
+      fetchMock.mockImplementation(async () => errorResponse(403, 'Forbidden'));
+
+      const { getUserProfile } = await import('../../src/spotify/client');
+      const err = (await getUserProfile(SECRET_TOKEN).catch((e: unknown) => e)) as SpotifyApiError;
+
+      expect(err).toBeInstanceOf(SpotifyApiError);
+      // Path holds the endpoint (ids live here, tokens live in the header).
+      expect(err.path).not.toContain(SECRET_TOKEN);
+      expect(err.message).not.toContain(SECRET_TOKEN);
+      expect(err.stack ?? '').not.toContain(SECRET_TOKEN);
+      // Serialize own + inherited enumerable/named props — the shape a logger
+      // or JSON.stringify would emit if this error reached a sink.
+      const serialized = JSON.stringify(err, Object.getOwnPropertyNames(err));
+      expect(serialized).not.toContain(SECRET_TOKEN);
+    });
+  });
+
+  describe('log + error lines emitted while the audio-features stage fails', () => {
+    test('no log line carries the bearer token when every batch 403s (OW-120)', async () => {
+      fetchMock.mockImplementation(async () => errorResponse(403, 'Forbidden'));
+
+      await getAudioFeatures(trackIds(250), SECRET_TOKEN);
+
+      const output = consoleOutput();
+      // Sanity: the not-entitled failure path actually ran (else the assertion
+      // below is vacuous).
+      expect(output).toContain('SPOTIFY_NOT_ENTITLED');
+      expect(output).not.toContain(SECRET_TOKEN);
+    });
+
+    test('no error line embeds the bearer token in message or stack when batches fail transiently (OW-120)', async () => {
+      fetchMock.mockImplementation(async () => errorResponse(500, 'boom'));
+
+      await getAudioFeatures(trackIds(100), SECRET_TOKEN);
+
+      const output = consoleOutput();
+      // Sanity: logError ran (it emits err.message + err.stack) — the exact
+      // path where a token would leak if the error captured one.
+      expect(output).toContain('SPOTIFY_AUDIO_FEATURES_BATCH_ERROR');
+      expect(output).not.toContain(SECRET_TOKEN);
+    });
+  });
+});
