@@ -89,6 +89,11 @@
     <h3>DJ Dashboard</h3>
     <p>Only DJs can access this page.</p>
   </div>
+  <div id="connect-gate" class="access-denied hidden" data-testid="connect-gate">
+    <h3>Connect to continue</h3>
+    <p>Sign in with Spotify to access your DJ dashboard.</p>
+    <a href="/" class="btn btn-primary" data-testid="connect-cta" style="display:inline-block;min-height:48px;box-sizing:border-box;margin-top:16px;">Connect with Spotify</a>
+  </div>
 
   <div id="dashboard-view" class="hidden" data-testid="dashboard-view">
     <div class="header">
@@ -156,7 +161,14 @@
         try {
           var res = await fetch('/auth/session/me', { credentials: 'same-origin' });
           var data = await res.json();
-          if (!data.ok) { window.location.href = '/'; return; }
+          if (!data.ok) {
+            // Humane gate for unauthenticated users — render a stable sign-in
+            // surface instead of a hard redirect (which races the page smoke
+            // and violates the "never a blank page / redirect" gate principle).
+            document.getElementById('loading-view').classList.add('hidden');
+            document.getElementById('connect-gate').classList.remove('hidden');
+            return;
+          }
           contributor = data.contributor;
           if (contributor.role !== 'dj') {
             document.getElementById('loading-view').classList.add('hidden');
