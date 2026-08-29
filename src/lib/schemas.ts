@@ -56,6 +56,29 @@ export const addPortfolioBodySchema = z.object({
   title: z.string().max(200, 'Title must be 200 characters or less').transform(s => s.trim()).nullable().optional(),
 });
 
+// --- Flag Facets (declared domains + depth) ---
+
+// The four depth tiers a contributor can declare for a domain. Mirrors the
+// enum-with-message shape of roleSchema/generationSchema.
+export const facetDepthSchema = z.enum(['lifelong', 'hobbyist', 'dabbler', 'newcomer'], {
+  message: 'Depth must be: lifelong, hobbyist, dabbler, or newcomer',
+});
+
+// A domain is a short free-text label (e.g. "bocce"). Strip HTML + trim like
+// nameSchema, then reject anything that trims away to empty — the domain is the
+// identity half of the (contributor, domain) uniqueness key, so it must be real.
+export const facetDomainSchema = z
+  .string()
+  .min(1, 'A domain is required')
+  .max(64, 'Domain must be 64 characters or less')
+  .transform((s) => s.replace(/<[^>]*>/g, '').trim())
+  .refine((s) => s.length > 0, 'A domain is required');
+
+export const facetBodySchema = z.object({
+  domain: facetDomainSchema,
+  depth: facetDepthSchema,
+});
+
 // --- DJ Sets ---
 
 export const startSetBodySchema = z.object({
