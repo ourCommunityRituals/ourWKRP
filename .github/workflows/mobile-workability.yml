@@ -25,7 +25,7 @@ defaults:
 jobs:
   mobile-workability:
     name: Mobile Workability Audit (375x812)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -34,7 +34,7 @@ jobs:
           node-version: '20'
       - run: npm ci
       - name: Install Playwright browsers
-        run: npx playwright install chromium webkit
+        run: npx playwright install --with-deps chromium webkit
       - name: Audit customer-facing surfaces
         # Informational on PR/push; blocking on schedule + manual dispatch.
         continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
