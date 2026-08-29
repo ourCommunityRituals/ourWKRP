@@ -44,12 +44,20 @@ on:
   # Production deploy is manual-only — triggered here. See the deploy-production job.
   workflow_dispatch:
 
-# Pin bash for self-hosted Windows runner. Default would be PowerShell;
-# every `run:` step in this file uses bash syntax (grep negation, pipes,
-# POSIX conditionals) and would otherwise fail with parser errors.
+# bash is the default shell on ubuntu-latest; kept explicit so every `run:`
+# step's bash syntax (grep negation, pipes, POSIX conditionals) is unambiguous.
 defaults:
   run:
     shell: bash
+
+# The @ocr/ui staging script (scripts/ci-stage-ocr-workspace.sh) clones the
+# private ourCommunityRituals workspace repo. The self-hosted runner had
+# ambient git credentials; a hosted ubuntu VM does not — so pass an
+# authenticated clone URL via OCR_PROPAGATE_TOKEN (the org secret that
+# brain-contract-check already uses to read private OCR repos). GitHub masks
+# the token in logs.
+env:
+  OCR_WORKSPACE_REPO: https://x-access-token:${{ secrets.OCR_PROPAGATE_TOKEN }}@github.com/ourCommunityRituals/ourCommunityRituals.git
 
 jobs:
   # ============================================
@@ -58,7 +66,7 @@ jobs:
 
   security:
     name: S0 Security
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       security-events: write
@@ -89,7 +97,11 @@ jobs:
 
       - name: Generate SBOM
         run: |
-          npx @cyclonedx/cyclonedx-npm --omit dev --output-file sbom.json --output-format JSON --spec-version 1.5
+          # --ignore-npm-errors: the staged @ocr/ui package declares build/peer
+          # deps (react, typescript, vitest, tsx) that aren't in WKRP's lockfile
+          # and aren't part of WKRP's shipped bundle, so `npm ls` reports them as
+          # missing. The SBOM of WKRP's actual production deps is still complete.
+          npx @cyclonedx/cyclonedx-npm --omit dev --ignore-npm-errors --output-file sbom.json --output-format JSON --spec-version 1.5
           COMPONENT_COUNT=$(jq '.components | length' sbom.json 2>/dev/null || echo "unknown")
           echo "## S0 Security" >> $GITHUB_STEP_SUMMARY
           echo "- **CodeQL:** passed" >> $GITHUB_STEP_SUMMARY
@@ -109,7 +121,7 @@ jobs:
 
   lint-and-typecheck:
     name: Lint & Type Check
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [security]
     steps:
@@ -129,15 +141,18 @@ jobs:
 
   secret-scanning:
     name: Secret Scanning
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [security]
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       # Vendored canonical security gate — secret + PII + forbidden-URL
       # + pragma policy audit, shared across OCR repos.
       - name: Level 0 Security
-        run: py tests/level0_security.py
+        run: python3 tests/level0_security.py
 
   # ============================================
   # Stage 2: Test Pyramid (parallel, after lint)
@@ -145,7 +160,7 @@ jobs:
 
   unit-tests:
     name: Unit Tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [security, lint-and-typecheck]
     steps:
@@ -160,7 +175,7 @@ jobs:
 
   integration-tests:
     name: Integration Tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [security, lint-and-typecheck]
     steps:
@@ -175,7 +190,7 @@ jobs:
 
   contract-tests:
     name: Contract Tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [security, lint-and-typecheck]
     steps:
@@ -190,7 +205,7 @@ jobs:
 
   security-tests:
     name: Security Tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [security, lint-and-typecheck]
     steps:
@@ -205,7 +220,7 @@ jobs:
 
   e2e-tests:
     name: E2E Tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [security, lint-and-typecheck]
     steps:
@@ -217,7 +232,7 @@ jobs:
         run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
       - name: Install Playwright browsers
-        run: npx playwright install chromium webkit
+        run: npx playwright install --with-deps chromium webkit
       # Tier-1 page smoke: 9 surfaces, 8 assertions each, one mobile browser.
       # Runs before the Tier-2 journeys so a broken page surface fails fast.
       - name: Tier-1 page smoke
@@ -234,7 +249,7 @@ jobs:
 
   postman-tests:
     name: Postman API Tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [security, lint-and-typecheck]
     steps:
@@ -257,7 +272,7 @@ jobs:
 
   fuzz-tests:
     name: Fuzz / Property Tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [security, lint-and-typecheck]
     steps:
@@ -278,7 +293,7 @@ jobs:
 
   performance-tests:
     name: Performance Tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [security, unit-tests, integration-tests]
     steps:
@@ -297,7 +312,7 @@ jobs:
 
   all-checks:
     name: All Checks Passed
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     needs:
       - security
@@ -324,7 +339,7 @@ jobs:
 
   deploy-staging:
     name: Deploy Staging
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: all-checks
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -344,11 +359,14 @@ jobs:
       - name: Preflight — security wiring present
         run: npm run preflight:staging
 
+      # Doppler CLI is installed via the official action on ubuntu-latest.
+      # (On the old Windows self-hosted runner it was pre-installed instead,
+      # because dopplerhq/cli-action's installer failed there — Expand-Archive
+      # rejected the extension-less temp download. On Linux the action works.)
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+
       # wrangler deploy does NOT apply migrations — do it first, explicitly.
-      # Doppler CLI is pre-installed on the self-hosted runner (on PATH).
-      # dopplerhq/cli-action@v3 is deliberately NOT used — its installer fails
-      # on the Windows runner: it downloads to an extension-less temp file and
-      # PowerShell Expand-Archive rejects it (NotSupportedArchiveFileExtension).
       # wrangler is run via npx so it resolves from node_modules after npm ci.
       # The DOPPLER_TOKEN service token already scopes project+config, so no -p/-c.
       - name: Apply D1 migrations (staging)
@@ -387,7 +405,7 @@ jobs:
   # ============================================
   deploy-production:
     name: Deploy Production
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [all-checks]
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
@@ -404,9 +422,11 @@ jobs:
       - name: Preflight — security wiring present
         run: npm run preflight:prod
 
-      # Doppler CLI pre-installed on the runner; wrangler via npx — see the
-      # deploy-staging note above. The DOPPLER_TOKEN service token scopes
-      # project+config, so no -p/-c flags.
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+
+      # wrangler via npx — see the deploy-staging note above. The DOPPLER_TOKEN
+      # service token scopes project+config, so no -p/-c flags.
       - name: Apply D1 migrations (production)
         run: doppler run -- npx wrangler d1 migrations apply ourwkrp-production --remote --env production
         env:
