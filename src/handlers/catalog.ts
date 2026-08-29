@@ -372,7 +372,10 @@ export async function handleGetLayers(_request: Request, env: Env): Promise<Resp
  */
 export async function handleGetContributorProfile(_request: Request, env: Env, contributorId: string): Promise<Response> {
   const contributor = await env.WKRP_DB.prepare(
-    'SELECT id, name, generation, role, brand_id, status, created_at FROM contributors WHERE id = ?'
+    // `slug` is additive (OW-122): the vanity URL is public, so the profile
+    // page can render it. `slug_locked` is deliberately NOT exposed here — it
+    // is an owner-only control flag, returned by POST /api/profile/slug.
+    'SELECT id, name, generation, role, brand_id, status, slug, created_at FROM contributors WHERE id = ?'
   ).bind(contributorId).first();
 
   if (!contributor) {

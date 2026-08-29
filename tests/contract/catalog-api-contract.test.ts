@@ -5,6 +5,8 @@
  * Ensures frontend can rely on these contracts.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // --- Response shape interfaces ---
 
@@ -38,6 +40,25 @@ interface ContributorsResponse {
     status: string;
     track_count: number;
   }>;
+}
+
+// GET /api/contributors/:id — the profile page's data source. `slug` is
+// additive (OW-122); `slug_locked` is deliberately absent from the public shape.
+interface ContributorProfileResponse {
+  ok: boolean;
+  contributor: {
+    id: string;
+    name: string;
+    generation: string;
+    brand_id: string;
+    role: string;
+    status: string;
+    slug: string | null;
+    created_at: string;
+  };
+  roles: string[];
+  track_count: number;
+  playlist_count: number;
 }
 
 interface StatsResponse {
@@ -199,6 +220,71 @@ describe('Catalog API Contracts', () => {
       expect(response.contributors[0].track_count).toBeGreaterThanOrEqual(0);
       expect(['founder', 'gen2', 'gen3']).toContain(response.contributors[0].generation);
       expect(['founder', 'curator', 'contributor', 'dj']).toContain(response.contributors[0].role);
+    });
+  });
+
+  describe('GET /api/contributors/:id response — profile payload', () => {
+    it('carries the additive slug field, null before a claim (OW-122)', () => {
+      const response: ContributorProfileResponse = {
+        ok: true,
+        contributor: {
+          id: 'contrib-1',
+          name: 'Matt',
+          generation: 'founder',
+          brand_id: 'wkrp',
+          role: 'founder',
+          status: 'active',
+          slug: null,
+          created_at: '2026-01-01T00:00:00Z',
+        },
+        roles: ['founder'],
+        track_count: 150,
+        playlist_count: 3,
+      };
+
+      expect(response.contributor).toHaveProperty('slug');
+      expect(response.contributor.slug).toBeNull();
+    });
+
+    it('carries the claimed slug once set (OW-122)', () => {
+      const response: ContributorProfileResponse['contributor'] = {
+        id: 'contrib-1',
+        name: 'Matt',
+        generation: 'founder',
+        brand_id: 'wkrp',
+        role: 'founder',
+        status: 'active',
+        slug: 'matt',
+        created_at: '2026-01-01T00:00:00Z',
+      };
+
+      expect(response.slug).toBe('matt');
+      expect(response.slug).toMatch(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/);
+    });
+
+    // The literals above only describe the intended shape. These two read the
+    // handler's own SELECT so the contract cannot drift away from what ships.
+    it('is backed by a handler that actually selects slug (contract)', () => {
+      const source = readFileSync(
+        join(__dirname, '../../src/handlers/catalog.ts'),
+        'utf-8',
+      );
+      const select = source.match(
+        /'SELECT[^']*FROM contributors WHERE id = \?'/,
+      );
+      expect(select).not.toBeNull();
+      expect(select![0]).toContain('slug');
+    });
+
+    it('does not expose slug_locked — an owner-only control flag (contract)', () => {
+      const source = readFileSync(
+        join(__dirname, '../../src/handlers/catalog.ts'),
+        'utf-8',
+      );
+      const select = source.match(
+        /'SELECT[^']*FROM contributors WHERE id = \?'/,
+      );
+      expect(select![0]).not.toContain('slug_locked');
     });
   });
 
