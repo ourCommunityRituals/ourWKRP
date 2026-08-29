@@ -50,6 +50,15 @@ defaults:
   run:
     shell: bash
 
+# The @ocr/ui staging script (scripts/ci-stage-ocr-workspace.sh) clones the
+# private ourCommunityRituals workspace repo. The self-hosted runner had
+# ambient git credentials; a hosted ubuntu VM does not — so pass an
+# authenticated clone URL via OCR_PROPAGATE_TOKEN (the org secret that
+# brain-contract-check already uses to read private OCR repos). GitHub masks
+# the token in logs.
+env:
+  OCR_WORKSPACE_REPO: https://x-access-token:${{ secrets.OCR_PROPAGATE_TOKEN }}@github.com/ourCommunityRituals/ourCommunityRituals.git
+
 jobs:
   # ============================================
   # S0: Security (before everything)
