@@ -51,7 +51,7 @@
  */
 
 import type { Env } from './types';
-import { serveCss } from '@ocr/ui';
+import { serveCss } from '@ocr/ui/css';
 import { handleHealth } from './handlers/health';
 import { handleAuthStart } from './handlers/auth-start';
 import { handleRegister } from './handlers/auth-register';
