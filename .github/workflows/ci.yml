@@ -236,7 +236,13 @@ jobs:
       # Tier-1 page smoke: 9 surfaces, 8 assertions each, one mobile browser.
       # Runs before the Tier-2 journeys so a broken page surface fails fast.
       - name: Tier-1 page smoke
-        run: SMOKE_APP=wkrp npx playwright test tests/e2e/smoke/tier1.spec.ts --project="Mobile Safari"
+        # pw-guarded.sh (propagated from OSE PR #423 / OSE-852) counts discovery
+        # before running: a positional path that falls outside the config's
+        # testDir discovers zero tests and would otherwise exit green.
+        env:
+          SMOKE_APP: wkrp
+          PW_LABEL: 'Tier-1 page smoke (wkrp)'
+        run: bash scripts/pw-guarded.sh tests/e2e/smoke/tier1.spec.ts --project="Mobile Safari"
       # playwright.config.ts boots `wrangler dev` itself via its webServer block.
       - run: npm run test:e2e
       - name: Upload Playwright report
