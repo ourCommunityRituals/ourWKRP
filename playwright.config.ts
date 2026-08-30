@@ -1,5 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// This is the WKRP repo, so the parameterized Tier-1 smoke (tests/e2e/smoke/
+// tier1.spec.ts) targets the WKRP route manifest by default. The dedicated CI
+// smoke step sets SMOKE_APP=wkrp explicitly; this makes the broader
+// `npm run test:e2e` run (which doesn't) use the same app instead of falling
+// back to the OSE manifest and 404-ing on OSE-only routes. Set SMOKE_APP=ose
+// to opt into the OSE routes.
+process.env.SMOKE_APP ||= 'wkrp';
+
 export default defineConfig({
   testDir: './tests',
   // Scope Playwright to the e2e + playwright dirs only — never the vitest *.test.ts files.

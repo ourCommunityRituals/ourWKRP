@@ -14,7 +14,7 @@ permissions:
   pull-requests: write
   issues: write
 
-# Pin bash for self-hosted Windows runner (default would be PowerShell).
+# bash is the default shell on ubuntu-latest; kept explicit for clarity.
 defaults:
   run:
     shell: bash
@@ -22,7 +22,7 @@ defaults:
 jobs:
   contract-check:
     name: Validate against OCR-docs brain
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
