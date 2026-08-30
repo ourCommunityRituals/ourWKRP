@@ -5,7 +5,7 @@
  * portfolio of preferred playlists. Covers the owner add/remove flow, the
  * fat-finger case (a non-Spotify link), and the visitor case (no add control).
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 const SPOTIFY_PLAYLIST = 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M';
 

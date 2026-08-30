@@ -8,7 +8,7 @@
  * Data setup (contributors/DJs to view) uses the `request` fixture, which has
  * its own context — so the `page` stays genuinely anonymous.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test.describe('Anonymous journey — no account', () => {
   test('"Browse the Catalog" reaches the catalog with no name', async ({ page }) => {

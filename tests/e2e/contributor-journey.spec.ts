@@ -8,7 +8,7 @@
  * alternatives, and the guards that keep the flow flawless (no double
  * registration, session persistence, no dead-ends).
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 // Resolved relative to the repo root (Playwright's working directory).
 const FIXTURE_CSV = 'tests/integration/fixtures/test-library.csv';
