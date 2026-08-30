@@ -17,7 +17,7 @@ export const wkrpManifest: AppManifest = {
     { path: '/', name: 'connect', anchor: 'body' },
     { path: '/catalog', name: 'catalog', anchor: 'body' },
     { path: '/create', name: 'create playlist', anchor: 'body', gate: true },
-    { path: '/dashboard', name: 'dj dashboard', anchor: '[data-testid="loading-view"]', gate: true },
+    { path: '/dashboard', name: 'dj dashboard', anchor: 'body', gate: true },
     { path: '/stats', name: 'stats', anchor: 'body' },
     { path: '/import', name: 'import', anchor: 'body' },
     { path: '/dj/{id}', name: 'live set (public attribution)', anchor: 'body',

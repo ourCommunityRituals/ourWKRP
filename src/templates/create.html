@@ -376,7 +376,17 @@
       fetch('/auth/session/me', { credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          if (!data.ok) { window.location.href = '/'; return; }
+          if (!data.ok) {
+            // Humane gate for unauthenticated users — render a stable sign-in
+            // surface instead of a hard redirect (which races the page smoke
+            // and violates the "never a blank page / redirect" gate principle).
+            document.querySelector('.content').innerHTML =
+              '<div class="access-denied" data-testid="connect-gate" style="text-align:center;padding:60px 20px;">' +
+              '<h3>Connect to create playlists</h3>' +
+              '<p style="color:var(--text-muted);margin-top:8px;">Sign in with Spotify to build and save playlists.</p>' +
+              '<a href="/" class="btn btn-create" data-testid="connect-cta" style="display:inline-block;min-height:48px;box-sizing:border-box;padding:14px 24px;margin-top:20px;">Connect with Spotify</a></div>';
+            return;
+          }
           var allowed = ['founder', 'curator', 'dj'];
           if (!allowed.includes(data.contributor.role)) {
             document.querySelector('.content').innerHTML =
