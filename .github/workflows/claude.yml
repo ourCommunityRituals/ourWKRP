@@ -12,11 +12,16 @@ on:
 
 jobs:
   claude:
+    # Security gate (CCR / OSE-1107): these events carry repo secrets AND feed
+    # untrusted comment/issue text into an LLM agent with tools. Restrict the
+    # trigger to TRUSTED actors only — author_association must be OWNER / MEMBER /
+    # COLLABORATOR. Untrusted `@claude` mentions (CONTRIBUTOR / FIRST_TIME_CONTRIBUTOR
+    # / NONE) are ignored → closes the prompt-injection + API-spend-DoS surface.
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -35,7 +40,12 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Auth = service-account API key (interim). Federation on-ramp (OSE-1109):
+          # `id-token: write` is already granted above, so moving to Workload Identity
+          # Federation later = add ANTHROPIC_FEDERATION_RULE_ID + ANTHROPIC_ORGANIZATION_ID
+          # + ANTHROPIC_SERVICE_ACCOUNT_ID + the OIDC token, and DELETE the
+          # ANTHROPIC_API_KEY secret (even empty, it shadows federation — precedence).
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
           # This is an optional setting that allows Claude to read CI results on PRs
           additional_permissions: |
