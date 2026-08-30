@@ -304,7 +304,7 @@ describe('OW-122 — server-rendered OG meta is attribute-escaped', () => {
       const csp = res.headers.get('Content-Security-Policy')!;
       const nonce = csp.match(/'nonce-([a-f0-9]+)'/)![1];
 
-      const scripts = [...html.matchAll(/<script\b[^>]*>/g)];
+      const scripts = [...html.matchAll(/<script\b[^>]*>/gi)];
       expect(scripts.length).toBeGreaterThan(0);
       for (const [tag] of scripts) {
         expect(tag).toContain(`nonce="${nonce}"`);
