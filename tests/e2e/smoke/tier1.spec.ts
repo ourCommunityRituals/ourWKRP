@@ -18,14 +18,21 @@
  * Wire into each repo's Playwright config testMatch. Runtime target: the whole
  * table in ~1–2 min on one worker. Journey specs (Tier 2) stay separate.
  */
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
 import type { AppManifest, RouteSpec } from './types';
 import { resolvePath } from './types';
 import { oseManifest } from './ose.routes';
 import { wkrpManifest } from './wkrp.routes';
 
+// Default to THIS repo's own app. The previous default was `ose`, so a bare
+// `npm run test:e2e` ran OSE's route manifest (/public, /display, /poster,
+// /sharedReport) against the WKRP worker — 12 guaranteed failures that had
+// nothing to do with WKRP. CI happened to avoid it only because its dedicated
+// Tier-1 step passes SMOKE_APP=wkrp explicitly, while the `npm run test:e2e`
+// on the following line did not. Opting into the OTHER app stays explicit.
 const manifest: AppManifest =
-  process.env.SMOKE_APP === 'wkrp' ? wkrpManifest : oseManifest;
+  process.env.SMOKE_APP === 'ose' ? oseManifest : wkrpManifest;
 
 const HAS_ADMIN = !!process.env.SMOKE_ADMIN_READY; // set when config injects auth headers
 
