@@ -252,7 +252,7 @@ export async function handleGetDjStats(_request: Request, env: Env, djId: string
        FROM attributions a
        INNER JOIN tracks t ON a.track_id = t.id
        WHERE a.dj_id = ?
-       GROUP BY t.id ORDER BY attribution_count DESC LIMIT 10`
+       GROUP BY t.id ORDER BY attribution_count DESC, t.id ASC LIMIT 10`
     ).bind(djId),
     env.WKRP_DB.prepare(
       'SELECT COUNT(*) as count FROM dj_sets WHERE dj_id = ?'

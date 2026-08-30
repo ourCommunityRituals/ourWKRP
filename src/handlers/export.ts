@@ -63,7 +63,7 @@ export async function handleExportTracks(request: Request, env: Env): Promise<Re
       INNER JOIN contributions cn ON t.id = cn.track_id
       INNER JOIN contributors ct ON cn.contributor_id = ct.id
       WHERE ct.brand_id = ? AND t.merged_into_id IS NULL
-      ORDER BY t.artist ASC, t.name ASC
+      ORDER BY t.artist ASC, t.name ASC, t.album ASC, ct.name ASC
     `;
     binds = [brandId];
   } else {
@@ -75,7 +75,7 @@ export async function handleExportTracks(request: Request, env: Env): Promise<Re
       LEFT JOIN contributions cn ON t.id = cn.track_id
       LEFT JOIN contributors ct ON cn.contributor_id = ct.id
       WHERE t.merged_into_id IS NULL
-      ORDER BY t.artist ASC, t.name ASC
+      ORDER BY t.artist ASC, t.name ASC, t.album ASC, ct.name ASC
     `;
     binds = [];
   }

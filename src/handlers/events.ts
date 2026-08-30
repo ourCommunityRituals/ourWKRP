@@ -29,7 +29,7 @@ export async function handleGetEventMusic(_request: Request, env: Env, eventId: 
        FROM dj_sets ds
        INNER JOIN contributors c ON ds.dj_id = c.id
        WHERE ds.event_id = ?
-       ORDER BY ds.started_at ASC`
+       ORDER BY ds.started_at ASC, ds.id ASC`
     ).bind(eventId),
 
     // Total attribution stats
@@ -49,7 +49,7 @@ export async function handleGetEventMusic(_request: Request, env: Env, eventId: 
        INNER JOIN tracks t ON a.track_id = t.id
        INNER JOIN contributors c ON a.dj_id = c.id
        WHERE a.event_id = ?
-       GROUP BY t.id ORDER BY attribution_count DESC LIMIT 25`
+       GROUP BY t.id ORDER BY attribution_count DESC, t.id ASC LIMIT 25`
     ).bind(eventId),
   ]);
 
