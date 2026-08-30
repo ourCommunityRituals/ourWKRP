@@ -6,7 +6,7 @@
  * a session whose role can curate (founder / curator / dj), so those tests
  * register a real curator via the API first.
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test.describe('Catalog Browse', () => {
   test('is browsable without a session', async ({ page }) => {
