@@ -9,8 +9,22 @@ import { z } from 'zod';
 
 // --- Shared primitives ---
 
+// Strip HTML tags to a fixpoint. A single pass over a multi-character pattern
+// can leave a recombined tag behind (CodeQL js/incomplete-multi-character-
+// sanitization), so repeat until the string stops changing — each pass only
+// removes characters, so this terminates. Escaping at render remains the real
+// XSS boundary; this keeps stored labels clean.
+const stripHtmlTags = (s: string): string => {
+  let prev: string;
+  do {
+    prev = s;
+    s = s.replace(/<[^>]*>/g, '');
+  } while (s !== prev);
+  return s;
+};
+
 export const uuidSchema = z.string().uuid('Must be a valid UUID');
-export const nameSchema = z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less').transform(s => s.replace(/<[^>]*>/g, '').trim());
+export const nameSchema = z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less').transform(s => stripHtmlTags(s).trim());
 export const roleSchema = z.enum(['dj', 'curator', 'contributor', 'listener'], { message: 'Role must be: dj, curator, contributor, or listener' });
 export const generationSchema = z.enum(['founder', 'gen2', 'gen3'], { message: 'Generation must be: founder, gen2, or gen3' });
 export const brandIdSchema = z.string().regex(/^[a-z0-9-]+$/, 'Brand ID must be lowercase alphanumeric with hyphens');
@@ -71,7 +85,7 @@ export const facetDomainSchema = z
   .string()
   .min(1, 'A domain is required')
   .max(64, 'Domain must be 64 characters or less')
-  .transform((s) => s.replace(/<[^>]*>/g, '').trim())
+  .transform((s) => stripHtmlTags(s).trim())
   .refine((s) => s.length > 0, 'A domain is required');
 
 export const facetBodySchema = z.object({
