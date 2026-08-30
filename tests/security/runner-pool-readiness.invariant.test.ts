@@ -61,17 +61,28 @@ describe('Invariant #12 — runner-pool readiness (per-repo: every job has a tim
 });
 
 describe('Invariant #11 — self-hosted bash pin (bundled with #12 per OSE-411)', () => {
-  for (const file of workflowFiles) {
+  // Only workflows that actually run shell commands on a self-hosted runner
+  // need the bash pin; pure `uses:`-only workflows are exempt.
+  const selfHostedWithRunSteps = workflowFiles.filter((file) => {
     const src = fs.readFileSync(path.join(WORKFLOWS_DIR, file), 'utf-8');
-    const hasRunSteps = /^\s*run:/m.test(src);
-    const isSelfHosted = /runs-on:\s*self-hosted/.test(src);
+    return /^\s*run:/m.test(src) && /runs-on:\s*self-hosted/.test(src);
+  });
 
-    // Only workflows that actually run shell commands on a self-hosted runner
-    // need the bash pin; pure `uses:`-only workflows are exempt.
-    if (hasRunSteps && isSelfHosted) {
-      it(`${file}: pins shell: bash for self-hosted runner`, () => {
-        expect(src).toMatch(/shell:\s*bash/);
-      });
-    }
+  // WKRP migrated all CI to ubuntu-latest (2026-08-28), where bash is the
+  // default shell — no self-hosted runners remain, so the bash-pin invariant
+  // is vacuously satisfied. The check stays encoded: if a self-hosted runner
+  // is ever reintroduced, the per-file assertion below reactivates. (An empty
+  // describe throws "No test found in suite", so assert the N/A state instead.)
+  if (selfHostedWithRunSteps.length === 0) {
+    it('no self-hosted workflows remain — bash-pin invariant N/A on ubuntu-latest', () => {
+      expect(selfHostedWithRunSteps).toEqual([]);
+    });
+  }
+
+  for (const file of selfHostedWithRunSteps) {
+    const src = fs.readFileSync(path.join(WORKFLOWS_DIR, file), 'utf-8');
+    it(`${file}: pins shell: bash for self-hosted runner`, () => {
+      expect(src).toMatch(/shell:\s*bash/);
+    });
   }
 });
