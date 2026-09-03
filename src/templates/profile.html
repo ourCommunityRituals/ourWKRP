@@ -92,6 +92,16 @@
       margin-bottom: 4px;
     }
 
+    /* Vanity URL (OW-122) — unobtrusive, sits under the role chips. */
+    .profile-slug {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      margin-top: 6px;
+      margin-bottom: 2px;
+      word-break: break-all;
+    }
+
     .profile-generation {
       font-size: 0.75rem;
       color: var(--text-muted);
@@ -391,6 +401,7 @@
       <div class="profile-avatar" id="profile-avatar" data-testid="profile-avatar"></div>
       <div class="profile-name" id="profile-name" data-testid="profile-name"></div>
       <div id="profile-roles" data-testid="profile-roles"></div>
+      <div class="profile-slug hidden" id="profile-slug" data-testid="profile-slug"></div>
       <div class="profile-generation" id="profile-generation" data-testid="profile-generation"></div>
       <div class="profile-joined" id="profile-joined" data-testid="profile-joined"></div>
     </div>
@@ -497,7 +508,12 @@
         })
         .catch(function() {});
 
-      var contributorId = window.location.pathname.split('/contributor/')[1];
+      // The worker resolves the contributor server-side and stamps the id onto
+      // <body data-contributor-id>. That is the only way /c/:slug can work —
+      // the slug is not the id. Path parsing stays as the fallback so the
+      // canonical /contributor/:uuid URL still loads if the attribute is absent.
+      var contributorId = document.body.getAttribute('data-contributor-id') ||
+        window.location.pathname.split('/contributor/')[1];
       if (!contributorId) {
         showNotFound();
         return;
@@ -534,6 +550,16 @@
         document.getElementById('profile-roles').innerHTML = roles.map(function(r) {
           return '<span class="profile-role">' + escapeHtml(r) + '</span>';
         }).join(' ');
+        // Vanity URL (OW-122) — shown only when the contributor has claimed a
+        // slug. textContent, never innerHTML: the slug is user-chosen.
+        var slugEl = document.getElementById('profile-slug');
+        if (c.slug) {
+          slugEl.textContent = '/c/' + c.slug;
+          slugEl.classList.remove('hidden');
+        } else {
+          slugEl.classList.add('hidden');
+        }
+
         document.getElementById('profile-generation').textContent = c.generation;
         document.getElementById('profile-joined').textContent = 'Joined ' + formatDate(c.created_at);
 
