@@ -18,8 +18,9 @@ jobs:
     #   github.event.pull_request.user.login == 'new-developer' ||
     #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
 
-    # GitHub-hosted Linux: anthropics/claude-code-action's installer does not
-    # support Windows, so this job cannot run on the self-hosted Windows runner.
+    # anthropics/claude-code-action's installer targets Linux/macOS (not
+    # Windows), so this job pins ubuntu-latest. (Self-hosted Windows pool
+    # retired 2026-09-02, OSE-1194 — all CI now runs GitHub-hosted.)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
