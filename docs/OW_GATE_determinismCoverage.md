@@ -167,6 +167,37 @@ pagination on it, so no page can skip or duplicate a row), and the `decade` /
 `hour` / `source_platform` sorts, whose sort key *is* their `GROUP BY` /
 `DISTINCT` key.
 
+### 5.2 15th query — `catalog.ts` flag_facets (2026-09-03)
+
+The L0 scan caught one query the 2026-08-30 sweep missed: the contributor-profile
+facets list, `flag_facets … ORDER BY created_at ASC, domain ASC`
+(`GET /api/contributors/:id`). Recorded because the resolution involved a real
+judgment call, not just a mechanical append.
+
+This one was **behaviorally deterministic already**: `flag_facets` has
+`UNIQUE(contributor_id, domain)` and the query filters `WHERE contributor_id = ?`,
+so `domain` is unique in the result set. The scanner is a text pass and cannot see
+a cross-statement index, so it flagged `domain` as a tie-prone final term — a
+sound refusal to depend on an invariant it can't verify locally.
+
+Two legitimate resolutions existed:
+
+1. **Append `, id ASC`** — chosen. Unconditionally correct, robust even if the
+   UNIQUE index is later dropped, and consistent with the dominant tiebreaker
+   strategy of the 14 above.
+2. **Allowlist `domain` in `UNIQUE_BY_CONSTRUCTION`** — consistent with the
+   adjacent `role` entry (`contributor_roles`, the same `(parent, X)-unique`
+   shape). Rejected: the allowlist is keyed globally on the term string, so it
+   would silently exempt any *future* unscoped `ORDER BY domain` and would go
+   quietly wrong if the UNIQUE index were dropped. `id ASC` carries no such
+   latent liability.
+
+Coverage followed it up the triangle: L0 scan (was red, now green) + a tie-seeded
+integration pair in `determinism-ordering.test.ts` ("facets under a created_at
+tie") that seeds five facets sharing one timestamp and asserts `domain` breaks the
+tie decidably. Contract/Postman remain N/A (§2 rows 5/9); no E2E case added — per
+§2 row 10, a new case pushes down to integration first.
+
 ---
 
 ### 5.1 Adjacent finding — dead rate limiter (not a determinism defect)

@@ -28,7 +28,8 @@ import type { Env } from '../../src/types';
 const MIGRATIONS_DIR = join(__dirname, '../../migrations');
 const DATA_TABLES = [
   'preferred_playlists', 'playlist_tracks', 'playlists', 'set_tracks', 'attributions',
-  'dj_sets', 'contributions', 'track_identifiers', 'contributor_roles', 'tracks', 'contributors',
+  'dj_sets', 'contributions', 'track_identifiers', 'contributor_roles', 'flag_facets',
+  'tracks', 'contributors',
 ];
 
 function splitSqlStatements(sql: string): string[] {
@@ -199,5 +200,64 @@ describe('determinism | contributor list under duplicate names', () => {
     expect(ids(a)).toHaveLength(6);
     expect(ids(a)).toEqual(ids(b));
     expect(ids(a)).toEqual([...ids(a)].sort()); // fully determined by c.id ASC
+  });
+});
+
+describe('determinism | contributor profile facets under a created_at tie', () => {
+  // The contributor profile lists a person's self-declared facets
+  // (src/handlers/catalog.ts, GET /api/contributors/:id). created_at defaults
+  // to datetime('now'), so several facets declared in the same second TIE on
+  // created_at — the realistic case, since a profile edit can add a batch at
+  // once. What disambiguates them is the operative question this test pins.
+  const CONTRIB = 'contrib-facet-0001';
+  const DOMAINS = ['zydeco', 'bocce', 'trivia', 'pinball', 'cigar'];
+
+  // The shipped query (with the tiebreaker this change added).
+  const FACETS_SHIPPED =
+    'SELECT id, domain, depth, created_at FROM flag_facets WHERE contributor_id = ? ORDER BY created_at ASC, domain ASC, id ASC';
+  // The query as it was BEFORE the fix — domain was the final sort term.
+  const FACETS_PREFIX =
+    'SELECT id, domain, depth, created_at FROM flag_facets WHERE contributor_id = ? ORDER BY created_at ASC, domain ASC';
+
+  beforeEach(async () => {
+    await env.WKRP_DB.prepare(
+      `INSERT INTO contributors (id, name, generation, brand_id, role, status, created_at)
+       VALUES (?, 'Facet Person', 'gen2', 'wkrp', 'contributor', 'active', datetime('now'))`,
+    ).bind(CONTRIB).run();
+    // All five facets share one created_at timestamp — a total tie on the
+    // leading sort term. Insertion order is deliberately NOT domain-sorted, so
+    // a stable result cannot come from insertion happening to be ordered.
+    for (const domain of DOMAINS) {
+      await env.WKRP_DB.prepare(
+        `INSERT INTO flag_facets (id, contributor_id, domain, depth, created_at)
+         VALUES (?, ?, ?, 'hobbyist', '2026-01-01T00:00:00Z')`,
+      ).bind(`facet-${domain}`, CONTRIB, domain).run();
+    }
+  });
+
+  it('PASS — the created_at tie is broken deterministically by domain, not arbitrarily', async () => {
+    const first = await env.WKRP_DB.prepare(FACETS_SHIPPED).bind(CONTRIB).all();
+    const second = await env.WKRP_DB.prepare(FACETS_SHIPPED).bind(CONTRIB).all();
+    const domains = (r: typeof first) => (r.results as { domain: string }[]).map((x) => x.domain);
+
+    expect(domains(first)).toHaveLength(5); // non-vacuity: the tie actually seeded
+    expect(domains(first)).toEqual(domains(second));
+    // Every row ties on created_at, so domain ASC fully determines the order:
+    // the decidable answer is the domains sorted, independent of insert order.
+    expect(domains(first)).toEqual([...DOMAINS].sort());
+  });
+
+  it('FAIL — the pre-fix query is structurally tie-unstable', () => {
+    // Asserted structurally, matching this suite's convention: domain is unique
+    // per contributor via UNIQUE(contributor_id, domain), so SQLite happens to
+    // return it stably here — but the scanner (which cannot see a cross-statement
+    // index) rightly refuses to depend on that, and id ASC makes the guarantee
+    // hold even if that index is ever dropped.
+    const violations = scanOrderByDeterminism(FACETS_PREFIX);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].detail).toContain('domain');
+
+    // And the shipped query is clean under the same scanner.
+    expect(scanOrderByDeterminism(FACETS_SHIPPED)).toEqual([]);
   });
 });
