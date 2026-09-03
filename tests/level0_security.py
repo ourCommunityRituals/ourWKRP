@@ -12,10 +12,10 @@ Matches the pattern established by:
   - packages/flags/tests/level0_security.py
   - OCR-docs/ocr-docs-brain/tests/level0_security.py
 
-Replaces the previous gitleaks-based secret scanning in CI (Linux-only
-binary; incompatible with the self-hosted Windows runner). The
+Replaces the previous gitleaks-based secret scanning in CI. The
 vendored security_gate.py covers the same ground (+ PII scan +
-forbidden-URL scan + pragma audit) and runs uniformly across the fleet.
+forbidden-URL scan + pragma audit) and runs uniformly across the fleet
+(GitHub-hosted `ubuntu-latest`; self-hosted runners retired 2026-09-02, OSE-1194).
 """
 from __future__ import annotations
 import sys
