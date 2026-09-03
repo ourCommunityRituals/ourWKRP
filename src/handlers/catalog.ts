@@ -413,7 +413,7 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
         'SELECT role, granted_at FROM contributor_roles WHERE contributor_id = ? ORDER BY granted_at ASC, role ASC'
       ).bind(contributorId),
       env.WKRP_DB.prepare(
-        'SELECT id, domain, depth, created_at FROM flag_facets WHERE contributor_id = ? ORDER BY created_at ASC, domain ASC'
+        'SELECT id, domain, depth, created_at FROM flag_facets WHERE contributor_id = ? ORDER BY created_at ASC, domain ASC, id ASC'
       ).bind(contributorId),
     ]);
 
