@@ -38,8 +38,8 @@ vi.mock('../../src/spotify/client', () => ({
       added_by: { id: 'user-1' },
     }));
   }),
-  getAudioFeatures: vi.fn(async (trackIds: string[]) => {
-    return trackIds.map((id) => ({
+  getAudioFeatures: vi.fn(async (trackIds: string[]) => ({
+    features: trackIds.map((id) => ({
       id,
       energy: Math.random(),
       danceability: Math.random(),
@@ -47,8 +47,9 @@ vi.mock('../../src/spotify/client', () => ({
       tempo: 80 + Math.random() * 100,
       acousticness: Math.random(),
       instrumentalness: Math.random(),
-    }));
-  }),
+    })),
+    status: 'ok' as const,
+  })),
 }));
 
 vi.mock('../../src/lib/kv-storage', () => ({
