@@ -116,12 +116,18 @@ Run: `npm run test:e2e` (Playwright, requires wrangler dev)
 
 ## 4. ourCommunityRituals Ecosystem
 
-| Product | Repo | Purpose |
-|---|---|---|
-| **ourSharedEvents** | `ourCommunityRituals/ourSharedEvents` | Core platform — event infrastructure |
-| **ourWKRP** | `ourCommunityRituals/ourWKRP` | Music catalog — Spotify integration |
-| **ourRecNights** | `ourCommunityRituals/ourRecNights` | Recreational night leagues |
-| **OurRecordStories** | — | Record stories (joins via wkrp:contributors) |
+> Registry of record: `OCR-docs/ocr-docs-brain/product-registry.yaml` (mirrored in `OCR-docs/docs/OCR_VISION.md` §7; vendored copy `.ocr-standards/docs/OCR_VISION.md`). OW's product-vision pointer is `docs/OCR_VISION.md`.
+>
+> **identity_mode: named** — OW is the named layer (voluntary attribution); OSE is the anonymous base. Separate databases, never joined (brain #22 cross-repo import isolation).
+
+| Code | Product | Repo | Purpose |
+|---|---|---|---|
+| OCR | OurCommunityRituals LLC | `ourCommunityRituals/OCR-docs` | Org brain · governance |
+| OSE | ourSharedEvents | `ourCommunityRituals/ourSharedEvents` | The platform — anonymous ID, sponsor model (OW consumes its SharedReport API, ADR-011) |
+| **OW** | **ourWKRP** _(this repo)_ | `ourCommunityRituals/ourWKRP` | Community music curation — named identity, free |
+| OSR | OurSharedRecords | `ourCommunityRituals/ourSharedRecords` | Music, story, archive — oral history ("OurRecordStories" in older notes; joins via `wkrp:contributors`) |
+| OSG | OurSharedGames | `ourCommunityRituals/ourSharedGames` | Founding activation format — anchor game nights (leagues formerly sketched as "ourRecNights") |
+| OA | OurAirwaves | `ourCommunityRituals/ourAirwaves` | Deployment + white label — every DJ profile is a single-person OA deployment |
 
 ---
 

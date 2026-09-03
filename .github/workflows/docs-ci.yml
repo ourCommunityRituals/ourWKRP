@@ -30,7 +30,7 @@ jobs:
 
       - name: Check required files exist
         env:
-          REQUIRED_FILES: 'CLAUDE.md,README.md,SKILL.md'
+          REQUIRED_FILES: 'CLAUDE.md,README.md,SKILL.md,docs/OCR_VISION.md'
         run: |
           IFS=',' read -ra FILES <<< "$REQUIRED_FILES"
           MISSING=0
