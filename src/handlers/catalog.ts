@@ -382,7 +382,7 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
     return Response.json({ ok: false, error: 'Contributor not found' }, { status: 404 });
   }
 
-  const [trackCountResult, playlistCountResult, topGenresResult, sourcesResult, playlistsResult, brandsResult, rolesResult] =
+  const [trackCountResult, playlistCountResult, topGenresResult, sourcesResult, playlistsResult, brandsResult, rolesResult, facetsResult] =
     await env.WKRP_DB.batch([
       env.WKRP_DB.prepare(
         'SELECT COUNT(DISTINCT track_id) as count FROM contributions WHERE contributor_id = ?'
@@ -415,6 +415,9 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
       env.WKRP_DB.prepare(
         'SELECT role, granted_at FROM contributor_roles WHERE contributor_id = ? ORDER BY granted_at ASC'
       ).bind(contributorId),
+      env.WKRP_DB.prepare(
+        'SELECT id, domain, depth, created_at FROM flag_facets WHERE contributor_id = ? ORDER BY created_at ASC, domain ASC'
+      ).bind(contributorId),
     ]);
 
   const trackCount = (trackCountResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
@@ -434,6 +437,8 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
     contribution_sources: (sourcesResult.results as Array<Record<string, unknown>>).map(r => r.source_platform),
     playlists: playlistsResult.results,
     brands: brandsResult.results,
+    // Self-declared (domain, depth) facets — additive self-description (OW-121).
+    facets: facetsResult.results,
   });
 }
 

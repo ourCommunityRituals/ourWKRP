@@ -64,6 +64,14 @@ export async function eraseContributor(
     return { erased: false };
   }
 
+  // Self-declared facets are personal descriptors, not shared provenance — a
+  // person's declared "(domain, depth)" pairs are theirs alone and carry no
+  // catalog lineage, so they are hard-deleted on erasure (unlike contributions,
+  // which are tombstoned to preserve every track's "who brought this" chain).
+  await env.WKRP_DB.prepare('DELETE FROM flag_facets WHERE contributor_id = ?')
+    .bind(contributorId)
+    .run();
+
   // Purge KV identity material. Best-effort per key; a missing key is a no-op.
   await deleteTokens(env.WKRP_KV, contributorId);
   await deleteLastfmSession(env.WKRP_KV, contributorId);

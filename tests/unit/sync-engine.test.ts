@@ -30,17 +30,20 @@ vi.mock('../../src/spotify/client', () => ({
       added_by: { id: 'user-1' },
     },
   ]),
-  getAudioFeatures: vi.fn(async () => [
-    {
-      id: 'track-1',
-      energy: 0.8,
-      danceability: 0.7,
-      valence: 0.6,
-      tempo: 120,
-      acousticness: 0.2,
-      instrumentalness: 0.1,
-    },
-  ]),
+  getAudioFeatures: vi.fn(async () => ({
+    features: [
+      {
+        id: 'track-1',
+        energy: 0.8,
+        danceability: 0.7,
+        valence: 0.6,
+        tempo: 120,
+        acousticness: 0.2,
+        instrumentalness: 0.1,
+      },
+    ],
+    status: 'ok',
+  })),
 }));
 
 // Mock kv-storage
@@ -88,5 +91,82 @@ describe('Sync Engine', () => {
     expect(result.audio_features_synced).toBe(1);
     expect(result.contributions_created).toBe(1);
     expect(result.duration_ms).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// Where: a sync whose audio-features stage does not fully succeed
+describe('audio-features stage outcome (OW-120)', () => {
+  // Who: syncContributor
+  function mockEnv() {
+    const mockD1 = {
+      prepare: vi.fn(() => ({
+        bind: vi.fn(() => ({
+          run: vi.fn(async () => ({ success: true })),
+          first: vi.fn(async () => null),
+          all: vi.fn(async () => ({ results: [] })),
+        })),
+      })),
+      batch: vi.fn(async (stmts: unknown[]) => stmts.map(() => ({ success: true }))),
+    };
+    return { WKRP_DB: mockD1, WKRP_KV: { put: vi.fn(), get: vi.fn(async () => null) } };
+  }
+
+  it('records audio_features_status "ok" when every batch returns', async () => {
+    const { syncContributor } = await import('../../src/spotify/sync-engine');
+    const result = await syncContributor(mockEnv() as never, 'contributor-123', 'token');
+
+    expect(result.audio_features_status).toBe('ok');
+  });
+
+  it('records audio_features_status "unavailable" when the stage returns nothing (OW-120)', async () => {
+    const client = await import('../../src/spotify/client');
+    vi.mocked(client.getAudioFeatures).mockResolvedValueOnce({
+      features: [],
+      status: 'unavailable',
+    });
+
+    const { syncContributor } = await import('../../src/spotify/sync-engine');
+    const result = await syncContributor(mockEnv() as never, 'contributor-123', 'token');
+
+    // Playlists and tracks still persisted — only the features stage degraded.
+    expect(result.tracks_synced).toBe(1);
+    expect(result.audio_features_synced).toBe(0);
+    expect(result.audio_features_status).toBe('unavailable');
+  });
+
+  it('records audio_features_status "partial" when only some batches returned (OW-120)', async () => {
+    const client = await import('../../src/spotify/client');
+    vi.mocked(client.getAudioFeatures).mockResolvedValueOnce({
+      features: [
+        {
+          id: 'track-1',
+          energy: 0.8,
+          danceability: 0.7,
+          valence: 0.6,
+          tempo: 120,
+          acousticness: 0.2,
+          instrumentalness: 0.1,
+        },
+      ],
+      status: 'partial',
+    });
+
+    const { syncContributor } = await import('../../src/spotify/sync-engine');
+    const result = await syncContributor(mockEnv() as never, 'contributor-123', 'token');
+
+    expect(result.audio_features_synced).toBe(1);
+    expect(result.audio_features_status).toBe('partial');
+  });
+
+  it('falls back to "unavailable" when the features stage throws (regression)', async () => {
+    const client = await import('../../src/spotify/client');
+    vi.mocked(client.getAudioFeatures).mockRejectedValueOnce(new Error('network down'));
+
+    const { syncContributor } = await import('../../src/spotify/sync-engine');
+    const result = await syncContributor(mockEnv() as never, 'contributor-123', 'token');
+
+    // The whole sync still resolves — a features failure is not a sync failure.
+    expect(result.tracks_synced).toBe(1);
+    expect(result.audio_features_status).toBe('unavailable');
   });
 });

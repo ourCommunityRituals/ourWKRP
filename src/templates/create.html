@@ -59,6 +59,9 @@
       margin-bottom: 28px;
     }
 
+    /* Feature gating uses the hidden attribute — keep it authoritative. */
+    [hidden] { display: none !important; }
+
     .section-title {
       font-size: 0.875rem;
       font-weight: 600;
@@ -270,7 +273,9 @@
         ></textarea>
       </div>
 
-      <div class="section">
+      <!-- Audio-feature sliders stay hidden until /api/stats reports
+           has_audio_features — with no features they filter nothing. -->
+      <div class="section" id="audio-feature-section" data-testid="audio-feature-section" hidden>
         <div class="section-title">Filter by Audio Features</div>
         <div class="range-group">
           <label>Min Energy</label>
@@ -392,6 +397,19 @@
           }
         })
         .catch(function() { window.location.href = '/'; });
+
+      // Audio-feature gate: Spotify refuses /audio-features to newer apps, so
+      // a catalog can hold zero features. The sliders only appear when there
+      // is something for them to filter on.
+      fetch('/api/stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var section = document.getElementById('audio-feature-section');
+          if (section && data.ok && data.stats.has_audio_features === true) {
+            section.hidden = false;
+          }
+        })
+        .catch(function() {});
 
       // Range slider value updates
       ['energy', 'valence', 'dance', 'tempo'].forEach(function(name) {

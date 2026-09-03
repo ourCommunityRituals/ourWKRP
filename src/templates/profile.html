@@ -191,6 +191,25 @@
       margin-left: 4px;
     }
 
+    /* --- Facet Chips (declared domain + depth) --- */
+    .facet-chip {
+      display: inline-block;
+      font-size: 0.8rem;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(212, 149, 75, 0.1);
+      color: var(--accent);
+      min-height: 44px;
+      line-height: 30px;
+    }
+
+    .facet-depth {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-left: 6px;
+      text-transform: capitalize;
+    }
+
     /* --- Playlists --- */
     .playlist-item {
       display: flex;
@@ -402,6 +421,11 @@
       </div>
     </div>
 
+    <div class="section" id="facets-section" data-testid="facets-section">
+      <div class="section-title">Declared Domains</div>
+      <div class="genre-list" id="facet-list" data-testid="facet-list"></div>
+    </div>
+
     <div class="section" id="genres-section" data-testid="genres-section">
       <div class="section-title">Top Genres</div>
       <div class="genre-list" id="genre-list" data-testid="genre-list"></div>
@@ -542,6 +566,20 @@
         document.getElementById('stat-tracks').textContent = data.track_count || 0;
         document.getElementById('stat-playlists').textContent = data.playlist_count || 0;
         document.getElementById('stat-brands').textContent = (data.brands || []).length;
+
+        // Facets — self-declared (domain, depth) chips (OW-121)
+        var facetList = document.getElementById('facet-list');
+        var facets = data.facets || [];
+        if (facets.length === 0) {
+          document.getElementById('facets-section').classList.add('hidden');
+        } else {
+          facetList.innerHTML = facets.map(function(f) {
+            return '<span class="facet-chip" data-testid="facet-chip">' +
+              escapeHtml(f.domain) +
+              '<span class="facet-depth" data-testid="facet-depth">' + escapeHtml(f.depth) + '</span>' +
+              '</span>';
+          }).join('');
+        }
 
         // Genres
         var genreList = document.getElementById('genre-list');

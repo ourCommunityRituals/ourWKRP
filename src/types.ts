@@ -22,6 +22,8 @@ export interface Env {
 
 export type ContributorRole = 'founder' | 'curator' | 'contributor' | 'dj';
 export type ContributorStatus = 'active' | 'inactive' | 'departed';
+// A contributor's self-declared relationship to a domain (HL-P3.2 / OW-121).
+export type FacetDepth = 'lifelong' | 'hobbyist' | 'dabbler' | 'newcomer';
 export type SourceType = 'liked' | 'saved_album' | 'created_playlist' | 'curated_submission' | 'lastfm_history' | 'apple_library' | 'manual';
 export type SourcePlatform = 'spotify' | 'lastfm' | 'apple_music' | 'bandcamp' | 'discogs' | 'manual';
 
@@ -106,6 +108,18 @@ export interface Contribution {
   play_count: number | null;
   first_listened_at: string | null;
   added_at: string | null;
+  created_at: string;
+}
+
+/**
+ * A contributor's self-declared (domain, depth) pair — additive
+ * self-description only (HL-P3.2 / OW-121). One depth per domain per person.
+ */
+export interface FlagFacet {
+  id: string;
+  contributor_id: string;
+  domain: string;
+  depth: FacetDepth;
   created_at: string;
 }
 

@@ -23,6 +23,49 @@ interface PaginatedResponse<T> {
 }
 
 /**
+ * Why a request failed.
+ *
+ * `not_entitled` — the app's credentials are not allowed to call this
+ * endpoint. Spotify returns a hard 403 here and it never clears on retry:
+ * newer Spotify apps have no access to /audio-features at all.
+ * `request_failed` — anything else non-OK. Treated as transient.
+ */
+export type SpotifyErrorCode = 'not_entitled' | 'request_failed';
+
+/**
+ * Typed Spotify failure so callers can tell "this endpoint will never work
+ * for this app" apart from "this attempt did not work".
+ */
+export class SpotifyApiError extends Error {
+  readonly status: number;
+  readonly path: string;
+  readonly code: SpotifyErrorCode;
+  readonly permanent: boolean;
+
+  constructor(status: number, path: string, body: string) {
+    super(`Spotify API error ${status}: ${body}`);
+    this.name = 'SpotifyApiError';
+    this.status = status;
+    this.path = path;
+    this.code = status === 403 ? 'not_entitled' : 'request_failed';
+    this.permanent = status === 403;
+  }
+}
+
+/**
+ * True when the failure is Spotify refusing this app the endpoint outright.
+ * Duck-typed on `code` so it also recognises errors crossing a module or
+ * test-mock boundary.
+ */
+export function isNotEntitledError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: unknown }).code === 'not_entitled'
+  );
+}
+
+/**
  * Make an authenticated Spotify API request with rate limit retry
  */
 async function spotifyFetch<T>(
@@ -55,8 +98,16 @@ async function spotifyFetch<T>(
     }
 
     const errorBody = await response.text();
+
+    // 403 is Spotify saying "not for this app" — retrying cannot change it.
+    // Surfaced as a distinct code so callers can degrade instead of failing.
+    if (response.status === 403) {
+      log('SPOTIFY_NOT_ENTITLED', { path, status: 403 });
+      throw new SpotifyApiError(403, path, errorBody);
+    }
+
     logError('SPOTIFY_API_ERROR', new Error(`${response.status}: ${errorBody}`), { path });
-    throw new Error(`Spotify API error ${response.status}: ${errorBody}`);
+    throw new SpotifyApiError(response.status, path, errorBody);
   }
 
   throw new Error(`Spotify API failed after ${MAX_RETRIES} retries: ${path}`);
@@ -110,38 +161,90 @@ export async function getPlaylistTracks(
 }
 
 /**
- * Batch fetch audio features for up to 100 track IDs at a time
+ * Outcome of the audio-features stage.
+ *
+ * `ok`          — every batch requested came back.
+ * `partial`     — some features were fetched, some batches failed.
+ * `unavailable` — nothing was fetched (typically a 403: this Spotify app has
+ *                 no access to /audio-features).
+ */
+export type AudioFeaturesStatus = 'ok' | 'partial' | 'unavailable';
+
+export interface AudioFeaturesResult {
+  features: SpotifyAudioFeatures[];
+  status: AudioFeaturesStatus;
+}
+
+/**
+ * Batch fetch audio features for up to 100 track IDs at a time.
+ *
+ * Each batch is isolated: one failing batch does not abort the rest. A
+ * `not_entitled` 403 stops further requests (every remaining batch would fail
+ * identically) and the caller is told via `status` rather than by a throw.
  */
 export async function getAudioFeatures(
   trackIds: string[],
   accessToken: string,
-): Promise<SpotifyAudioFeatures[]> {
+): Promise<AudioFeaturesResult> {
   const features: SpotifyAudioFeatures[] = [];
   const BATCH_SIZE = 100;
+  let batchesAttempted = 0;
+  let batchesFailed = 0;
 
   for (let i = 0; i < trackIds.length; i += BATCH_SIZE) {
     const batch = trackIds.slice(i, i + BATCH_SIZE);
     const ids = batch.join(',');
+    batchesAttempted++;
 
-    const response = await spotifyFetch<{ audio_features: (SpotifyAudioFeatures | null)[] }>(
-      `/audio-features?ids=${ids}`,
-      accessToken,
-    );
+    try {
+      const response = await spotifyFetch<{ audio_features: (SpotifyAudioFeatures | null)[] }>(
+        `/audio-features?ids=${ids}`,
+        accessToken,
+      );
 
-    // Filter nulls (tracks without audio features)
-    const valid = response.audio_features.filter(
-      (f): f is SpotifyAudioFeatures => f !== null,
-    );
-    features.push(...valid);
+      // Filter nulls (tracks without audio features)
+      const valid = (response.audio_features ?? []).filter(
+        (f): f is SpotifyAudioFeatures => f !== null,
+      );
+      features.push(...valid);
 
-    log('SPOTIFY_AUDIO_FEATURES_BATCH', {
-      batch_start: i,
-      batch_size: batch.length,
-      features_found: valid.length,
-    });
+      log('SPOTIFY_AUDIO_FEATURES_BATCH', {
+        batch_start: i,
+        batch_size: batch.length,
+        features_found: valid.length,
+      });
+    } catch (err) {
+      batchesFailed++;
+
+      if (isNotEntitledError(err)) {
+        const batchesSkipped = Math.ceil((trackIds.length - i - batch.length) / BATCH_SIZE);
+        log('SPOTIFY_AUDIO_FEATURES_UNAVAILABLE', {
+          batch_start: i,
+          batches_skipped: batchesSkipped,
+          reason: 'not_entitled',
+        });
+        break;
+      }
+
+      logError('SPOTIFY_AUDIO_FEATURES_BATCH_ERROR', err, {
+        batch_start: i,
+        batch_size: batch.length,
+      });
+    }
   }
 
-  return features;
+  const status: AudioFeaturesStatus =
+    batchesFailed === 0 ? 'ok' : features.length === 0 ? 'unavailable' : 'partial';
+
+  log('SPOTIFY_AUDIO_FEATURES_RESULT', {
+    tracks_requested: trackIds.length,
+    features_found: features.length,
+    batches_attempted: batchesAttempted,
+    batches_failed: batchesFailed,
+    status,
+  });
+
+  return { features, status };
 }
 
 /**

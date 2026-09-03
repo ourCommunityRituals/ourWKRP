@@ -24,10 +24,53 @@ test.describe('Catalog Browse', () => {
     await expect(page.getByTestId('bottom-nav')).toBeVisible();
   });
 
-  test('filter chips respond to interaction', async ({ page }) => {
+  test('audio-feature chips stay hidden when the catalog has no audio features (OW-120)', async ({ page }) => {
+    await page.route('**/api/stats', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          stats: {
+            total_tracks: 12,
+            total_contributors: 2,
+            total_playlists: 1,
+            top_genres: [],
+            top_decades: [],
+            has_audio_features: false,
+          },
+        }),
+      });
+    });
+
+    await page.goto('/catalog');
+    await expect(page.getByTestId('catalog-view')).toBeVisible();
+    // Filtering on features the catalog does not have only returns empty lists.
+    await expect(page.getByTestId('audio-feature-chips')).toBeHidden();
+    await expect(page.getByTestId('filter-all')).toBeVisible();
+  });
+
+  test('filter chips respond to interaction when audio features exist', async ({ page }) => {
+    await page.route('**/api/stats', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          stats: {
+            total_tracks: 12,
+            total_contributors: 2,
+            total_playlists: 1,
+            top_genres: [],
+            top_decades: [],
+            has_audio_features: true,
+          },
+        }),
+      });
+    });
+
     await page.goto('/catalog');
     await expect(page.getByTestId('catalog-view')).toBeVisible();
     const highEnergy = page.getByTestId('filter-energy');
+    await expect(highEnergy).toBeVisible();
     await highEnergy.click();
     await expect(highEnergy).toHaveClass(/active/);
   });
@@ -57,11 +100,51 @@ test.describe('Create Page', () => {
     await expect(page.getByTestId('btn-create')).toBeVisible();
   });
 
-  test('range sliders are interactive', async ({ page }) => {
+  test('range sliders are interactive when audio features exist', async ({ page }) => {
+    await page.route('**/api/stats', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          stats: {
+            total_tracks: 12,
+            total_contributors: 2,
+            total_playlists: 1,
+            top_genres: [],
+            top_decades: [],
+            has_audio_features: true,
+          },
+        }),
+      });
+    });
+
     await page.goto('/create');
     const energyRange = page.getByTestId('create-range-energy');
     await expect(energyRange).toBeVisible();
     await energyRange.fill('50');
     await expect(energyRange).toHaveValue('50');
+  });
+
+  test('audio-feature sliders stay hidden when the catalog has no audio features (OW-120)', async ({ page }) => {
+    await page.route('**/api/stats', async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          stats: {
+            total_tracks: 12,
+            total_contributors: 2,
+            total_playlists: 1,
+            top_genres: [],
+            top_decades: [],
+            has_audio_features: false,
+          },
+        }),
+      });
+    });
+
+    await page.goto('/create');
+    await expect(page.getByTestId('create-form')).toBeVisible();
+    await expect(page.getByTestId('audio-feature-section')).toBeHidden();
   });
 });
