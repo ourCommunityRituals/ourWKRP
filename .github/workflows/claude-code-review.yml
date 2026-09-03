@@ -3,26 +3,31 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+
+# Event-scoped concurrency (adopted from OSE claude-review.yml — the OSE-888 fix).
+# Without github.event_name in the group, a rapid run of a different event could land
+# in the same group and cancel-in-progress would cancel the REAL review (which then
+# shows red while never having reviewed). Scoping by event de-dupes rapid pushes within
+# the pull_request group without letting a different event cancel an in-flight review.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}-${{ github.event_name }}
+  cancel-in-progress: true
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-
-    # anthropics/claude-code-action's installer targets Linux/macOS (not
-    # Windows), so this job pins ubuntu-latest. (Self-hosted Windows pool
-    # retired 2026-09-02, OSE-1194 — all CI now runs GitHub-hosted.)
+    # anthropics/claude-code-action's installer targets Linux/macOS (not Windows),
+    # so this job pins ubuntu-latest. (Self-hosted Windows pool retired 2026-09-02,
+    # OSE-1194 — all CI now runs GitHub-hosted.)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # ADVISORY gate (adopted from OSE). Claude review is a second opinion, not a test:
+    # an API outage, rate-limit, marketplace-clone failure, or model rollout must never
+    # red an honest PR. The deterministic gates (unit/integration/security/E2E) are what
+    # protect the branch. If this is ever promoted to a REQUIRED check, it must first
+    # grow a born-red proof that it actually produced a review — otherwise "advisory in
+    # the file" is undone by "required in branch protection" (that gap caused the
+    # original bot-crash-as-code-red).
+    continue-on-error: true
     permissions:
       contents: read
       pull-requests: read
@@ -30,14 +35,31 @@ jobs:
       id-token: write
 
     steps:
+      # Skip cleanly when the key is absent (adopted from OSE) instead of failing the run.
+      - name: Check for API key
+        id: check-key
+        run: |
+          if [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::ANTHROPIC_API_KEY not configured — skipping Claude review"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout repository
+        if: steps.check-key.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@v1
+        if: steps.check-key.outputs.skip != 'true'
+        continue-on-error: true # advisory — API/model failures must not block PRs
+        # SHA-pinned (supply-chain hardening): a mutable @v1 tag can be force-pushed to
+        # run attacker code with this job's ANTHROPIC_API_KEY. Pin to the commit @v1
+        # resolved to; bump via Dependabot.
+        uses: anthropics/claude-code-action@fa2b2666b747000bf42767d1f332065b375e3c8f # v1
         with:
           # Auth = service-account API key (interim). Federation on-ramp (OSE-1109):
           # `id-token: write` is already granted above, so moving to Workload Identity
@@ -48,6 +70,9 @@ jobs:
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-
+          # Pin the model explicitly. Previously unpinned → rode claude-code-action's
+          # rolling default, which resolved to a nonexistent model id and returned
+          # is_error with zero token usage (a hard red on a healthy PR). A current,
+          # non-dated alias avoids BOTH the rolling default and OSE's dated-id
+          # retirement trap. Owner may bump to claude-opus-4-8 for higher review quality.
+          claude_args: '--model claude-sonnet-4-6'
