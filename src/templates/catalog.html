@@ -123,6 +123,13 @@
       background: rgba(212, 149, 75, 0.1);
     }
 
+    /* Wrapper for feature-gated controls — its children lay out as if the
+       wrapper were not there, so the chip row stays a single flex row. */
+    .feature-gated { display: contents; }
+
+    /* Gating uses the hidden attribute; it must beat the display rules above. */
+    [hidden] { display: none !important; }
+
     /* --- Slider Filters --- */
     .range-filters {
       padding: 0 20px 12px;
@@ -586,15 +593,20 @@
 
     <div class="filters" data-testid="filters">
       <button class="filter-chip active" data-filter="all" data-testid="filter-all">All</button>
-      <button class="filter-chip" data-filter="high-energy" data-testid="filter-energy">High Energy</button>
-      <button class="filter-chip" data-filter="chill" data-testid="filter-chill">Chill</button>
-      <button class="filter-chip" data-filter="happy" data-testid="filter-happy">Happy</button>
-      <button class="filter-chip" data-filter="danceable" data-testid="filter-dance">Danceable</button>
-      <button class="filter-chip" data-filter="acoustic" data-testid="filter-acoustic">Acoustic</button>
-      <button class="filter-chip" data-filter="advanced" data-testid="filter-advanced">Filters</button>
+      <!-- Audio-feature chips stay hidden until /api/stats reports
+           has_audio_features — without features they only return empty
+           result sets. -->
+      <span id="audio-feature-chips" class="feature-gated" data-testid="audio-feature-chips" hidden>
+        <button class="filter-chip" data-filter="high-energy" data-testid="filter-energy">High Energy</button>
+        <button class="filter-chip" data-filter="chill" data-testid="filter-chill">Chill</button>
+        <button class="filter-chip" data-filter="happy" data-testid="filter-happy">Happy</button>
+        <button class="filter-chip" data-filter="danceable" data-testid="filter-dance">Danceable</button>
+        <button class="filter-chip" data-filter="acoustic" data-testid="filter-acoustic">Acoustic</button>
+        <button class="filter-chip" data-filter="advanced" data-testid="filter-advanced">Filters</button>
+      </span>
     </div>
 
-    <div id="range-filters" class="range-filters" data-testid="range-filters">
+    <div id="range-filters" class="range-filters" data-testid="range-filters" hidden>
       <div class="range-group">
         <label>Energy</label>
         <input type="range" id="energy-range" min="0" max="100" value="0" data-testid="range-energy">
@@ -707,6 +719,9 @@
                 document.getElementById('sync-status').textContent =
                   data.stats.total_tracks + ' tracks \u00B7 ' +
                   data.stats.total_contributors + ' contributors';
+                // Only offer audio-feature filters when the catalog actually
+                // has audio features to filter on.
+                applyAudioFeatureGate(data.stats.has_audio_features === true);
               }
             })
             .catch(function() {});
@@ -717,6 +732,20 @@
         } catch (err) {
           console.error('[WKRP] Init error:', err);
           document.getElementById('loading-text').textContent = 'Something went wrong. Please try again.';
+        }
+      }
+
+      // Audio-feature controls are only meaningful when the catalog has audio
+      // features. Spotify refuses /audio-features to newer apps, so zero
+      // features is a normal state, not an error — the controls stay hidden
+      // rather than returning empty result sets.
+      function applyAudioFeatureGate(hasFeatures) {
+        var chips = document.getElementById('audio-feature-chips');
+        var ranges = document.getElementById('range-filters');
+        if (chips) chips.hidden = !hasFeatures;
+        if (ranges) {
+          ranges.hidden = !hasFeatures;
+          if (!hasFeatures) ranges.classList.remove('visible');
         }
       }
 

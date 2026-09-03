@@ -303,4 +303,41 @@ describe('Catalog API Contracts', () => {
       expect(response.brands[0].contributor_count).toBeGreaterThanOrEqual(0);
     });
   });
+
+  // OW-121 (HL-P3.2): the contributor profile gained an additive `facets[]`
+  // array of self-declared (domain, depth) pairs, alongside the existing
+  // `roles[]`. This locks that additive shape; it does not change any prior key.
+  describe('GET /api/contributors/:id response (facets)', () => {
+    interface ContributorProfileFacetsResponse {
+      ok: boolean;
+      facets: Array<{
+        id: string;
+        domain: string;
+        depth: string;
+        created_at: string;
+      }>;
+    }
+
+    const DEPTH_TIERS = ['lifelong', 'hobbyist', 'dabbler', 'newcomer'];
+
+    it('includes a facets array of (domain, depth) pairs', () => {
+      const response: ContributorProfileFacetsResponse = {
+        ok: true,
+        facets: [
+          { id: 'facet-1', domain: 'bocce', depth: 'lifelong', created_at: '2026-08-29T00:00:00.000Z' },
+          { id: 'facet-2', domain: 'chess', depth: 'newcomer', created_at: '2026-08-29T00:01:00.000Z' },
+        ],
+      };
+
+      expect(response.facets).toBeInstanceOf(Array);
+      expect(response.facets[0].domain).toBeDefined();
+      expect(DEPTH_TIERS).toContain(response.facets[0].depth);
+      expect(DEPTH_TIERS).toContain(response.facets[1].depth);
+    });
+
+    it('facets can be empty (a contributor need not declare any)', () => {
+      const response: ContributorProfileFacetsResponse = { ok: true, facets: [] };
+      expect(response.facets).toHaveLength(0);
+    });
+  });
 });
