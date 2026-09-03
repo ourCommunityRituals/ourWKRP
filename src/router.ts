@@ -36,6 +36,11 @@
  *   GET    /api/contributors/:id/portfolio → a contributor's portfolio
  *   DELETE /api/portfolio/:id              → remove a playlist from the portfolio
  *
+ *   --- Flag Facets (declared domains + depth) ---
+ *   POST   /api/facets                     → declare (or re-depth) a (domain, depth) facet
+ *   DELETE /api/facets/:id                 → remove a facet
+ *   (facets also fold into GET /api/contributors/:id)
+ *
  *   --- Last.fm Integration ---
  *   GET  /auth/lastfm/start         → redirect to Last.fm auth
  *   GET  /auth/lastfm/callback      → exchange token for session key
@@ -60,6 +65,7 @@ import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, 
 import { handleEraseIdentity } from './handlers/privacy';
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleAddPortfolioPlaylist, handleGetPortfolio, handleRemovePortfolioPlaylist } from './handlers/portfolio';
+import { handleDeclareFacet, handleRemoveFacet } from './handlers/facets';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
 import { handleStartSet, handleAddSetTrack, handleEndSet, handleCreateAttribution, handleGetDjStats, handleGetLiveSet } from './handlers/dj';
 import { handleExportTracks } from './handlers/export';
@@ -233,6 +239,19 @@ export async function route(request: Request, env: Env): Promise<Response> {
       response = Response.json({ ok: false, error: 'Invalid playlist ID' }, { status: 400 });
     } else {
       response = await handleRemovePortfolioPlaylist(request, env, id);
+    }
+  }
+
+  // --- Flag Facets (declared domains + depth) ---
+  else if (method === 'POST' && path === '/api/facets') {
+    response = await handleDeclareFacet(request, env);
+  }
+  else if (method === 'DELETE' && path.startsWith('/api/facets/')) {
+    const id = path.slice('/api/facets/'.length);
+    if (!UUID_RE.test(id)) {
+      response = Response.json({ ok: false, error: 'Invalid facet ID' }, { status: 400 });
+    } else {
+      response = await handleRemoveFacet(request, env, id);
     }
   }
 
