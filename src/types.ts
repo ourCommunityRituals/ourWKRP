@@ -34,6 +34,11 @@ export interface Contributor {
   brand_id: string;
   role: ContributorRole;
   status: ContributorStatus;
+  // Vanity slug (OW-122). NULL until claimed; unique per brand_id.
+  slug: string | null;
+  // 0 = owner may still change the slug. Mirrors OSE's events.slug_locked: an
+  // externally-triggered lifecycle flag, never set on first claim.
+  slug_locked: number;
   spotify_user_id: string | null;
   spotify_display_name: string | null;
   apple_music_id: string | null;

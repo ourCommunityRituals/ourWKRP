@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { SLUG_RE, SLUG_MAX_LENGTH, SLUG_MIN_LENGTH, isReservedSlug } from './slug';
 
 // --- Shared primitives ---
 
@@ -28,6 +29,16 @@ export const nameSchema = z.string().min(1, 'Name is required').max(100, 'Name m
 export const roleSchema = z.enum(['dj', 'curator', 'contributor', 'listener'], { message: 'Role must be: dj, curator, contributor, or listener' });
 export const generationSchema = z.enum(['founder', 'gen2', 'gen3'], { message: 'Generation must be: founder, gen2, or gen3' });
 export const brandIdSchema = z.string().regex(/^[a-z0-9-]+$/, 'Brand ID must be lowercase alphanumeric with hyphens');
+
+// Vanity profile slug (OW-122). Length is checked before shape so an
+// over-length input reports "too long" rather than the opaque pattern message.
+// No lowercase-folding transform: an uppercase slug is rejected, not silently
+// rewritten, so a claimed slug has exactly one spelling.
+export const slugSchema = z.string()
+  .min(SLUG_MIN_LENGTH, `Slug must be at least ${SLUG_MIN_LENGTH} characters`)
+  .max(SLUG_MAX_LENGTH, `Slug must be ${SLUG_MAX_LENGTH} characters or less`)
+  .regex(SLUG_RE, 'Slug must be lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen')
+  .refine((s) => !isReservedSlug(s), 'That name is reserved');
 
 // Spotify URI: spotify:track:{22-char base62 ID}
 export const spotifyTrackUriSchema = z.string().regex(
@@ -68,6 +79,12 @@ export const playlistTracksBodySchema = z.object({
 export const addPortfolioBodySchema = z.object({
   url: z.string().min(1, 'A playlist URL is required').max(500, 'URL must be 500 characters or less'),
   title: z.string().max(200, 'Title must be 200 characters or less').transform(s => s.trim()).nullable().optional(),
+});
+
+// --- Profile (vanity slug) ---
+
+export const claimSlugBodySchema = z.object({
+  slug: slugSchema,
 });
 
 // --- Flag Facets (declared domains + depth) ---

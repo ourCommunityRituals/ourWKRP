@@ -21,6 +21,8 @@
  *   GET  /api/contributors/:id        → contributor profile JSON
  *   GET  /api/contributors/:id/brands → cross-brand contributor discovery
  *   GET  /contributor/:id             → contributor profile page (HTML)
+ *   GET  /c/:slug                     → same profile page via vanity slug (OW-122)
+ *   POST /api/profile/slug            → claim/change own vanity slug (OW-122)
  *   GET  /api/playlists/:id         → contributor playlists (by contributor) or single playlist (by UUID)
  *   GET  /api/stats                 → catalog statistics
  *   GET  /api/brands                → all brands with counts
@@ -65,6 +67,7 @@ import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, 
 import { handleEraseIdentity } from './handlers/privacy';
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleAddPortfolioPlaylist, handleGetPortfolio, handleRemovePortfolioPlaylist } from './handlers/portfolio';
+import { handleClaimProfileSlug } from './handlers/profile';
 import { handleDeclareFacet, handleRemoveFacet } from './handlers/facets';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
 import { handleStartSet, handleAddSetTrack, handleEndSet, handleCreateAttribution, handleGetDjStats, handleGetLiveSet } from './handlers/dj';
@@ -242,6 +245,11 @@ export async function route(request: Request, env: Env): Promise<Response> {
     }
   }
 
+  // --- Profile vanity slug (OW-122) ---
+  else if (method === 'POST' && path === '/api/profile/slug') {
+    response = await handleClaimProfileSlug(request, env);
+  }
+
   // --- Flag Facets (declared domains + depth) ---
   else if (method === 'POST' && path === '/api/facets') {
     response = await handleDeclareFacet(request, env);
@@ -319,6 +327,11 @@ export async function route(request: Request, env: Env): Promise<Response> {
     response = await handlePages(request, env);
   }
   else if (method === 'GET' && path.startsWith('/contributor/')) {
+    response = await handlePages(request, env);
+  }
+  // Vanity profile URL (OW-122) — resolves a slug to the same profile page.
+  // handlePages 404s a slug that matches no contributor.
+  else if (method === 'GET' && path.startsWith('/c/')) {
     response = await handlePages(request, env);
   }
   else if (method === 'GET' && ['/', '/catalog', '/create', '/import', '/dashboard', '/stats'].includes(path)) {

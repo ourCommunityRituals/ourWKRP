@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Stage the adjacent @ocr/ui package at the path WKRP's package.json
-# expects (`file:../packages/ui`). On the self-hosted runner
-# GITHUB_WORKSPACE lands at _work/ourWKRP/ourWKRP/, so
-# `../packages/ui` resolves to _work/ourWKRP/packages/ui/ —
-# the destination populated below.
+# expects (`file:../packages/ui`). GITHUB_WORKSPACE lands at
+# <runner-work>/ourWKRP/ourWKRP, so `../packages/ui` resolves one level
+# up to <runner-work>/ourWKRP/packages/ui — the destination populated
+# below. (Runner-agnostic: self-hosted pool retired 2026-09-02, OSE-1194;
+# CI now runs on GitHub-hosted ubuntu-latest.)
 #
 # Idempotent: clones on first run, fast-forwards on subsequent runs.
 # Cache directory (_ocr-workspace-cache) is one level above the WKRP

@@ -10,6 +10,11 @@
  * Last.fm session, sync marker). The opaque contributor UUID survives so
  * contributions still resolve, but it no longer links to a real person.
  *
+ * The vanity slug (OW-122) is one of those PII columns: it is user-chosen and
+ * usually a person's actual name, and it is the public /c/:slug URL. Clearing
+ * it retires that URL and releases the name for reuse — leaving it set would
+ * keep a named, shareable link pointing at a tombstoned profile.
+ *
  * Session caveat: sessions are KV entries keyed by an unguessable token and are
  * not indexed by contributor, so we cannot enumerate-and-delete them here. They
  * lapse on their own via the absolute/idle TTL (OW-81). Tokens — the sensitive
@@ -38,6 +43,7 @@ export async function eraseContributor(
             spotify_display_name = NULL,
             apple_music_id = NULL,
             lastfm_username = NULL,
+            slug = NULL,
             status = 'departed'
       WHERE id = ?`,
   )
