@@ -100,7 +100,15 @@ async function consume(
   }
 
   state.c += 1;
-  const ttlSec = Math.max(1, Math.ceil((state.reset - now) / 1000));
+  // Cloudflare KV rejects expirationTtl < 60 with a 400. Every bucket here uses
+  // a 60s window, so the remaining-window TTL drops below 60 the moment the
+  // window starts elapsing — which made this PUT fail on every request after
+  // the first, silently. A failed PUT means the counter never persists, so the
+  // limiter never accumulated and effectively allowed unlimited requests.
+  // The stored state carries its own `reset`, and an elapsed window is discarded
+  // above, so a TTL longer than the window is harmless — a too-short one is not.
+  const KV_MIN_TTL_SEC = 60;
+  const ttlSec = Math.max(KV_MIN_TTL_SEC, Math.ceil((state.reset - now) / 1000));
   await kv.put(key, JSON.stringify(state), { expirationTtl: ttlSec });
 
   return { allowed: true, limit, remaining: limit - state.c, retryAfterSec: 0 };

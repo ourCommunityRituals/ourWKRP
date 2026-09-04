@@ -6,7 +6,7 @@
  *   - Bring Your Music (register + redirect to /import)
  *   - Connect Spotify (OAuth — tertiary, 5-seat dev cap)
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test.describe('Connect Flow', () => {
   test.beforeEach(async ({ page }) => {

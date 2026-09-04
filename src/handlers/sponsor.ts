@@ -44,7 +44,7 @@ export async function handleSponsorReport(_request: Request, env: Env, eventId: 
        FROM attributions a
        INNER JOIN tracks t ON a.track_id = t.id
        WHERE a.event_id = ?
-       GROUP BY t.id ORDER BY attribution_count DESC LIMIT 20`
+       GROUP BY t.id ORDER BY attribution_count DESC, t.id ASC LIMIT 20`
     ).bind(eventId),
 
     // DJ performance breakdown
@@ -54,7 +54,7 @@ export async function handleSponsorReport(_request: Request, env: Env, eventId: 
        FROM attributions a
        INNER JOIN contributors c ON a.dj_id = c.id
        WHERE a.event_id = ?
-       GROUP BY c.id ORDER BY attribution_count DESC`
+       GROUP BY c.id ORDER BY attribution_count DESC, c.id ASC`
     ).bind(eventId),
 
     // Hourly timeline
@@ -71,7 +71,7 @@ export async function handleSponsorReport(_request: Request, env: Env, eventId: 
 
   // Get event context from dj_sets if available
   const eventContext = await env.WKRP_DB.prepare(
-    'SELECT venue_name, started_at FROM dj_sets WHERE event_id = ? ORDER BY started_at ASC LIMIT 1'
+    'SELECT venue_name, started_at FROM dj_sets WHERE event_id = ? ORDER BY started_at ASC, id ASC LIMIT 1'
   ).bind(eventId).first<{ venue_name: string; started_at: string }>();
 
   // Privacy boundary: sponsor reports show aggregates, never individual identities.

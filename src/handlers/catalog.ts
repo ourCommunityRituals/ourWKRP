@@ -199,7 +199,7 @@ export async function handleGetContributors(request: Request, env: Env): Promise
     LEFT JOIN contributions cn ON c.id = cn.contributor_id
     WHERE c.brand_id = ? AND c.status = 'active'
     GROUP BY c.id
-    ORDER BY c.name ASC
+    ORDER BY c.name ASC, c.id ASC
   `).bind(brandId).all();
 
   return Response.json({
@@ -217,7 +217,7 @@ export async function handleGetContributorPlaylists(request: Request, env: Env, 
            p.is_curated, p.created_at
     FROM playlists p
     WHERE p.contributor_id = ?
-    ORDER BY p.created_at DESC
+    ORDER BY p.created_at DESC, p.id ASC
   `).bind(contributorId).all();
 
   return Response.json({
@@ -257,13 +257,13 @@ export async function handleGetStats(request: Request, env: Env): Promise<Respon
         ? env.WKRP_DB.prepare(
             `SELECT genre, COUNT(*) as count FROM tracks
              WHERE genre IS NOT NULL AND merged_into_id IS NULL
-             GROUP BY genre ORDER BY count DESC LIMIT 10`)
+             GROUP BY genre ORDER BY count DESC, genre ASC LIMIT 10`)
         : env.WKRP_DB.prepare(
             `SELECT t.genre, COUNT(DISTINCT t.id) as count FROM tracks t
              INNER JOIN contributions cn ON t.id = cn.track_id
              INNER JOIN contributors ct ON cn.contributor_id = ct.id AND ct.brand_id = ?
              WHERE t.genre IS NOT NULL AND t.merged_into_id IS NULL
-             GROUP BY t.genre ORDER BY count DESC LIMIT 10`
+             GROUP BY t.genre ORDER BY count DESC, t.genre ASC LIMIT 10`
           ).bind(brandId),
       isDefaultBrand
         ? env.WKRP_DB.prepare(
@@ -322,7 +322,7 @@ export async function handleGetBrands(_request: Request, env: Env): Promise<Resp
     FROM brands b
     LEFT JOIN contributors c ON c.brand_id = b.id AND c.status = 'active'
     GROUP BY b.id
-    ORDER BY b.name ASC
+    ORDER BY b.name ASC, b.id ASC
   `).all();
 
   return Response.json({
@@ -394,14 +394,14 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
         `SELECT t.genre, COUNT(DISTINCT t.id) as count FROM contributions cn
          INNER JOIN tracks t ON cn.track_id = t.id
          WHERE cn.contributor_id = ? AND t.genre IS NOT NULL
-         GROUP BY t.genre ORDER BY count DESC LIMIT 5`
+         GROUP BY t.genre ORDER BY count DESC, t.genre ASC LIMIT 5`
       ).bind(contributorId),
       env.WKRP_DB.prepare(
         'SELECT DISTINCT source_platform FROM contributions WHERE contributor_id = ? ORDER BY source_platform'
       ).bind(contributorId),
       env.WKRP_DB.prepare(
         `SELECT id, name, description, track_count, is_curated, created_at
-         FROM playlists WHERE contributor_id = ? ORDER BY created_at DESC`
+         FROM playlists WHERE contributor_id = ? ORDER BY created_at DESC, id ASC`
       ).bind(contributorId),
       env.WKRP_DB.prepare(
         `SELECT DISTINCT b.id, b.name, b.subdomain,
@@ -410,13 +410,13 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
          INNER JOIN contributors ct ON cn.contributor_id = ct.id
          INNER JOIN brands b ON ct.brand_id = b.id
          WHERE cn.contributor_id = ?
-         GROUP BY b.id ORDER BY track_count DESC`
+         GROUP BY b.id ORDER BY track_count DESC, b.id ASC`
       ).bind(contributorId),
       env.WKRP_DB.prepare(
-        'SELECT role, granted_at FROM contributor_roles WHERE contributor_id = ? ORDER BY granted_at ASC'
+        'SELECT role, granted_at FROM contributor_roles WHERE contributor_id = ? ORDER BY granted_at ASC, role ASC'
       ).bind(contributorId),
       env.WKRP_DB.prepare(
-        'SELECT id, domain, depth, created_at FROM flag_facets WHERE contributor_id = ? ORDER BY created_at ASC, domain ASC'
+        'SELECT id, domain, depth, created_at FROM flag_facets WHERE contributor_id = ? ORDER BY created_at ASC, domain ASC, id ASC'
       ).bind(contributorId),
     ]);
 
@@ -455,7 +455,7 @@ export async function handleGetContributorBrands(_request: Request, env: Env, co
     INNER JOIN brands b ON ct.brand_id = b.id
     WHERE cn.contributor_id = ?
     GROUP BY b.id
-    ORDER BY track_count DESC
+    ORDER BY track_count DESC, b.id ASC
   `).bind(contributorId).all();
 
   return Response.json({
