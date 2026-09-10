@@ -98,19 +98,34 @@ src/
 
 ## 3. Testing
 
-| Layer | Tool | Count |
-|-------|------|-------|
-| Unit | Vitest | 35+ tests |
-| Integration | Vitest | 3+ tests |
-| Contract | Vitest (Pact-style) | 10+ tests |
-| Security | Vitest | 21+ tests |
-| E2E | Playwright | 12+ tests |
-| Performance | Vitest + k6 | 1+ bench + 3 scenarios |
+Counts below are a static count of `it()`/`test()` blocks (incl. `.each`/`.skip`/`.only`) per `tests/<layer>/`, measured 2026-09-10 (OSE-1292 / F14). Run the suites for the authoritative collected count; these are the order-of-magnitude ground truth, not a hand-maintained guess.
 
-**~605 test cases across ~60 files** (unit, integration, contract, security, e2e, fuzz, performance — plus k6 load scripts, Postman/Newman collections, and Python `level0_security.py` gates). The table above understates current counts; run the suites for ground truth.
+| Layer | Tool | Count (blocks / files) |
+|-------|------|-------|
+| Unit | Vitest | ~435 / 36 |
+| Security | Vitest | ~262 / 20 |
+| Integration | Vitest | ~67 / 6 |
+| E2E | Playwright | ~50 / 13 |
+| Contract | Vitest (Pact-style) | ~28 / 3 |
+| Fuzz / Property | Vitest (fast-check) | ~18 / 4 |
+| Performance | Vitest + k6 | ~13 / 2 (+ k6 scenarios) |
+
+**≈873 `it`/`test` blocks across ~84 files** — plus k6 load scripts, Postman/Newman collections, and the Python `level0_security.py` gate. (The pre-2026-09 doc said "65 tests" / "~605"; both were stale by roughly an order of magnitude — hence this measured refresh.)
+
+### Invariant enforcement (how the shared constitution binds WKRP)
+
+WKRP enforces the OCR governance brain (`OCR-docs/ocr-docs-brain`) through two mechanisms, both blocking on PR:
+
+1. **Security-tier invariant specs** — `tests/security/*.invariant.spec.ts` (e.g. `deprecation-lock`, `explicit-identity`, `no-biometrics`, and `cross-repo-import-isolation`) run in the **Security Tests** job (`npm run test:security`). `vitest.config.ts` includes `**/*.invariant.spec.ts`. Each is a structural tripwire plus an anti-theater lock that its own CI wiring cannot silently vanish.
+2. **Brain conformance gate** — `.github/workflows/brain-contract-check.yml` checks out the brain (live from OCR-docs `main`) and runs `check_brain_contract.py --repo wkrp --product-id wkrp` (blocking), so WKRP code cannot drift from what the brain declares.
+
+**Invariant #22 (Cross-Repo Import Isolation) is now enforced on the WKRP side** (F13 / OSE-1288, ourWKRP#59, 2026-09-10): `brain-contract-check.yml` runs the canonical live-read brain guard `check_cross_repo_imports.py --product-id wkrp`, and `tests/security/cross-repo-import-isolation.invariant.spec.ts` locks the wiring. #22 declares `enforcement_kind: brain_script`; WKRP is `block` in the brain's `enforcement_mode` plane.
+
+**No `0-architecture` tier.** Unlike OSE (which has `tests/e2e/0-architecture/` invariant gates), WKRP carries its architectural invariants inside the **security tier** (`tests/security/*.invariant.spec.ts`), not a dedicated `0-architecture` directory.
 
 Run: `npm test` (unit + integration + contract + security + performance)
 Run: `npm run test:e2e` (Playwright, requires wrangler dev)
+Run: `npm run test:security` (security tier — includes the invariant specs)
 
 ---
 
@@ -192,4 +207,4 @@ APP_URL=https://ourwkrp.com
 
 ---
 
-*Doc status: corrected for drift 2026-08-28 (OCR-111 — register-first auth, route/template/test counts, session semantics, dead branch removed). Source of truth remains the code: `src/router.ts` header for routes, `migrations/` for schema.*
+*Doc status: corrected for drift 2026-08-28 (OCR-111 — register-first auth, route/template/test counts, session semantics, dead branch removed); test counts re-measured + invariant-enforcement / brain-conformance / #22-gate mechanisms documented 2026-09-10 (OSE-1292 / F14). Source of truth remains the code: `src/router.ts` header for routes, `migrations/` for schema, and the suites themselves for the authoritative test count.*
