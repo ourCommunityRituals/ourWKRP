@@ -64,6 +64,18 @@ jobs:
         working-directory: ocr-docs/ocr-docs-brain
         run: python3 tests/run_all.py
 
+      # Invariant #22 (Cross-Repo Import Isolation) — WKRP side (OSE-1288 / F13).
+      # Runs the canonical, live-read brain guard (#22 enforcement_kind:
+      # brain_script) against WKRP source. Wiring this step is what brain
+      # conformance verifies for product wkrp; it also lets the enforcement_mode
+      # plane flip wkrp warn→block (one reviewed brain edit) now that WKRP carries
+      # its side of the seam.
+      - name: Invariant #22 — cross-repo isolation gate (live-read brain guard, OSE-1288)
+        working-directory: ${{ github.workspace }}
+        run: |
+          python3 ocr-docs/ocr-docs-brain/scripts/check_cross_repo_imports.py \
+            --repo wkrp --product-id wkrp --brain ocr-docs/ocr-docs-brain
+
       - name: Run WKRP contract conformance
         id: conformance
         working-directory: ${{ github.workspace }}
