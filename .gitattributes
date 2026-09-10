@@ -1,0 +1,6 @@
+# Propagated shell scripts are hashed byte-for-byte by
+# tests/unit/propagated-file-integrity.test.ts. Pin them to LF so the sha256 is
+# identical on Windows authors and Linux CI — otherwise a CRLF working copy
+# hashes differently from the LF blob CI checks out and the integrity gate
+# false-reds (this is exactly what happened on OW-141 / PR #55).
+scripts/pw-guarded.sh text eol=lf

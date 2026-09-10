@@ -30,11 +30,18 @@ const REPO_ROOT = join(__dirname, '../..');
  * propagated from another repo. To add one: propagate the file, then paste its
  * `sha256sum` output here. To update one after an upstream re-propagation: bump
  * `sha256` in the same commit that updates the file.
+ *
+ * CRLF TRAP (OW-141): compute the hash on an LF checkout. Each pinned file is
+ * held at `eol=lf` in `.gitattributes`, so the blob CI reads and the working
+ * copy a Windows author hashes are the same bytes. Running `sha256sum` on a
+ * CRLF working copy yields a DIFFERENT digest than the LF blob and will
+ * false-red this gate — that is what happened when this pin was first written.
  */
 const PROPAGATED_FILES: Array<{ path: string; sha256: string; source: string }> = [
   {
     path: 'scripts/pw-guarded.sh',
-    sha256: '1fd861720dcb5d0d8e96a2bc59afd85c5d16eb4432afc1d8973a9d9b12f812d5',
+    // LF digest of the propagated file (matches the git blob; pinned eol=lf).
+    sha256: '98619e0c32832427e9ed95a40873daebf330a460f82507e91d595d55d703311d',
     source: 'OSE (ourSharedEvents PR #423 / OSE-852) — fail-closed Playwright runner',
   },
 ];
