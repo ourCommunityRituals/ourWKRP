@@ -17,8 +17,11 @@
  *   - The act of scanning IS the consent
  *
  * Rules:
- *   1. Never expose listener_id or contributor names in cross-product APIs
- *   2. Sponsor reports show aggregates, not individuals
+ *   1. Never expose listener identity (listener_id/name/email) in cross-product
+ *      APIs. Presenter/contributor names (DJs, curators) are the NAMED POLE —
+ *      they opted into public attribution and may cross — but any listener-derived
+ *      COUNT that crosses takes the uniform floor (see count-floor.ts).
+ *   2. Sponsor reports show aggregates, not individual listeners
  *   3. OSE integration returns music data (tracks, DJs) but not listener data
  *   4. Individual tracking data stays within ourWKRP unless the user
  *      explicitly connects their identity via OurRecordStories
