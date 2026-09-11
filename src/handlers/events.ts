@@ -10,6 +10,7 @@
 
 import type { Env } from '../types';
 import { sanitizeForExport } from '../lib/privacy';
+import { applyCountFloor, dropSubFloorRows } from '../lib/count-floor';
 import { log } from '../lib/logger';
 
 /**
@@ -35,7 +36,7 @@ export async function handleGetEventMusic(_request: Request, env: Env, eventId: 
     // Total attribution stats
     env.WKRP_DB.prepare(
       `SELECT COUNT(*) as total_attributions,
-              COUNT(DISTINCT listener_id) as unique_listeners,
+              COUNT(DISTINCT listener_id) as distinct_listeners,
               COUNT(DISTINCT dj_id) as dj_count
        FROM attributions WHERE event_id = ?`
     ).bind(eventId),
@@ -54,23 +55,37 @@ export async function handleGetEventMusic(_request: Request, env: Env, eventId: 
   ]);
 
   const stats = attributionsResult.results[0] as Record<string, unknown> ?? {};
+  const attributionCountOf = (r: unknown): number =>
+    Number((r as Record<string, unknown>).attribution_count ?? 0);
 
-  // Privacy boundary: this endpoint crosses to OSE.
-  // Strip listener PII — only aggregates and music data cross the boundary.
-  const sanitizedTracks = sanitizeForExport(topTracksResult.results as Record<string, unknown>[]);
+  // Privacy boundary: this endpoint is a cross-product export to OSE. DJs are the
+  // named pole (opted-in public attribution) and stay named; every listener-derived
+  // count takes the SAME uniform floor OSE applies (count-floor.ts — OSE-665/683/711),
+  // so this seam can't become the side channel that discloses a small cohort OSE's own
+  // surfaces suppress. Listener PII never crosses (sanitizeForExport).
+  const distinctListeners = applyCountFloor(Number(stats.distinct_listeners ?? 0));
+  const totalAttributions = applyCountFloor(Number(stats.total_attributions ?? 0));
+  const topTracks = dropSubFloorRows(
+    sanitizeForExport(topTracksResult.results as Record<string, unknown>[]),
+    attributionCountOf,
+  );
 
   return Response.json({
     ok: true,
     event_id: eventId,
-    privacy: 'aggregate_only',
+    privacy: 'floored_aggregate_listeners_named_djs',
     music: {
       sets: setsResult.results,
       stats: {
-        total_attributions: stats.total_attributions ?? 0,
-        unique_listeners: stats.unique_listeners ?? 0,
+        total_attributions: totalAttributions.count,
+        total_attributions_suppressed: totalAttributions.suppressed,
+        distinct_listeners: distinctListeners.count,
+        distinct_listeners_suppressed: distinctListeners.suppressed,
         dj_count: stats.dj_count ?? 0,
+        reporting_floor: distinctListeners.floor,
       },
-      top_tracks: sanitizedTracks,
+      top_tracks: topTracks.rows,
+      top_tracks_below_floor: topTracks.suppressed_rows,
     },
     links: {
       sponsor_report: `/api/sponsors/${eventId}/report`,

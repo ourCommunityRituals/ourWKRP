@@ -246,3 +246,46 @@ describe('CCR #8 — Cache-Control no-store on HTML pages', () => {
     expect(pagesSource).toContain('no-cache');
   });
 });
+
+// ============================================
+// CCR Finding #9: Cross-product music seam floors listener-derived counts (T-SEAM / OSE-1295)
+//   The sanctioned HTTP seam GET /api/events/:id/music is a cross-product export.
+//   DJs stay named (the named pole); every listener-derived count takes the same
+//   uniform floor OSE applies (count-floor.ts — OSE-665/683/711), so the seam
+//   cannot disclose a small cohort OSE's own surfaces suppress.
+// ============================================
+describe('CCR #9 — Music export applies the uniform count floor (T-SEAM)', () => {
+  const eventsSource = SRC('handlers/events.ts');
+
+  it('imports the count-floor helpers', () => {
+    expect(eventsSource).toContain("from '../lib/count-floor'");
+    expect(eventsSource).toContain('applyCountFloor');
+    expect(eventsSource).toContain('dropSubFloorRows');
+  });
+
+  it('floors the listener-derived scalars (distinct_listeners, total_attributions)', () => {
+    expect(eventsSource).toMatch(/applyCountFloor\(Number\(stats\.distinct_listeners/);
+    expect(eventsSource).toMatch(/applyCountFloor\(Number\(stats\.total_attributions/);
+  });
+
+  it('names counts honestly (#27) — no banned "unique_listeners" token on the seam', () => {
+    expect(/\bunique_listeners\b/.test(eventsSource)).toBe(false);
+    expect(eventsSource).toContain('distinct_listeners');
+  });
+
+  it('drops sub-floor top-track buckets and reports the suppressed count', () => {
+    expect(eventsSource).toContain('dropSubFloorRows(');
+    expect(eventsSource).toContain('top_tracks_below_floor');
+  });
+
+  it('does not publish raw aggregate_only — labels floored aggregates with named DJs', () => {
+    expect(eventsSource).not.toContain("privacy: 'aggregate_only'");
+    expect(eventsSource).toContain("privacy: 'floored_aggregate_listeners_named_djs'");
+  });
+
+  it('keeps DJs named (named pole preserved — names still selected and returned)', () => {
+    expect(eventsSource).toContain('c.name as dj_name');
+    expect(eventsSource).toContain('c.name as attributed_dj');
+    expect(eventsSource).toContain('sets: setsResult.results');
+  });
+});
