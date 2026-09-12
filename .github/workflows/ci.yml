@@ -223,6 +223,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [security, lint-and-typecheck]
+    # Deterministic smoke-fixture ids (seeded by scripts/smoke-fixtures.sql) so
+    # the Tier-1 /dj/:id, /dj/:id/poster and /contributor/:id surfaces run
+    # instead of skipping. Both the smoke step and test:e2e inherit these.
+    env:
+      SMOKE_DJ_ID: '00000000-0000-4000-8000-0000000000d1'
+      SMOKE_CONTRIBUTOR_ID: '00000000-0000-4000-8000-0000000000c0'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -233,6 +239,11 @@ jobs:
       - run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
+      # Seed schema + smoke fixtures into the local D1 the dev server reads, so
+      # the Tier-1 smoke's fixture-gated surfaces have rows to render. (test:e2e
+      # below re-seeds internally; INSERT OR IGNORE makes that a no-op.)
+      - name: Seed local D1
+        run: node scripts/seed-local-d1.mjs
       # Tier-1 page smoke: 9 surfaces, 8 assertions each, one mobile browser.
       # Runs before the Tier-2 journeys so a broken page surface fails fast.
       - name: Tier-1 page smoke

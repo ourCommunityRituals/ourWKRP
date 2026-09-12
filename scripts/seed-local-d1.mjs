@@ -33,4 +33,17 @@ for (const file of files) {
   }
 }
 
+// Deterministic smoke fixtures (a DJ + a contributor) so the Tier-1 smoke can
+// hit /dj/:id, /dj/:id/poster and /contributor/:id instead of skipping. Runs
+// after the schema is in place; INSERT OR IGNORE makes re-seeding a no-op.
+try {
+  execSync(
+    `npx wrangler d1 execute ${DB_NAME} --local --file="${join('scripts', 'smoke-fixtures.sql')}" --yes`,
+    { stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  console.log('  [ok]   smoke-fixtures.sql');
+} catch {
+  console.log('  [skip] smoke-fixtures.sql (already seeded)');
+}
+
 console.log('Local D1 ready.');
