@@ -13,8 +13,8 @@ http:
     type: json
     data: |-
       {
-        "name": "Postman Curator",
-        "role": "curator",
+        "name": "Postman Contributor",
+        "role": "contributor",
         "generation": "gen2"
       }
   auth: inherit
@@ -23,11 +23,13 @@ runtime:
   scripts:
     - type: after-response
       code: |-
+        // Self-service register only mints unprivileged roles (F1); the next
+        // request (03b) grants curator via the admin endpoint.
         test('status is 201', function () { expect(res.getStatus()).to.eql(201); });
         var body = res.getBody();
-        test('contributor created with curator role', function () {
+        test('contributor created with the contributor role', function () {
             expect(body.ok).to.eql(true);
-            expect(body.contributor.role).to.eql('curator');
+            expect(body.contributor.role).to.eql('contributor');
         });
         bru.setEnvVar('contributor_id', body.contributor.id);
         // Bruno's res.getHeader('Set-Cookie') returns an array (undici), unlike

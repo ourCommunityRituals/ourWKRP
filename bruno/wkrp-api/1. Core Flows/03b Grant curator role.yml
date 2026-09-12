@@ -1,0 +1,38 @@
+info:
+  name: 03b Grant curator role
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{baseUrl}}/admin/roles/grant"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: X-WKRP-Admin
+      value: bruno-admin-token
+  body:
+    type: json
+    data: |-
+      {
+        "contributorId": "{{contributor_id}}",
+        "role": "curator"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        // dj/curator are privileged (F1); conferred only via the admin endpoint.
+        // The local dev server gets WKRP_ADMIN_TOKEN via `wrangler dev --var`
+        // (see package.json test:bruno). Downstream steps then act as a curator.
+        test('status is 200', function () { expect(res.getStatus()).to.eql(200); });
+        var body = res.getBody();
+        test('curator role granted', function () {
+            expect(body.ok).to.eql(true);
+            expect(body.contributor.role).to.eql('curator');
+        });
+
+settings:
+  encodeUrl: true
