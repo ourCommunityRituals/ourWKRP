@@ -18,6 +18,11 @@ export interface Env {
   APP_URL: string;
   LASTFM_API_KEY: string;
   LASTFM_SHARED_SECRET: string;
+  // Cross-product service token (OSE-1299). Presented by OSE on the music /
+  // sponsor-report seams and compared constant-time in cross-product-auth.ts.
+  // Optional so unset environments FAIL CLOSED (401), never open. Injected as a
+  // Doppler/Workers secret; documented placeholder in wrangler.toml.
+  OSE_INTEGRATION_TOKEN?: string;
 }
 
 export type ContributorRole = 'founder' | 'curator' | 'contributor' | 'dj';

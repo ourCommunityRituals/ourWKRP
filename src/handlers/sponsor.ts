@@ -16,13 +16,19 @@
 
 import type { Env } from '../types';
 import { log } from '../lib/logger';
+import { requireCrossProductToken } from '../lib/cross-product-auth';
 import { applyCountFloor, dropSubFloorRows, sumContributingBuckets } from '../lib/count-floor';
 
 /**
  * GET /api/sponsors/:eventId/report
  * Public endpoint — sponsors can view their event's engagement data.
  */
-export async function handleSponsorReport(_request: Request, env: Env, eventId: string): Promise<Response> {
+export async function handleSponsorReport(request: Request, env: Env, eventId: string): Promise<Response> {
+  // Cross-product egress gate (OSE-1299): fail closed BEFORE any DB read, so
+  // venue/event_date is no longer a bare existence oracle for arbitrary eventId.
+  const unauthorized = requireCrossProductToken(request, env);
+  if (unauthorized) return unauthorized;
+
   log('SPONSOR_REPORT', { event_id: eventId });
 
   const [

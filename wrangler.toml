@@ -15,6 +15,16 @@
 #   SPOTIFY_REDIRECT_URI   -> OAuth callback URL (per environment)
 #   APP_URL                -> Frontend base URL (per environment)
 #
+# Cross-product service token (OSE-1299 — SECRET, never a [vars] value):
+#   OSE_INTEGRATION_TOKEN  -> shared secret OSE presents on the music /
+#                             sponsor-report seams. Compared constant-time in
+#                             src/lib/cross-product-auth.ts. If UNSET the seams
+#                             FAIL CLOSED (401) — never open. Set via Doppler
+#                             (ourwkrp project, per config) or, without Doppler:
+#                               wrangler secret put OSE_INTEGRATION_TOKEN
+#                               wrangler secret put OSE_INTEGRATION_TOKEN --env production
+#                             DO NOT hardcode a value here.
+#
 # Local dev setup:
 #   doppler setup           -> select ourwkrp project + dev config
 #   doppler run -- wrangler dev

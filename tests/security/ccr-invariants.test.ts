@@ -286,6 +286,47 @@ describe('CCR #9 — Music export applies the uniform count floor (T-SEAM)', () 
   it('keeps DJs named (named pole preserved — names still selected and returned)', () => {
     expect(eventsSource).toContain('c.name as dj_name');
     expect(eventsSource).toContain('c.name as attributed_dj');
-    expect(eventsSource).toContain('sets: setsResult.results');
+    // Sets are coarsened before egress (OSE-1299), not spread raw.
+    expect(eventsSource).toContain('coarsenSets(');
+    expect(eventsSource).toContain('sets,');
+  });
+});
+
+// ============================================
+// CCR Finding #10 (OSE-1299): cross-product seams are authenticated + coarsened
+//   The music + sponsor seams export to OSE. Presence is not authorization:
+//   both gate on a constant-time service-token compare (fail closed), and the
+//   music seam coarsens per-set track_count/timestamps (differencing vector).
+// ============================================
+describe('CCR #10 — cross-product seams authenticate + coarsen (OSE-1299)', () => {
+  const eventsSource = SRC('handlers/events.ts');
+  const sponsorSource = SRC('handlers/sponsor.ts');
+  const authSource = SRC('lib/cross-product-auth.ts');
+  const privacySource = SRC('lib/privacy.ts');
+
+  it('both seams gate on the cross-product token before any DB read', () => {
+    for (const src of [eventsSource, sponsorSource]) {
+      expect(src).toContain("from '../lib/cross-product-auth'");
+      expect(src).toContain('requireCrossProductToken(request, env)');
+      // The gate is called before the batch/DB read.
+      const gateIdx = src.indexOf('requireCrossProductToken');
+      const dbIdx = src.indexOf('WKRP_DB');
+      expect(gateIdx).toBeGreaterThan(-1);
+      expect(gateIdx).toBeLessThan(dbIdx);
+    }
+  });
+
+  it('the gate compares constant-time and fails closed on an unset secret', () => {
+    expect(authSource).toContain('constantTimeEqual');
+    expect(authSource).toContain('OSE_INTEGRATION_TOKEN');
+    // Fail closed: unset expected secret returns false before comparing.
+    expect(authSource).toMatch(/if \(!expected\) return false/);
+    expect(authSource).toContain("code: 'UNAUTHORIZED'");
+  });
+
+  it('the music seam coarsens sets — drops track_count, dates timestamps', () => {
+    expect(privacySource).toContain('export function coarsenSets');
+    expect(privacySource).toContain('delete out.track_count');
+    expect(eventsSource).toContain('coarsenSets(');
   });
 });

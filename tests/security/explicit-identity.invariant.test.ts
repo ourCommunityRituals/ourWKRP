@@ -139,6 +139,17 @@ describe('#26 wall (c) — identity is stripped before it leaves the product', (
   it('the cross-product boundary is detectable, so egress can be gated', () => {
     expect(read(BOUNDARY_MODULE)).toContain('export function isCrossProductRequest');
   });
+
+  it('egress is AUTHORIZED, not merely detected — presence is not authorization (OSE-1299)', () => {
+    // isCrossProductRequest only detects the request SHAPE; the actual gate is a
+    // constant-time token compare. Both seams must call it before any DB read.
+    const auth = read('src/lib/cross-product-auth.ts');
+    expect(auth).toContain('export function verifyCrossProductToken');
+    expect(auth).toContain('OSE_INTEGRATION_TOKEN');
+    for (const seam of ['src/handlers/events.ts', 'src/handlers/sponsor.ts']) {
+      expect(read(seam)).toContain('requireCrossProductToken(request, env)');
+    }
+  });
 });
 
 // ===========================================================================

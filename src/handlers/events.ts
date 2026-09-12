@@ -9,7 +9,8 @@
  */
 
 import type { Env } from '../types';
-import { sanitizeForExport } from '../lib/privacy';
+import { sanitizeForExport, coarsenSets } from '../lib/privacy';
+import { requireCrossProductToken } from '../lib/cross-product-auth';
 import { applyCountFloor, dropSubFloorRows } from '../lib/count-floor';
 import { log } from '../lib/logger';
 
@@ -18,7 +19,12 @@ import { log } from '../lib/logger';
  * All attributions, sets, and tracks for an OurSharedEvents event.
  * OSE can call this to get the music layer for event recaps.
  */
-export async function handleGetEventMusic(_request: Request, env: Env, eventId: string): Promise<Response> {
+export async function handleGetEventMusic(request: Request, env: Env, eventId: string): Promise<Response> {
+  // Cross-product egress gate (OSE-1299): fail closed BEFORE any DB read, so
+  // this seam is neither an unauthenticated export nor an existence oracle.
+  const unauthorized = requireCrossProductToken(request, env);
+  if (unauthorized) return unauthorized;
+
   log('EVENT_MUSIC_QUERY', { event_id: eventId });
 
   const [setsResult, attributionsResult, topTracksResult] = await env.WKRP_DB.batch([
@@ -70,12 +76,18 @@ export async function handleGetEventMusic(_request: Request, env: Env, eventId: 
     attributionCountOf,
   );
 
+  // Coarsen sets before egress (OSE-1299): drop per-set track_count and reduce
+  // started_at/ended_at to date granularity — they are a differencing vector
+  // against the sibling sponsor attendance timeline. DJ name/id + set identity
+  // (the named pole) are preserved.
+  const sets = coarsenSets(setsResult.results as Record<string, unknown>[]);
+
   return Response.json({
     ok: true,
     event_id: eventId,
     privacy: 'floored_aggregate_listeners_named_djs',
     music: {
-      sets: setsResult.results,
+      sets,
       stats: {
         total_attributions: totalAttributions.count,
         total_attributions_suppressed: totalAttributions.suppressed,

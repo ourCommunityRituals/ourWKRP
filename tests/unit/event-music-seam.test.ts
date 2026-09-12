@@ -19,9 +19,12 @@ import type { Env } from '../../src/types';
 
 type Row = Record<string, unknown>;
 
+const TOKEN = 'test-ose-integration-token';
+
 /** Mock WKRP_DB.batch: returns the three result sets the handler destructures. */
 function makeEnv(sets: Row[], attributions: Row[], topTracks: Row[]): Env {
   return {
+    OSE_INTEGRATION_TOKEN: TOKEN,
     WKRP_DB: {
       prepare: () => ({ bind: () => ({}) }),
       batch: async () => [
@@ -33,7 +36,11 @@ function makeEnv(sets: Row[], attributions: Row[], topTracks: Row[]): Env {
   } as unknown as Env;
 }
 
-const req = () => new Request('https://ourwkrp.com/api/events/evt1/music');
+/** Authorized cross-product request (OSE-1299): carries the service token. */
+const req = () =>
+  new Request('https://ourwkrp.com/api/events/evt1/music', {
+    headers: { Authorization: `Bearer ${TOKEN}` },
+  });
 
 async function musicOf(env: Env) {
   const res = await handleGetEventMusic(req(), env, 'evt1');
@@ -46,15 +53,17 @@ const ABOVE = COUNT_FLOOR + 4; // safely at/above floor
 const BELOW = COUNT_FLOOR - 1; // safely below floor
 
 describe('T-SEAM music export — named pole preserved', () => {
-  it('keeps dj_name on sets (DJs are the named pole)', async () => {
+  it('keeps dj_name + set identity on sets (DJs are the named pole)', async () => {
     const env = makeEnv(
-      [{ id: 's1', dj_id: 'd1', dj_name: 'DJ Nova', venue_name: 'The Hall', track_count: 12 }],
+      [{ id: 's1', dj_id: 'd1', dj_name: 'DJ Nova', venue_name: 'The Hall', track_count: 12, started_at: '2026-09-10T21:30:00Z', ended_at: '2026-09-10T23:45:00Z' }],
       [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }],
       [],
     );
     const { music } = await musicOf(env);
     const sets = music.sets as Row[];
     expect(sets[0].dj_name).toBe('DJ Nova');
+    expect(sets[0].dj_id).toBe('d1');
+    expect(sets[0].id).toBe('s1');
   });
 
   it('keeps attributed_dj on surviving top tracks', async () => {
@@ -129,5 +138,109 @@ describe('T-SEAM music export — labels and listener PII', () => {
     const { music } = await musicOf(env);
     const tracks = music.top_tracks as Row[];
     expect(tracks[0]).not.toHaveProperty('listener_id');
+  });
+});
+
+// ===========================================================================
+// OSE-1299 FIX 1 — sets[] are coarsened (differencing vector against the
+// sibling sponsor attendance timeline).
+// ===========================================================================
+describe('T-SEAM music export — sets are coarsened before egress (OSE-1299)', () => {
+  const oneSet = (over: Row = {}): Row[] => [
+    {
+      id: 's1',
+      dj_id: 'd1',
+      dj_name: 'DJ Nova',
+      venue_name: 'The Hall',
+      track_count: 12,
+      started_at: '2026-09-10T21:30:00Z',
+      ended_at: '2026-09-10T23:45:00Z',
+      ...over,
+    },
+  ];
+
+  it('drops track_count entirely (per-set small-integer fingerprint)', async () => {
+    const env = makeEnv(oneSet(), [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }], []);
+    const { music } = await musicOf(env);
+    const sets = music.sets as Row[];
+    expect(sets[0]).not.toHaveProperty('track_count');
+  });
+
+  it('coarsens started_at/ended_at to date granularity (no sub-date precision)', async () => {
+    const env = makeEnv(oneSet(), [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }], []);
+    const { music } = await musicOf(env);
+    const sets = music.sets as Row[];
+    // Exactly YYYY-MM-DD — no time component survives.
+    expect(sets[0].started_at).toBe('2026-09-10');
+    expect(sets[0].ended_at).toBe('2026-09-10');
+    expect(String(sets[0].started_at)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(String(sets[0].started_at)).not.toMatch(/[T:]/);
+    expect(String(sets[0].ended_at)).not.toMatch(/[T:]/);
+  });
+
+  it('nulls a missing timestamp rather than widening precision', async () => {
+    const env = makeEnv(oneSet({ ended_at: null }), [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }], []);
+    const { music } = await musicOf(env);
+    const sets = music.sets as Row[];
+    expect(sets[0].ended_at).toBeNull();
+  });
+});
+
+// ===========================================================================
+// OSE-1299 FIX 3 — the seam requires the cross-product service token.
+// ===========================================================================
+describe('T-SEAM music export — requires the cross-product service token (OSE-1299)', () => {
+  const dbEnv = () =>
+    makeEnv(
+      [{ id: 's1', dj_id: 'd1', dj_name: 'DJ Nova', track_count: 3, started_at: '2026-09-10T21:00:00Z', ended_at: '2026-09-10T22:00:00Z' }],
+      [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }],
+      [],
+    );
+
+  it('401 UNAUTHORIZED when no token is presented', async () => {
+    const res = await handleGetEventMusic(
+      new Request('https://ourwkrp.com/api/events/evt1/music'),
+      dbEnv(),
+      'evt1',
+    );
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { ok: boolean; code: string };
+    expect(body.ok).toBe(false);
+    expect(body.code).toBe('UNAUTHORIZED');
+  });
+
+  it('401 when the presented token does not match the secret', async () => {
+    const res = await handleGetEventMusic(
+      new Request('https://ourwkrp.com/api/events/evt1/music', {
+        headers: { Authorization: 'Bearer wrong-token' },
+      }),
+      dbEnv(),
+      'evt1',
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('fails closed (401) when OSE_INTEGRATION_TOKEN is unset in the env', async () => {
+    const env = dbEnv();
+    delete (env as { OSE_INTEGRATION_TOKEN?: string }).OSE_INTEGRATION_TOKEN;
+    const res = await handleGetEventMusic(
+      new Request('https://ourwkrp.com/api/events/evt1/music', {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+      }),
+      env,
+      'evt1',
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('accepts the token via the X-OSE-Integration header too', async () => {
+    const res = await handleGetEventMusic(
+      new Request('https://ourwkrp.com/api/events/evt1/music', {
+        headers: { 'X-OSE-Integration': TOKEN },
+      }),
+      dbEnv(),
+      'evt1',
+    );
+    expect(res.status).toBe(200);
   });
 });
