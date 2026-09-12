@@ -1,0 +1,20 @@
+info:
+  name: Sync Spotify library
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/spotify/sync/{{user_id}}"
+  headers:
+    - name: Cookie
+      value: "{{session_cookie}}"
+  auth: inherit
+
+docs:
+  content: |-
+    Sync the user's Spotify library (playlists -> tracks -> audio features) into D1. Requires a Spotify-authenticated session for :userId.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

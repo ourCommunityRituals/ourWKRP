@@ -1,0 +1,17 @@
+info:
+  name: List brands
+  type: http
+  seq: 7
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/brands"
+  auth: inherit
+
+docs:
+  content: |-
+    All brands (tenants) with contributor and track counts.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

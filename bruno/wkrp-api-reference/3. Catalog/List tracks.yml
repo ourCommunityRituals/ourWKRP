@@ -1,0 +1,17 @@
+info:
+  name: List tracks
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/tracks?limit=25"
+  auth: inherit
+
+docs:
+  content: |-
+    Filtered, searchable, cursor-paginated track list. Query params: q (FTS5 search), genre, artist, contributor, layer (dj|crew|community), year_min, year_max, energy_min/max, valence_min/max, danceability_min/max, cursor, limit (1-100, default 25). Returns { ok, tracks, cursor, has_more }.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

@@ -1,0 +1,22 @@
+name: ourWKRP - Staging (stg.ourwkrp.com)
+variables:
+  - name: baseUrl
+    value: https://stg.ourwkrp.com
+  - name: session_cookie
+    value: ""
+  - name: contributor_id
+    value: ""
+  - name: playlist_id
+    value: ""
+  - name: track_ids
+    value: "[]"
+  - name: track_id
+    value: ""
+  - name: set_id
+    value: ""
+  - name: dj_id
+    value: ""
+  - name: event_id
+    value: ""
+  - name: user_id
+    value: ""

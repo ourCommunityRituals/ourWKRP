@@ -1,0 +1,28 @@
+info:
+  name: Register contributor
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Example Contributor",
+        "role": "contributor",
+        "generation": "gen2"
+      }
+  auth: inherit
+
+docs:
+  content: |-
+    Create a contributor and session WITHOUT Spotify (the CSV-first path). `role` (dj|curator|contributor|listener) defaults to 'contributor'; `generation` (founder|gen2|gen3) defaults to 'founder'. Returns 201 with a `Set-Cookie: wkrp_session=...` header.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

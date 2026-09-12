@@ -69,7 +69,7 @@ integration, 9 static, 2 E2E). 7 ruled N/A.
 | 6 | **Security (L0 static)** | **COVERED** | Repo-wide gate. Runs the scanners over every file in `src/`, `migrations/`, and the templates on every PR, plus `wrangler.toml` bindings and runtime dependencies. Cost: near zero. Value: catches the ordinary-looking dependency bump. |
 | 7 | Fuzz / Property | **N/A** | Determinism here is not a property of arbitrary *user input* — the scanners consume source text, not request payloads. A `fast-check` pass would assert "does not throw" over random strings, duplicating level 3 while finding nothing this codebase can hit. |
 | 8 | Performance | **N/A** | Orthogonal axis. Determinism constrains *what* is returned; performance constrains *how fast*. No interaction. |
-| 9 | Postman API | **N/A** | Same reasoning as level 5 — response shape, not row order. |
+| 9 | Bruno API contract | **N/A** | Same reasoning as level 5 — response shape, not row order. |
 | 10 | **E2E (Playwright)** | **COVERED — thin slice** | Levels 3/4 prove the BE and the DB. Neither touches the **FE**, and the claim is a three-layer one: everything between the D1 result set and the pixels (JSON serialisation, the client render loop, any sort in template JS) is unproven below this level. Bought deliberately small — 2 cases, no filter permutations, no cross-browser matrix, no per-endpoint sweep. Deep FE testing is gravy and expensive; this is the "some E2E", not the matrix. **If this spec grows a third case, push it down to level 4 first.** |
 | 11 | Mobile Workability | **N/A** | Viewport and tap-target property (brain invariant #14). No determinism surface. |
 
@@ -195,7 +195,7 @@ Two legitimate resolutions existed:
 Coverage followed it up the triangle: L0 scan (was red, now green) + a tie-seeded
 integration pair in `determinism-ordering.test.ts` ("facets under a created_at
 tie") that seeds five facets sharing one timestamp and asserts `domain` breaks the
-tie decidably. Contract/Postman remain N/A (§2 rows 5/9); no E2E case added — per
+tie decidably. Contract/Bruno-API remain N/A (§2 rows 5/9); no E2E case added — per
 §2 row 10, a new case pushes down to integration first.
 
 ---

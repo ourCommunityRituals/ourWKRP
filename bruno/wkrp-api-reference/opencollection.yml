@@ -1,0 +1,29 @@
+opencollection: 1.0.0
+
+info:
+  name: ourWKRP API — Reference
+
+docs:
+  content: |-
+    White-label API reference for the ourWKRP Cloudflare Worker, organized by
+    domain. Feeds OSM (OurSharedMagnets) white-label API documentation.
+
+    Migrated from postman/ourwkrp.api.postman_collection.json (OW: Newman → Bruno,
+    mirroring OSE-1191). This is the DOCUMENTATION collection: every route,
+    foldered, with descriptions and example requests. It carries no assertions and
+    is NOT wired into CI (it includes side-effecting routes — OAuth redirects,
+    logout, DELETE, sync). For the executable end-to-end contract that CI runs,
+    see bruno/wkrp-api ("npm run test:bruno").
+
+    Conventions:
+    - baseUrl — set per environment (http://localhost:8787 for wrangler dev).
+    - Auth — session is an HttpOnly cookie wkrp_session. Obtain it from
+      POST /auth/register (Set-Cookie) and send it back via the Cookie header;
+      {{session_cookie}} holds "wkrp_session=<token>".
+    - Brand — brand_id is derived from the request host subdomain
+      ({brand}.ourwkrp.com); localhost and the apex resolve to the default brand.
+    - IDs — contributors, playlists, tracks, and sets are UUIDs. Fill the env
+      variables from earlier responses.
+  type: text/markdown
+bundled: false
+extensions: {}

@@ -1,0 +1,17 @@
+info:
+  name: Sponsor report
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/sponsors/{{event_id}}/report"
+  auth: inherit
+
+docs:
+  content: |-
+    Sponsor reporting for an event: reach and music attributed during sponsored sets.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

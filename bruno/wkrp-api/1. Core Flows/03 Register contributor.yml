@@ -1,0 +1,44 @@
+info:
+  name: 03 Register contributor
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/register"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Postman Curator",
+        "role": "curator",
+        "generation": "gen2"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 201', function () { expect(res.getStatus()).to.eql(201); });
+        var body = res.getBody();
+        test('contributor created with curator role', function () {
+            expect(body.ok).to.eql(true);
+            expect(body.contributor.role).to.eql('curator');
+        });
+        bru.setEnvVar('contributor_id', body.contributor.id);
+        // Bruno's res.getHeader('Set-Cookie') returns an array (undici), unlike
+        // Postman's pm.response.headers.get() which returned a string — normalize.
+        var rawSetCookie = res.getHeader('Set-Cookie');
+        var setCookie = Array.isArray(rawSetCookie) ? rawSetCookie[0] : rawSetCookie;
+        test('session cookie issued', function () {
+            expect(setCookie, 'Set-Cookie header').to.be.a('string');
+            expect(setCookie).to.include('wkrp_session=');
+        });
+        bru.setEnvVar('session_cookie', String(setCookie).split(';')[0]);
+
+settings:
+  encodeUrl: true

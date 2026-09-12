@@ -110,7 +110,7 @@ Counts below are a static count of `it()`/`test()` blocks (incl. `.each`/`.skip`
 | Fuzz / Property | Vitest (fast-check) | ~18 / 4 |
 | Performance | Vitest + k6 | ~13 / 2 (+ k6 scenarios) |
 
-**≈873 `it`/`test` blocks across ~84 files** — plus k6 load scripts, Postman/Newman collections, and the Python `level0_security.py` gate. (The pre-2026-09 doc said "65 tests" / "~605"; both were stale by roughly an order of magnitude — hence this measured refresh.)
+**≈873 `it`/`test` blocks across ~84 files** — plus k6 load scripts, Bruno API contract collections (`bruno/wkrp-api`, ex-Newman), and the Python `level0_security.py` gate. (The pre-2026-09 doc said "65 tests" / "~605"; both were stale by roughly an order of magnitude — hence this measured refresh.)
 
 ### Invariant enforcement (how the shared constitution binds WKRP)
 

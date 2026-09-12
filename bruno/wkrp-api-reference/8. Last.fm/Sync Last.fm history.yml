@@ -1,0 +1,20 @@
+info:
+  name: Sync Last.fm history
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/lastfm/sync/{{user_id}}"
+  headers:
+    - name: Cookie
+      value: "{{session_cookie}}"
+  auth: inherit
+
+docs:
+  content: |-
+    Sync the user's Last.fm scrobble history and tags into the catalog.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

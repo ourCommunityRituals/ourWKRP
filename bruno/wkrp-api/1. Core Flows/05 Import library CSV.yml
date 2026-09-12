@@ -1,0 +1,32 @@
+info:
+  name: 05 Import library CSV
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}/import/{{contributor_id}}"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Cookie
+      value: "{{session_cookie}}"
+  body:
+    type: json
+    data: |-
+      {"csv":"Track URI,Track Name,Artist Name(s),Album Name,ISRC,Album Release Date,Energy,Danceability,Valence,Artist Genres,Track Duration (ms)\nspotify:track:4cOdK2wGLETKBW3PvgPWqT,Postman Track One,Postman Test Quartet,Smoke Test Sessions,USPM00000001,2022-05-01,0.61,0.74,0.52,test-jazz,201000\nspotify:track:7GhIk7Il098yCjg4BQjzvb,Postman Track Two,Postman Test Quartet,Smoke Test Sessions,USPM00000002,2020-08-19,0.44,0.83,0.31,test-soul,188000\nspotify:track:0VjIjW4GlUZAMYd2vXMi3b,Postman Track Three,Newman Ensemble,Smoke Test Sessions,USPM00000003,2023-02-02,0.87,0.50,0.78,test-electronic,234000\nspotify:track:1mea3bSkSGXuIRvnydlB5b,Postman Track Four,Newman Ensemble,Smoke Test Sessions,USPM00000004,2019-11-30,0.36,0.71,0.60,test-folk,176000","source_type":"liked","source_name":"Postman Smoke Test"}
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 200', function () { expect(res.getStatus()).to.eql(200); });
+        var body = res.getBody();
+        test('4 contributions created with no errors', function () {
+            expect(body.contributions_created).to.eql(4);
+            expect(body.errors).to.be.an('array').that.is.empty;
+        });
+
+settings:
+  encodeUrl: true

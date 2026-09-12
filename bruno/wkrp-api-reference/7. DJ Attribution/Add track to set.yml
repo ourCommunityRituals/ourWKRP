@@ -1,0 +1,28 @@
+info:
+  name: Add track to set
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/sets/{{set_id}}/tracks"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: Cookie
+      value: "{{session_cookie}}"
+  body:
+    type: json
+    data: |-
+      {
+        "track_id": "{{track_id}}"
+      }
+  auth: inherit
+
+docs:
+  content: |-
+    Append a track to a live set as the DJ plays it.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

@@ -1,0 +1,23 @@
+info:
+  name: 02 Anonymous catalog browse
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/tracks"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 200 (no auth required to browse)', function () { expect(res.getStatus()).to.eql(200); });
+        var body = res.getBody();
+        test('returns a tracks array', function () {
+            expect(body.ok).to.eql(true);
+            expect(body.tracks).to.be.an('array');
+        });
+
+settings:
+  encodeUrl: true

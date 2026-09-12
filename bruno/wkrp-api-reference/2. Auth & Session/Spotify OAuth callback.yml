@@ -1,0 +1,17 @@
+info:
+  name: Spotify OAuth callback
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "{{baseUrl}}/auth/callback?code={{oauth_code}}&state={{oauth_state}}"
+  auth: inherit
+
+docs:
+  content: |-
+    Spotify redirect target. Exchanges the authorization code for tokens, stores them in KV, creates a session, and redirects into the app. Invoked by the browser, not called directly.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

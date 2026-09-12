@@ -1,0 +1,20 @@
+info:
+  name: End set
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/sets/{{set_id}}/end"
+  headers:
+    - name: Cookie
+      value: "{{session_cookie}}"
+  auth: inherit
+
+docs:
+  content: |-
+    End a live set (marks it no longer live).
+  type: text/markdown
+
+settings:
+  encodeUrl: true

@@ -1,0 +1,35 @@
+opencollection: 1.0.0
+
+info:
+  name: ourWKRP API — Contract
+
+request:
+  scripts:
+    - type: before-request
+      code: |-
+        // Collection-level pre-request: start latency timer for every request.
+        bru.setVar('requestStartTime', Date.now());
+    - type: after-response
+      code: |-
+        // Collection-level test: measure latency on every request.
+        const elapsed = Date.now() - bru.getVar('requestStartTime');
+        test(`Response time < 2000ms (actual: ${elapsed}ms)`, function() {
+            expect(elapsed).to.be.below(2000);
+        });
+
+docs:
+  content: |-
+    Executable API contract for the ourWKRP Cloudflare Worker.
+
+    Migrated from the Newman/Postman core-flows collection (OW: Newman → Bruno,
+    mirroring OSE-1191). Runs the end-to-end core user journey against a seeded
+    `wrangler dev` instance: health, anonymous browse, register, session, CSV
+    import, catalog, and playlist build. Later requests reuse the session cookie,
+    contributor id, playlist id, and track ids captured by earlier ones — so the
+    "1. Core Flows" folder must run in seq order.
+
+    Run with: npm run test:bruno  (seeds local D1, boots wrangler dev, then bru run).
+    Requires: ourWKRP - Local (wrangler dev) environment (wkrp-local).
+  type: text/markdown
+bundled: false
+extensions: {}

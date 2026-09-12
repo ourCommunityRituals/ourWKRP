@@ -1,0 +1,28 @@
+info:
+  name: Create attribution
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/attributions"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+  body:
+    type: json
+    data: |-
+      {
+        "dj_id": "{{dj_id}}",
+        "track_id": "{{track_id}}",
+        "event_id": null
+      }
+  auth: inherit
+
+docs:
+  content: |-
+    Record a discovery attribution: a listener discovered a track via a DJ. Body: { dj_id, track_id, event_id? }.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

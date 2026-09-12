@@ -1,0 +1,20 @@
+info:
+  name: Session - who am I
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/auth/session/me"
+  headers:
+    - name: Cookie
+      value: "{{session_cookie}}"
+  auth: inherit
+
+docs:
+  content: |-
+    Returns the contributor profile for the current session cookie (id, name, generation, role, brand_id). 401 if the cookie is missing or expired. Never returns Spotify tokens.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

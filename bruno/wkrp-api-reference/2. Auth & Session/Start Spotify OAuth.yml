@@ -1,0 +1,17 @@
+info:
+  name: Start Spotify OAuth
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: "{{baseUrl}}/auth/start?name=Example&gen=founder"
+  auth: inherit
+
+docs:
+  content: |-
+    Begins the Spotify Authorization Code + PKCE flow: generates a PKCE verifier/challenge, stores state in KV (10 min TTL), and 302-redirects the browser to Spotify.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

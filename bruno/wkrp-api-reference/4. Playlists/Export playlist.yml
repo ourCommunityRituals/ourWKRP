@@ -1,0 +1,17 @@
+info:
+  name: Export playlist
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/playlists/{{playlist_id}}/export"
+  auth: inherit
+
+docs:
+  content: |-
+    Export a playlist as JSON with ISRCs, for manual import into Apple Music or other platforms.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

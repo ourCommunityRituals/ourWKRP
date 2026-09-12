@@ -1,7 +1,7 @@
 /**
  * Seed the local `wrangler dev` D1 database with the project schema.
  *
- * `wrangler dev` boots an empty local D1, so the Postman / e2e flows that
+ * `wrangler dev` boots an empty local D1, so the Bruno / e2e flows that
  * register, import, and query would 500 without tables. This applies every
  * migration in migrations/ to the local D1 used by `wrangler dev`.
  *
