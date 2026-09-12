@@ -80,13 +80,16 @@
       color: #666;
     }
 
-    .cta {
+    /* Decorative poster copy — NOT interactive. Deliberately not `.cta` so the
+       mobile-workability tap-target rule doesn't mistake this headline for a
+       button; the poster's only "action" is scanning the QR code. */
+    .poster-cta {
       font-size: 1.1rem;
       font-weight: 600;
       margin-bottom: 8px;
     }
 
-    .cta-sub {
+    .poster-cta-sub {
       font-size: 0.8rem;
       color: var(--text-muted);
       margin-bottom: 32px;
@@ -154,8 +157,8 @@
       <div class="qr-placeholder" id="qr-placeholder">Loading...</div>
     </div>
 
-    <div class="cta">Hear something that hits?</div>
-    <div class="cta-sub">Scan to save it. The DJ gets credit.</div>
+    <div class="poster-cta">Hear something that hits?</div>
+    <div class="poster-cta-sub">Scan to save it. The DJ gets credit.</div>
 
     <div class="now-playing" id="now-playing" data-testid="now-playing">
       <div class="now-playing-label">Now Playing</div>
