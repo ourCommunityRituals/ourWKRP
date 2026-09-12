@@ -12,7 +12,7 @@
 
 import type { Env, SpotifyUserProfile, StoredTokens } from '../types';
 import { exchangeCodeForTokens } from '../auth/spotify-oauth';
-import { getAuthState, deleteAuthState, storeSession, storeTokens } from '../lib/kv-storage';
+import { getAuthState, deleteAuthState, storeSession, storeTokens, indexSession } from '../lib/kv-storage';
 import { newSessionData } from '../lib/session';
 import { buildSessionCookie } from '../lib/session-cookie';
 import { recordAudit } from '../lib/audit';
@@ -91,6 +91,8 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
       gen: authState.gen,
       brand_id: 'wkrp',
     }));
+    // Index the session under the contributor so erasure can revoke it (F3).
+    await indexSession(env.WKRP_KV, contributorId, sessionToken);
 
     log('AUTH_CALLBACK_SUCCESS', { contributorId, name: authState.name, gen: authState.gen });
     await recordAudit(env, request, {

@@ -335,7 +335,9 @@ describe('Scale Benchmarks', () => {
       const { handleRegister } = await import('../../src/handlers/auth-register');
       const env = mockEnv();
 
-      const roles = ['dj', 'curator', 'contributor', 'listener'];
+      // Self-service register only mints unprivileged roles (F1); privileged
+      // roles are granted out-of-band, so a sign-up burst cycles these two.
+      const roles = ['contributor', 'listener'];
       const gens = ['founder', 'gen2', 'gen3'];
 
       const start = performance.now();
@@ -346,7 +348,7 @@ describe('Scale Benchmarks', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               name: `Patron ${i}`,
-              role: roles[i % 4],
+              role: roles[i % 2],
               generation: gens[i % 3],
             }),
           }),

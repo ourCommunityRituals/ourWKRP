@@ -62,6 +62,45 @@ export async function deleteSession(kv: KVNamespace, token: string): Promise<voi
   log('KV_DELETE', { key });
 }
 
+// Session index: contributor -> [session tokens]. Sessions are keyed only by an
+// unguessable token, so without this reverse index right-to-erasure could not
+// enumerate a user's live sessions to revoke them (F3 auth hardening
+// 2026-09-12). Written at session creation only (not on every touch). Bounded
+// so a single KV value can't grow without limit; 50 concurrent sessions per
+// contributor is far beyond any real usage.
+const SESSION_INDEX_MAX = 50;
+
+export async function indexSession(kv: KVNamespace, userId: string, token: string): Promise<void> {
+  const key = `wkrp:session_index:${userId}`;
+  const raw = await kv.get(key);
+  const tokens: string[] = raw ? (JSON.parse(raw) as string[]) : [];
+  if (!tokens.includes(token)) tokens.push(token);
+  const trimmed = tokens.slice(-SESSION_INDEX_MAX);
+  await kv.put(key, JSON.stringify(trimmed), { expirationTtl: SESSION_TTL_SEC });
+  log('KV_WRITE', { key, count: trimmed.length });
+}
+
+export async function getSessionIndex(kv: KVNamespace, userId: string): Promise<string[]> {
+  const raw = await kv.get(`wkrp:session_index:${userId}`);
+  return raw ? (JSON.parse(raw) as string[]) : [];
+}
+
+/**
+ * Revoke every session belonging to a contributor: delete each indexed session
+ * token, then drop the index itself. Deleting an already-expired token is a
+ * no-op, so a stale index entry is harmless. Returns the number of tokens
+ * processed.
+ */
+export async function deleteAllSessions(kv: KVNamespace, userId: string): Promise<number> {
+  const tokens = await getSessionIndex(kv, userId);
+  for (const token of tokens) {
+    await kv.delete(`wkrp:session:${token}`);
+  }
+  await kv.delete(`wkrp:session_index:${userId}`);
+  log('KV_DELETE', { key: `wkrp:session_index:${userId}`, revoked: tokens.length });
+  return tokens.length;
+}
+
 // Spotify tokens — no TTL (refresh handled in code)
 export async function storeTokens(kv: KVNamespace, userId: string, tokens: StoredTokens): Promise<void> {
   const key = `wkrp:tokens:${userId}`;

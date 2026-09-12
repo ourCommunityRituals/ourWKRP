@@ -147,8 +147,10 @@ async function seedContributor(name: string, slug: string | null): Promise<strin
 }
 
 async function registerContributor(name: string): Promise<{ cookie: string; id: string }> {
+  // Self-service register only mints unprivileged roles (F1); slug claiming is
+  // not role-gated, so a contributor session is all this helper needs.
   const res = await call('POST', '/auth/register', {
-    json: { name, role: 'curator', generation: 'gen2' },
+    json: { name, role: 'contributor', generation: 'gen2' },
   });
   const cookie = res.headers.get('Set-Cookie')!.split(';')[0];
   const body = await res.json() as { contributor: { id: string } };

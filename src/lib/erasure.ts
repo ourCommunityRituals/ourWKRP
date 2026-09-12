@@ -15,14 +15,14 @@
  * it retires that URL and releases the name for reuse — leaving it set would
  * keep a named, shareable link pointing at a tombstoned profile.
  *
- * Session caveat: sessions are KV entries keyed by an unguessable token and are
- * not indexed by contributor, so we cannot enumerate-and-delete them here. They
- * lapse on their own via the absolute/idle TTL (OW-81). Tokens — the sensitive
- * material — are purged immediately.
+ * Sessions are revoked immediately: they are keyed by an unguessable token, but
+ * a per-contributor session index (F3 auth hardening 2026-09-12) lets us
+ * enumerate and delete every live session here rather than waiting out the
+ * absolute/idle TTL (OW-81). Tokens — the sensitive material — are purged too.
  */
 
 import type { Env } from '../types';
-import { deleteTokens, deleteLastfmSession, deleteLastSync } from './kv-storage';
+import { deleteTokens, deleteLastfmSession, deleteLastSync, deleteAllSessions } from './kv-storage';
 import { recordAudit } from './audit';
 
 export interface ErasureResult {
@@ -77,12 +77,16 @@ export async function eraseContributor(
   await deleteLastfmSession(env.WKRP_KV, contributorId);
   await deleteLastSync(env.WKRP_KV, contributorId);
 
+  // Revoke all live sessions so an erased contributor cannot stay logged in.
+  const sessionsRevoked = await deleteAllSessions(env.WKRP_KV, contributorId);
+
   await recordAudit(env, request, {
     action: 'privacy.erasure',
     resourceType: 'contributor',
     resourceId: contributorId,
     outcome: 'success',
     actorId: contributorId,
+    meta: { sessions_revoked: sessionsRevoked },
   });
 
   return { erased: true };

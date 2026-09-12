@@ -27,6 +27,12 @@ const stripHtmlTags = (s: string): string => {
 export const uuidSchema = z.string().uuid('Must be a valid UUID');
 export const nameSchema = z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or less').transform(s => stripHtmlTags(s).trim());
 export const roleSchema = z.enum(['dj', 'curator', 'contributor', 'listener'], { message: 'Role must be: dj, curator, contributor, or listener' });
+// Sign-up may only self-assign unprivileged roles. dj/curator are privileged
+// (they pass server-side authz gates) and are conferred out-of-band — see
+// lib/roles.ts grantPrivilegedRole. F1 auth hardening 2026-09-12.
+export const selfAssignableRoleSchema = z.enum(['contributor', 'listener'], {
+  message: 'Sign-up role must be contributor or listener; dj and curator are granted separately',
+});
 export const generationSchema = z.enum(['founder', 'gen2', 'gen3'], { message: 'Generation must be: founder, gen2, or gen3' });
 export const brandIdSchema = z.string().regex(/^[a-z0-9-]+$/, 'Brand ID must be lowercase alphanumeric with hyphens');
 
@@ -57,7 +63,7 @@ export const spotifyTrackIdSchema = z.string().regex(
 // Callers (e.g. DJ-specific onboarding) can still pass explicit values.
 export const registerBodySchema = z.object({
   name: nameSchema,
-  role: roleSchema.default('contributor'),
+  role: selfAssignableRoleSchema.default('contributor'),
   generation: generationSchema.default('founder'),
 });
 

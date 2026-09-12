@@ -140,8 +140,10 @@ interface Registered {
 
 /** Register a contributor on `origin`'s brand and return its session + id. */
 async function register(name: string, origin = BASE_URL): Promise<Registered> {
+  // Self-service register only mints unprivileged roles (F1); slug claiming is
+  // not role-gated, so a contributor session is all this helper needs.
   const res = await call('POST', '/auth/register', {
-    json: { name, role: 'curator', generation: 'gen2' },
+    json: { name, role: 'contributor', generation: 'gen2' },
     origin,
   });
   expect(res.status).toBe(201);

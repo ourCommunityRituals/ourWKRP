@@ -10,7 +10,7 @@
  */
 
 import type { Env } from '../types';
-import { storeSession } from '../lib/kv-storage';
+import { storeSession, indexSession } from '../lib/kv-storage';
 import { newSessionData } from '../lib/session';
 import { buildSessionCookie } from '../lib/session-cookie';
 import { extractBrandId } from '../lib/brand';
@@ -47,6 +47,8 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
     gen: generation,
     brand_id: brandId,
   }));
+  // Index the session under the contributor so erasure can revoke it (F3).
+  await indexSession(env.WKRP_KV, contributorId, sessionToken);
 
   const isProduction = env.WORKER_ENV === 'production';
 
@@ -55,7 +57,10 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   return new Response(JSON.stringify({
     ok: true,
     contributor: { id: contributorId, name, role, generation },
-    redirect: role === 'dj' ? '/dashboard' : '/catalog',
+    // Self-service sign-up only mints contributor/listener (F1), so this path
+    // always lands on the catalog; the DJ dashboard is reached after a
+    // privileged-role grant (lib/roles.ts), not at registration.
+    redirect: '/catalog',
   }), {
     status: 201,
     headers: {

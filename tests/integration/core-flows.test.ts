@@ -153,12 +153,24 @@ async function register(
   role = 'contributor',
   generation = 'gen2',
 ): Promise<RegisterResult> {
-  const res = await call('POST', '/auth/register', { json: { name, role, generation } });
+  // Self-service register only mints unprivileged roles (F1). To set up a user
+  // with a privileged role (dj/curator), register as a contributor then grant
+  // the role out-of-band via the DB — the same effect as lib/roles.ts
+  // grantPrivilegedRole (an admin action). Role is read from D1 per request, so
+  // the already-issued session picks up the grant.
+  const privileged = role !== 'contributor' && role !== 'listener';
+  const httpRole = privileged ? 'contributor' : role;
+  const res = await call('POST', '/auth/register', { json: { name, role: httpRole, generation } });
   expect(res.status).toBe(201);
   const setCookie = res.headers.get('Set-Cookie');
   expect(setCookie).toContain('wkrp_session=');
   const cookie = setCookie!.split(';')[0]; // "wkrp_session=<token>"
   const body = await res.json() as RegisterResult['body'];
+  if (privileged) {
+    await env.WKRP_DB.prepare('UPDATE contributors SET role = ? WHERE id = ?')
+      .bind(role, body.contributor.id).run();
+    body.contributor.role = role; // reflect the granted role to callers
+  }
   return { cookie, contributorId: body.contributor.id, body };
 }
 
