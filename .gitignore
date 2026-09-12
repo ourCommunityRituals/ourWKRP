@@ -2,11 +2,25 @@ node_modules/
 dist/
 .wrangler/
 .dev.vars
+.dev.vars.*
 test-results/
 .test-results/
 playwright-report/
 .env
+.env.*
 *.log
+
+# Never commit credential/secret scratch files (real tokens have landed here — see OW auth hardening 2026-09-12)
+*.pem
+*.key
+*secret*
+*Secret*
+*credential*
+*PAT*
+*_token*
+*.tokens
+OCR_PAT_*
+*Authorization_BeforeRelease*
 
 # Python bytecode (from tests/_shared/ pyramid runner)
 __pycache__/

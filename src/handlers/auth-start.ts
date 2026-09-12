@@ -16,6 +16,7 @@ import {
   buildAuthUrl,
 } from '../auth/spotify-oauth';
 import { storeAuthState } from '../lib/kv-storage';
+import { isSelfAssignableRole } from '../lib/roles';
 import { log, logError } from '../lib/logger';
 
 const VALID_GENERATIONS = ['founder', 'gen2', 'gen3'];
@@ -24,7 +25,18 @@ export async function handleAuthStart(request: Request, env: Env): Promise<Respo
   const url = new URL(request.url);
   const name = url.searchParams.get('name')?.trim();
   const gen = url.searchParams.get('gen')?.trim();
-  const role = url.searchParams.get('role')?.trim() || 'contributor';
+  // Sign-up may only self-assign unprivileged roles. dj/curator are conferred
+  // out-of-band (lib/roles.ts) — reject them here so the OAuth branch can't be
+  // used to mint a privileged session. F1 auth hardening 2026-09-12.
+  const requestedRole = url.searchParams.get('role')?.trim();
+  const role = requestedRole || 'contributor';
+  if (requestedRole && !isSelfAssignableRole(requestedRole)) {
+    log('AUTH_START_INVALID', { reason: 'privileged_role', role: requestedRole });
+    return Response.json(
+      { ok: false, error: 'Sign-up role must be contributor or listener; dj and curator are granted separately' },
+      { status: 400 },
+    );
+  }
 
   // Validate inputs
   if (!name || name.length < 1 || name.length > 100) {

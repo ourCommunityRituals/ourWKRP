@@ -8,7 +8,7 @@
  * alternatives, and the guards that keep the flow flawless (no double
  * registration, session persistence, no dead-ends).
  */
-import { test, expect } from './fixtures';
+import { test, expect, registerAs } from './fixtures';
 
 // Resolved relative to the repo root (Playwright's working directory).
 const FIXTURE_CSV = 'tests/integration/fixtures/test-library.csv';
@@ -155,10 +155,7 @@ test.describe('Signup / opt-in — guards and session', () => {
 
 test.describe('After opt-in — role landing', () => {
   test('a registered DJ reaches the dashboard', async ({ page }) => {
-    const res = await page.request.post('/auth/register', {
-      data: { name: 'Dash DJ', role: 'dj', generation: 'founder' },
-    });
-    expect(res.status()).toBe(201);
+    await registerAs(page.request, { name: 'Dash DJ', role: 'dj', generation: 'founder' });
 
     await page.goto('/dashboard');
     await expect(page.getByTestId('start-set-btn')).toBeVisible();

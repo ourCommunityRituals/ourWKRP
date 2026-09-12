@@ -18,7 +18,7 @@
  * Scope: the anonymous catalog surface, which is also the one every visitor
  * hits without a session.
  */
-import { test, expect, rateLimitHeaders } from './fixtures';
+import { test, expect, rateLimitHeaders, registerAs } from './fixtures';
 
 /**
  * Seeds its own tracks, deliberately.
@@ -44,15 +44,10 @@ const SEED_CSV = [
 // option, so a worker-scoped hook cannot see it. The import is idempotent —
 // re-running matches the existing tracks rather than duplicating them.
 test.beforeEach(async ({ request }) => {
-  const reg = await request.post('/auth/register', {
-    data: { name: 'Determinism Seeder', role: 'curator', generation: 'founder' },
-  });
-  expect(reg.status()).toBe(201);
-  const { contributor } = (await reg.json()) as { contributor: { id: string } };
-  const cookie = reg.headers()['set-cookie'];
+  const { id, cookie } = await registerAs(request, { name: 'Determinism Seeder', role: 'curator', generation: 'founder' });
 
-  const imported = await request.post(`/import/${contributor.id}`, {
-    headers: { cookie: cookie ?? '' },
+  const imported = await request.post(`/import/${id}`, {
+    headers: { cookie },
     data: { csv: SEED_CSV, source_type: 'manual', source_name: 'determinism-fixture' },
   });
   expect(imported.ok()).toBe(true);

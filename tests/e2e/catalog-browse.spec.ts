@@ -6,7 +6,7 @@
  * a session whose role can curate (founder / curator / dj), so those tests
  * register a real curator via the API first.
  */
-import { test, expect } from './fixtures';
+import { test, expect, registerAs } from './fixtures';
 
 test.describe('Catalog Browse', () => {
   test('is browsable without a session', async ({ page }) => {
@@ -87,10 +87,7 @@ test.describe('Catalog Browse', () => {
 test.describe('Create Page', () => {
   // The create page redirects to / without a session; register a curator first.
   test.beforeEach(async ({ page }) => {
-    const res = await page.request.post('/auth/register', {
-      data: { name: 'E2E Curator', role: 'curator', generation: 'gen2' },
-    });
-    expect(res.status()).toBe(201);
+    await registerAs(page.request, { name: 'E2E Curator', role: 'curator', generation: 'gen2' });
   });
 
   test('renders the playlist form for a curator session', async ({ page }) => {

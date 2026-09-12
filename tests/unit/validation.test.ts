@@ -65,11 +65,23 @@ describe('Zod Schemas', () => {
   });
 
   describe('registerBodySchema', () => {
-    it('accepts valid registration', () => {
-      const result = registerBodySchema.parse({ name: 'Matt', role: 'dj', generation: 'founder' });
+    it('accepts valid registration with a self-assignable role', () => {
+      const result = registerBodySchema.parse({ name: 'Matt', role: 'listener', generation: 'founder' });
       expect(result.name).toBe('Matt');
-      expect(result.role).toBe('dj');
+      expect(result.role).toBe('listener');
       expect(result.generation).toBe('founder');
+    });
+
+    // F1 auth hardening: dj/curator are privileged and pass server-side authz
+    // gates (dj.ts, catalog.ts). Sign-up must not let a client self-assign them.
+    it('rejects privileged role self-assignment (dj/curator)', () => {
+      for (const role of ['dj', 'curator']) {
+        const result = registerBodySchema.safeParse({ name: 'Mallory', role, generation: 'founder' });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.issues.map(i => i.path[0])).toContain('role');
+        }
+      }
     });
 
     it('defaults role and generation so name alone is enough', () => {

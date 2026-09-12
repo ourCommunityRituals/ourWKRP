@@ -15,10 +15,11 @@ interface ContributorRow {
   lastfm_username: string | null; status: string;
 }
 
-function makeEnv(seed: ContributorRow[]) {
+function makeEnv(seed: ContributorRow[], kvSeed: Record<string, string> = {}) {
   const contributors = new Map(seed.map((c) => [c.id, { ...c }]));
   const audit: Array<Record<string, unknown>> = [];
   const kvDeletes: string[] = [];
+  const kvStore = new Map<string, string>(Object.entries(kvSeed));
 
   const db = {
     prepare(sql: string) {
@@ -51,7 +52,9 @@ function makeEnv(seed: ContributorRow[]) {
   };
 
   const kv = {
-    async delete(key: string) { kvDeletes.push(key); },
+    async get(key: string) { return kvStore.get(key) ?? null; },
+    async put(key: string, value: string) { kvStore.set(key, value); },
+    async delete(key: string) { kvDeletes.push(key); kvStore.delete(key); },
   };
 
   const env = { WKRP_DB: db, WKRP_KV: kv } as unknown as Env;
@@ -96,6 +99,16 @@ describe('right-to-erasure', () => {
     expect(ev).toBeDefined();
     expect(ev!.outcome).toBe('success');
     expect(ev!.resource_id).toBe('c1');
+  });
+
+  it('revokes all live sessions via the contributor session index (F3)', async () => {
+    const { env, kvDeletes } = makeEnv([seedRow('c1')], {
+      'wkrp:session_index:c1': JSON.stringify(['tokA', 'tokB']),
+    });
+    await eraseContributor(env, req(), 'c1');
+    expect(kvDeletes).toContain('wkrp:session:tokA');
+    expect(kvDeletes).toContain('wkrp:session:tokB');
+    expect(kvDeletes).toContain('wkrp:session_index:c1'); // index itself dropped
   });
 
   it('returns erased:false and audits a failure when no row matches', async () => {

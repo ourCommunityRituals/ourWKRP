@@ -12,6 +12,7 @@
  *   GET  /auth/callback             → Spotify redirect handler
  *   POST /auth/logout               → clear session cookie + KV
  *   GET  /auth/session/me           → get contributor profile from session cookie
+ *   POST /admin/roles/grant         → admin-token-gated grant of dj/curator (F1)
  *   POST /spotify/sync/:userId      → sync playlists/tracks/audio-features
  *   POST /import/:contributorId     → import CSV library file
  *
@@ -74,6 +75,7 @@ import { handleStartSet, handleAddSetTrack, handleEndSet, handleCreateAttributio
 import { handleExportTracks } from './handlers/export';
 import { handleSponsorReport } from './handlers/sponsor';
 import { handleGetEventMusic } from './handlers/events';
+import { handleGrantRole } from './handlers/admin-roles';
 import { addCorsHeaders } from './lib/cors';
 import { addSecurityHeaders } from './lib/security-headers';
 import { enforceRateLimit } from './lib/rate-limit';
@@ -122,6 +124,10 @@ export async function route(request: Request, env: Env): Promise<Response> {
   // Auth endpoints
   else if (method === 'POST' && path === '/auth/register') {
     response = await handleRegister(request, env);
+  }
+  // Admin: confer a privileged role (dj/curator) — token-gated, F1.
+  else if (method === 'POST' && path === '/admin/roles/grant') {
+    response = await handleGrantRole(request, env);
   }
   else if (method === 'GET' && path === '/auth/start') {
     response = await handleAuthStart(request, env);
