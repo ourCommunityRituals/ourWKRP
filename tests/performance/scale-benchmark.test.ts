@@ -74,8 +74,13 @@ function mockEnv(trackCount = 1000) {
     APP_URL: 'http://localhost:8787',
     LASTFM_API_KEY: '',
     LASTFM_SHARED_SECRET: '',
+    // Cross-product seams (sponsor report / event music) gate on this token
+    // (OSE-1299). Benchmarks call the seam directly, so supply it.
+    OSE_INTEGRATION_TOKEN: 'bench-ose-integration-token',
   };
 }
+
+const CROSS_PRODUCT_AUTH = { Authorization: 'Bearer bench-ose-integration-token' };
 
 // --- Tests ---
 
@@ -297,7 +302,7 @@ describe('Scale Benchmarks', () => {
 
       const start = performance.now();
       const res = await handleSponsorReport(
-        new Request('http://localhost:8787/api/sponsors/riph-friday/report'),
+        new Request('http://localhost:8787/api/sponsors/riph-friday/report', { headers: CROSS_PRODUCT_AUTH }),
         env as never,
         'riph-friday',
       );
