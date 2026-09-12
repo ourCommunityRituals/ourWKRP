@@ -204,6 +204,7 @@ export async function handleCreateAttribution(request: Request, env: Env): Promi
       listenerId,
       body.track_id,
       track?.isrc ?? null,
+      env.WKRP_ENCRYPTION_KEY,
     );
 
     // 3. Add to discovery playlist if event context

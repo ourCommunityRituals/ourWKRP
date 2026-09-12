@@ -79,7 +79,7 @@ export async function handleLastfmAuthCallback(request: Request, env: Env): Prom
     await storeLastfmSession(env.WKRP_KV, session.userId, {
       username: lastfmSession.name,
       session_key: lastfmSession.key,
-    });
+    }, env.WKRP_ENCRYPTION_KEY);
 
     // Update contributor's Last.fm username in D1
     await env.WKRP_DB.prepare(
@@ -144,7 +144,7 @@ export async function handleLastfmSync(request: Request, env: Env): Promise<Resp
   }
 
   // Get Last.fm session key
-  const lastfmSession = await getLastfmSession(env.WKRP_KV, userId);
+  const lastfmSession = await getLastfmSession(env.WKRP_KV, userId, env.WKRP_ENCRYPTION_KEY);
   if (!lastfmSession) {
     return Response.json(
       { ok: false, error: 'Last.fm not connected — visit /auth/lastfm/start first' },
@@ -183,7 +183,7 @@ export async function handleLastfmStatus(request: Request, env: Env): Promise<Re
     return Response.json({ ok: false, error: 'Missing user ID' }, { status: 400 });
   }
 
-  const lastfmSession = await getLastfmSession(env.WKRP_KV, userId);
+  const lastfmSession = await getLastfmSession(env.WKRP_KV, userId, env.WKRP_ENCRYPTION_KEY);
   const lastSync = await getLastSync(env.WKRP_KV, `lastfm:${userId}`);
 
   return Response.json({

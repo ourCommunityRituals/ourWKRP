@@ -34,6 +34,19 @@
 #                               wrangler secret put WKRP_ADMIN_TOKEN --env production
 #                             DO NOT hardcode a value here.
 #
+# Data-at-rest key (F2 — SECRET, never a [vars] value):
+#   WKRP_ENCRYPTION_KEY    -> base64 of 32 random bytes (AES-256). Encrypts the
+#                             Spotify/Last.fm credentials in KV via
+#                             src/lib/crypto.ts. Rollout is non-breaking: UNSET =
+#                             plaintext (as before); SET = encrypted, and reads
+#                             still handle legacy plaintext. Generate + set via:
+#                               openssl rand -base64 32
+#                               wrangler secret put WKRP_ENCRYPTION_KEY
+#                               wrangler secret put WKRP_ENCRYPTION_KEY --env production
+#                             Rotating it strands values encrypted under the old
+#                             key (users re-auth); rotate deliberately.
+#                             DO NOT hardcode a value here.
+#
 # Local dev setup:
 #   doppler setup           -> select ourwkrp project + dev config
 #   doppler run -- wrangler dev
