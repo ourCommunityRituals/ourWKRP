@@ -1,0 +1,20 @@
+info:
+  name: Logout
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}/auth/logout"
+  headers:
+    - name: Cookie
+      value: "{{session_cookie}}"
+  auth: inherit
+
+docs:
+  content: |-
+    Clears the session from KV and returns a Set-Cookie that expires the browser cookie (Max-Age=0).
+  type: text/markdown
+
+settings:
+  encodeUrl: true

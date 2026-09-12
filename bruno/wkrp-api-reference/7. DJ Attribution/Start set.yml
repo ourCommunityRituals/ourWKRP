@@ -1,0 +1,29 @@
+info:
+  name: Start set
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/sets"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: Cookie
+      value: "{{session_cookie}}"
+  body:
+    type: json
+    data: |-
+      {
+        "venue_name": "Example Venue",
+        "event_id": null
+      }
+  auth: inherit
+
+docs:
+  content: |-
+    Start a live DJ set for the authenticated DJ. Body: { venue_name?, event_id? }.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

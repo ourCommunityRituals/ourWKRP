@@ -1,0 +1,29 @@
+info:
+  name: Create playlist
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/playlists"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: Cookie
+      value: "{{session_cookie}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Example Playlist",
+        "description": "Optional description"
+      }
+  auth: inherit
+
+docs:
+  content: |-
+    Create a curated playlist. Requires a session with role founder|curator|dj (403 otherwise). Returns 201 with the new playlist.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

@@ -1,0 +1,29 @@
+info:
+  name: 06 Catalog shows imported tracks
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/tracks?contributor={{contributor_id}}"
+  params:
+    - name: contributor
+      value: "{{contributor_id}}"
+      type: query
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 200', function () { expect(res.getStatus()).to.eql(200); });
+        var tracks = res.getBody().tracks;
+        test('all 4 imported tracks appear in the catalog', function () {
+            expect(tracks).to.have.lengthOf(4);
+            var names = tracks.map(function (t) { return t.name; });
+            expect(names).to.include('Postman Track One');
+        });
+        bru.setEnvVar('track_ids', JSON.stringify(tracks.map(function (t) { return t.id; })));
+
+settings:
+  encodeUrl: true

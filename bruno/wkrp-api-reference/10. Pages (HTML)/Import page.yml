@@ -1,0 +1,17 @@
+info:
+  name: Import page
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/import"
+  auth: inherit
+
+docs:
+  content: |-
+    CSV import page. Role gating for this page is applied client-side.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

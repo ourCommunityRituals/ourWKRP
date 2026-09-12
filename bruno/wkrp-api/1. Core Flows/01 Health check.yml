@@ -1,0 +1,23 @@
+info:
+  name: 01 Health check
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/health"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 200', function () { expect(res.getStatus()).to.eql(200); });
+        var body = res.getBody();
+        test('service is ourwkrp and ok', function () {
+            expect(body.ok).to.eql(true);
+            expect(body.service).to.eql('ourwkrp');
+        });
+
+settings:
+  encodeUrl: true

@@ -1,0 +1,17 @@
+info:
+  name: Contributor brands (cross-brand)
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/contributors/{{contributor_id}}/brands"
+  auth: inherit
+
+docs:
+  content: |-
+    Cross-brand discovery: which brands this contributor has contributed tracks to, with per-brand track counts.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

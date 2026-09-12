@@ -1,0 +1,23 @@
+info:
+  name: 10 Catalog stats
+  type: http
+  seq: 10
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/stats"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 200', function () { expect(res.getStatus()).to.eql(200); });
+        var stats = res.getBody().stats;
+        test('stats reflect the imported data', function () {
+            expect(stats.total_tracks).to.be.at.least(4);
+            expect(stats.total_playlists).to.be.at.least(1);
+        });
+
+settings:
+  encodeUrl: true

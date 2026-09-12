@@ -1,0 +1,24 @@
+info:
+  name: 09 Get playlist with tracks
+  type: http
+  seq: 9
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/playlists/{{playlist_id}}"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 200', function () { expect(res.getStatus()).to.eql(200); });
+        var body = res.getBody();
+        test('playlist persisted with all 4 tracks', function () {
+            expect(body.playlist.id).to.eql(bru.getEnvVar('playlist_id'));
+            expect(body.playlist.track_count).to.eql(4);
+            expect(body.playlist.tracks).to.have.lengthOf(4);
+        });
+
+settings:
+  encodeUrl: true

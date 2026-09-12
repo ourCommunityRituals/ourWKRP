@@ -1,0 +1,26 @@
+info:
+  name: Import library CSV
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/import/{{contributor_id}}"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: Cookie
+      value: "{{session_cookie}}"
+  body:
+    type: json
+    data: |-
+      {"csv":"Track URI,Track Name,Artist Name(s),Album Name,ISRC\nspotify:track:4cOdK2wGLETKBW3PvgPWqT,Example Song,Example Artist,Example Album,USEX00000001","source_type":"liked","source_name":"Example Library"}
+  auth: inherit
+
+docs:
+  content: |-
+    Import a music library CSV for a contributor. The session cookie must match :contributorId. Accepts application/json { csv, source_type?, source_name? }, raw text/csv, or multipart/form-data (file field). Exportify, Last.fm, and Apple Music formats are auto-detected; tracks are deduplicated by ISRC > platform id > canonical title+artist.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

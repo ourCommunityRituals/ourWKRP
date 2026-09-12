@@ -1,0 +1,26 @@
+name: ourWKRP - Local (wrangler dev)
+variables:
+  - name: baseUrl
+    value: http://localhost:8787
+  - name: session_cookie
+    value: ""
+  - name: contributor_id
+    value: ""
+  - name: playlist_id
+    value: ""
+  - name: track_id
+    value: ""
+  - name: set_id
+    value: ""
+  - name: dj_id
+    value: ""
+  - name: event_id
+    value: ""
+  - name: user_id
+    value: ""
+  - name: oauth_code
+    value: ""
+  - name: oauth_state
+    value: ""
+  - name: lastfm_token
+    value: ""

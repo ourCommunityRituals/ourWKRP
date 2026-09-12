@@ -1,0 +1,28 @@
+info:
+  name: Add tracks to playlist
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/playlists/{{playlist_id}}/tracks"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: Cookie
+      value: "{{session_cookie}}"
+  body:
+    type: json
+    data: |-
+      {
+        "track_ids": ["{{track_id}}"]
+      }
+  auth: inherit
+
+docs:
+  content: |-
+    Append tracks to a curated playlist you own. Body: { track_ids: string[] } (1-100 ids). Track position is assigned server-side.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

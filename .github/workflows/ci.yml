@@ -17,7 +17,7 @@
 #       - Contract tests               → vitest run tests/contract
 #       - Security tests               → vitest run tests/security
 #       - E2E tests                    → playwright test (mobile browsers)
-#       - Postman API tests            → newman run (live wrangler dev)
+#       - Bruno API contract tests     → bru run (live wrangler dev)
 #       - Fuzz / property tests        → vitest run tests/fuzz (fast-check)
 #
 #   Stage 3: Performance (after Stage 2)
@@ -253,8 +253,8 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
-  postman-tests:
-    name: Postman API Tests
+  bruno-tests:
+    name: Bruno API Tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [security, lint-and-typecheck]
@@ -266,14 +266,20 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
       - run: npm ci
-      # test:postman seeds the local D1, boots `wrangler dev`, then runs Newman.
-      - run: npm run test:postman
-      - name: Upload Newman report
+      # `bru run --reporter-junit` EXITS non-zero if the target directory does
+      # not exist — even when every assertion passes (mirrors OSE-1191). Make it
+      # first so a green contract is never masked by a missing dir.
+      - name: Prepare contract report dir
+        run: mkdir -p .test-results
+      # test:bruno seeds the local D1, boots `wrangler dev`, then runs `bru run`
+      # against the bruno/wkrp-api contract collection (ex-Newman, OW: Newman → Bruno).
+      - run: npm run test:bruno
+      - name: Upload Bruno report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: newman-report-${{ github.run_number }}
-          path: postman/newman-report.html
+          name: bruno-report-${{ github.run_number }}
+          path: .test-results/bru-api-junit.xml
           retention-days: 14
 
   fuzz-tests:
@@ -329,7 +335,7 @@ jobs:
       - contract-tests
       - security-tests
       - e2e-tests
-      - postman-tests
+      - bruno-tests
       - fuzz-tests
       - performance-tests
     steps:

@@ -1,0 +1,28 @@
+info:
+  name: 08 Add tracks to playlist
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/playlists/{{playlist_id}}/tracks"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Cookie
+      value: "{{session_cookie}}"
+  body:
+    type: json
+    data: |-
+      { "track_ids": {{track_ids}} }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 200', function () { expect(res.getStatus()).to.eql(200); });
+        test('4 tracks added', function () { expect(res.getBody().added).to.eql(4); });
+
+settings:
+  encodeUrl: true

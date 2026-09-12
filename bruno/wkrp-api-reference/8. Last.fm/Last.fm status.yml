@@ -1,0 +1,17 @@
+info:
+  name: Last.fm status
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/lastfm/status/{{user_id}}"
+  auth: inherit
+
+docs:
+  content: |-
+    Whether a user has a connected Last.fm account.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

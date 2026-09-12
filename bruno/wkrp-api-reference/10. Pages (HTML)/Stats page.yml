@@ -1,0 +1,17 @@
+info:
+  name: Stats page
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "{{baseUrl}}/stats"
+  auth: inherit
+
+docs:
+  content: |-
+    Catalog statistics page.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

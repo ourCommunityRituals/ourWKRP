@@ -1,0 +1,26 @@
+info:
+  name: 04 Session - who am I
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/auth/session/me"
+  headers:
+    - name: Cookie
+      value: "{{session_cookie}}"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 200', function () { expect(res.getStatus()).to.eql(200); });
+        var body = res.getBody();
+        test('session resolves to the registered contributor', function () {
+            expect(body.ok).to.eql(true);
+            expect(body.contributor.id).to.eql(bru.getEnvVar('contributor_id'));
+        });
+
+settings:
+  encodeUrl: true

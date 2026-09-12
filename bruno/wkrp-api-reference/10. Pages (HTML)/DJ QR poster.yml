@@ -1,0 +1,17 @@
+info:
+  name: DJ QR poster
+  type: http
+  seq: 9
+
+http:
+  method: GET
+  url: "{{baseUrl}}/dj/{{dj_id}}/poster"
+  auth: inherit
+
+docs:
+  content: |-
+    Printable QR poster page linking patrons to the DJ's live set.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

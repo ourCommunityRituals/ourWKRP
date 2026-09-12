@@ -1,0 +1,17 @@
+info:
+  name: Contributor profile
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/contributors/{{contributor_id}}"
+  auth: inherit
+
+docs:
+  content: |-
+    Full contributor profile: roles, track/playlist counts, top genres, contribution sources, playlists, and brands contributed to.
+  type: text/markdown
+
+settings:
+  encodeUrl: true

@@ -1,0 +1,36 @@
+info:
+  name: 07 Create playlist
+  type: http
+  seq: 7
+
+http:
+  method: POST
+  url: "{{baseUrl}}/api/playlists"
+  headers:
+    - name: Content-Type
+      value: application/json
+    - name: Cookie
+      value: "{{session_cookie}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Postman Smoke Playlist",
+        "description": "Created by the ourWKRP contract collection"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        test('status is 201', function () { expect(res.getStatus()).to.eql(201); });
+        var body = res.getBody();
+        test('playlist created', function () {
+            expect(body.ok).to.eql(true);
+            expect(body.playlist.name).to.eql('Postman Smoke Playlist');
+        });
+        bru.setEnvVar('playlist_id', body.playlist.id);
+
+settings:
+  encodeUrl: true

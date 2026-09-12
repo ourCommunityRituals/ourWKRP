@@ -1,0 +1,28 @@
+info:
+  name: Remove tracks from playlist
+  type: http
+  seq: 4
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/api/playlists/{{playlist_id}}/tracks"
+  headers:
+    - name: Content-Type
+      value: "application/json"
+    - name: Cookie
+      value: "{{session_cookie}}"
+  body:
+    type: json
+    data: |-
+      {
+        "track_ids": ["{{track_id}}"]
+      }
+  auth: inherit
+
+docs:
+  content: |-
+    Remove tracks from a curated playlist you own. Body: { track_ids: string[] }.
+  type: text/markdown
+
+settings:
+  encodeUrl: true
