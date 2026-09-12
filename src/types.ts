@@ -28,6 +28,11 @@ export interface Env {
   // FAIL CLOSED (401), never open. Injected as a Doppler/Workers secret;
   // documented placeholder in wrangler.toml.
   WKRP_ADMIN_TOKEN?: string;
+  // Data-at-rest key (F2 auth hardening) — base64 32-byte AES-256 secret used by
+  // lib/crypto.ts to encrypt Spotify/Last.fm credentials in KV. Optional: when
+  // set, credentials are encrypted; when unset they stay plaintext (non-breaking
+  // rollout, reads handle both). Injected as a Doppler/Workers secret.
+  WKRP_ENCRYPTION_KEY?: string;
 }
 
 export type ContributorRole = 'founder' | 'curator' | 'contributor' | 'dj';

@@ -17,7 +17,7 @@ const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes before expiry
  * Returns null if no tokens exist (user needs to re-auth).
  */
 export async function getValidAccessToken(env: Env, userId: string): Promise<string | null> {
-  const tokens = await getTokens(env.WKRP_KV, userId);
+  const tokens = await getTokens(env.WKRP_KV, userId, env.WKRP_ENCRYPTION_KEY);
   if (!tokens) {
     log('TOKEN_MISSING', { userId });
     return null;
@@ -40,7 +40,7 @@ export async function getValidAccessToken(env: Env, userId: string): Promise<str
       expires_at: Date.now() + (refreshed.expires_in * 1000),
     };
 
-    await storeTokens(env.WKRP_KV, userId, updatedTokens);
+    await storeTokens(env.WKRP_KV, userId, updatedTokens, env.WKRP_ENCRYPTION_KEY);
     log('TOKEN_REFRESH_SUCCESS', { userId, expires_in: refreshed.expires_in });
 
     return updatedTokens.access_token;

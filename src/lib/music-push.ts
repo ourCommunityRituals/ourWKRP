@@ -27,9 +27,9 @@ export interface PushResult {
 /**
  * Detect which music platform a listener has connected.
  */
-export async function detectPlatform(kv: KVNamespace, userId: string): Promise<MusicPlatform> {
+export async function detectPlatform(kv: KVNamespace, userId: string, keyB64?: string): Promise<MusicPlatform> {
   // Check Spotify first
-  const spotifyTokens = await getTokens(kv, userId);
+  const spotifyTokens = await getTokens(kv, userId, keyB64);
   if (spotifyTokens && spotifyTokens.access_token) {
     return 'spotify';
   }
@@ -52,15 +52,16 @@ export async function pushTrackToLibrary(
   userId: string,
   trackId: string,
   trackIsrc: string | null,
+  keyB64?: string,
 ): Promise<PushResult> {
-  const platform = await detectPlatform(kv, userId);
+  const platform = await detectPlatform(kv, userId, keyB64);
 
   if (platform === 'none') {
     return { platform: 'none', saved: false };
   }
 
   if (platform === 'spotify') {
-    return await pushToSpotify(kv, userId, trackId);
+    return await pushToSpotify(kv, userId, trackId, keyB64);
   }
 
   if (platform === 'apple_music') {
@@ -78,9 +79,10 @@ async function pushToSpotify(
   kv: KVNamespace,
   userId: string,
   trackId: string,
+  keyB64?: string,
 ): Promise<PushResult> {
   try {
-    const tokens = await getTokens(kv, userId);
+    const tokens = await getTokens(kv, userId, keyB64);
     if (!tokens) {
       return { platform: 'spotify', saved: false, error: 'No Spotify tokens' };
     }

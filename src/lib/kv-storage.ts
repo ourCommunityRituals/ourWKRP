@@ -4,6 +4,7 @@
  */
 
 import type { AuthState, SessionData, StoredTokens } from '../types';
+import { sealJSON, openJSON } from './crypto';
 import { log } from './logger';
 
 // Auth state (PKCE verifier + contributor info) — 10 min TTL
@@ -101,14 +102,15 @@ export async function deleteAllSessions(kv: KVNamespace, userId: string): Promis
   return tokens.length;
 }
 
-// Spotify tokens — no TTL (refresh handled in code)
-export async function storeTokens(kv: KVNamespace, userId: string, tokens: StoredTokens): Promise<void> {
+// Spotify tokens — no TTL (refresh handled in code). Encrypted at rest when an
+// encryption key is provided (F2); callers pass env.WKRP_ENCRYPTION_KEY.
+export async function storeTokens(kv: KVNamespace, userId: string, tokens: StoredTokens, keyB64?: string): Promise<void> {
   const key = `wkrp:tokens:${userId}`;
-  await kv.put(key, JSON.stringify(tokens));
-  log('KV_WRITE', { key, expires_at: new Date(tokens.expires_at).toISOString() });
+  await kv.put(key, await sealJSON(tokens, keyB64));
+  log('KV_WRITE', { key, expires_at: new Date(tokens.expires_at).toISOString(), encrypted: !!keyB64 });
 }
 
-export async function getTokens(kv: KVNamespace, userId: string): Promise<StoredTokens | null> {
+export async function getTokens(kv: KVNamespace, userId: string, keyB64?: string): Promise<StoredTokens | null> {
   const key = `wkrp:tokens:${userId}`;
   const raw = await kv.get(key);
   if (!raw) {
@@ -116,7 +118,7 @@ export async function getTokens(kv: KVNamespace, userId: string): Promise<Stored
     return null;
   }
   log('KV_HIT', { key });
-  return JSON.parse(raw) as StoredTokens;
+  return openJSON<StoredTokens>(raw, keyB64);
 }
 
 // Right-to-erasure: purge a contributor's Spotify tokens.
@@ -126,14 +128,15 @@ export async function deleteTokens(kv: KVNamespace, userId: string): Promise<voi
   log('KV_DELETE', { key });
 }
 
-// Last.fm session keys — permanent (no expiry)
-export async function storeLastfmSession(kv: KVNamespace, contributorId: string, data: { username: string; session_key: string }): Promise<void> {
+// Last.fm session keys — permanent (no expiry). Encrypted at rest when a key is
+// provided (F2); callers pass env.WKRP_ENCRYPTION_KEY.
+export async function storeLastfmSession(kv: KVNamespace, contributorId: string, data: { username: string; session_key: string }, keyB64?: string): Promise<void> {
   const key = `wkrp:lastfm:${contributorId}`;
-  await kv.put(key, JSON.stringify(data));
-  log('KV_WRITE', { key });
+  await kv.put(key, await sealJSON(data, keyB64));
+  log('KV_WRITE', { key, encrypted: !!keyB64 });
 }
 
-export async function getLastfmSession(kv: KVNamespace, contributorId: string): Promise<{ username: string; session_key: string } | null> {
+export async function getLastfmSession(kv: KVNamespace, contributorId: string, keyB64?: string): Promise<{ username: string; session_key: string } | null> {
   const key = `wkrp:lastfm:${contributorId}`;
   const raw = await kv.get(key);
   if (!raw) {
@@ -141,7 +144,7 @@ export async function getLastfmSession(kv: KVNamespace, contributorId: string): 
     return null;
   }
   log('KV_HIT', { key });
-  return JSON.parse(raw) as { username: string; session_key: string };
+  return openJSON<{ username: string; session_key: string }>(raw, keyB64);
 }
 
 // Right-to-erasure: purge a contributor's Last.fm session key.

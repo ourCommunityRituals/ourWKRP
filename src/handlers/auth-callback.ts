@@ -81,7 +81,7 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
       refresh_token: tokenResponse.refresh_token ?? '',
       expires_at: Date.now() + (tokenResponse.expires_in * 1000),
     };
-    await storeTokens(env.WKRP_KV, contributorId, storedTokens);
+    await storeTokens(env.WKRP_KV, contributorId, storedTokens, env.WKRP_ENCRYPTION_KEY);
 
     // Create session — stored in KV, delivered via HttpOnly cookie
     const sessionToken = crypto.randomUUID();
