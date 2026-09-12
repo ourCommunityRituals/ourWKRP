@@ -28,7 +28,39 @@
  * `browser.newContext({ extraHTTPHeaders: ... })` — a context built by hand
  * does not inherit the fixture's option override.
  */
-import { test as base, expect, type TestInfo } from '@playwright/test';
+import { test as base, expect, type TestInfo, type APIRequestContext } from '@playwright/test';
+
+/** Local-only admin token — mirrors wrangler.e2e.toml [vars] WKRP_ADMIN_TOKEN. */
+const E2E_ADMIN_TOKEN = 'e2e-admin-token';
+const PRIVILEGED_ROLES = new Set(['dj', 'curator']);
+
+/**
+ * Register a contributor and return its id. Self-service register only mints
+ * unprivileged roles (F1), so for a dj/curator we register as a contributor and
+ * then grant the role through the admin endpoint — the real path a privileged
+ * role is conferred. Asserts each step so a spec fails loudly on regression.
+ */
+export async function registerAs(
+  request: APIRequestContext,
+  opts: { name: string; role?: string; generation?: string },
+): Promise<{ id: string; cookie: string }> {
+  const { name, role = 'contributor', generation = 'gen2' } = opts;
+  const privileged = PRIVILEGED_ROLES.has(role);
+  const reg = await request.post('/auth/register', {
+    data: { name, role: privileged ? 'contributor' : role, generation },
+  });
+  expect(reg.status()).toBe(201);
+  const { contributor } = await reg.json() as { contributor: { id: string } };
+  const cookie = reg.headers()['set-cookie'] ?? '';
+  if (privileged) {
+    const grant = await request.post('/admin/roles/grant', {
+      headers: { Authorization: `Bearer ${E2E_ADMIN_TOKEN}` },
+      data: { contributorId: contributor.id, role },
+    });
+    expect(grant.status()).toBe(200);
+  }
+  return { id: contributor.id, cookie };
+}
 
 /**
  * A deterministic, per-test synthetic client IP.

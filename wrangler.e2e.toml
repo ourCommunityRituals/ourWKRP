@@ -41,6 +41,9 @@ SPOTIFY_REDIRECT_URI = "http://localhost:8787/auth/callback"
 APP_URL = "http://localhost:8787"
 LASTFM_API_KEY = ""
 LASTFM_SHARED_SECRET = ""
+# Local-only admin token so E2E can grant dj/curator via POST /admin/roles/grant
+# (F1). Production injects a real WKRP_ADMIN_TOKEN as a Doppler/Workers secret.
+WKRP_ADMIN_TOKEN = "e2e-admin-token"
 
 # KV Namespace for auth/session state (same id as wrangler.toml → shared local state)
 [[kv_namespaces]]

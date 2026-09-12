@@ -25,6 +25,15 @@
 #                               wrangler secret put OSE_INTEGRATION_TOKEN --env production
 #                             DO NOT hardcode a value here.
 #
+# Admin service token (F1 — SECRET, never a [vars] value):
+#   WKRP_ADMIN_TOKEN       -> presented to POST /admin/roles/grant to confer a
+#                             privileged role (dj/curator). Compared constant-time
+#                             in src/lib/admin-auth.ts. If UNSET the endpoint
+#                             FAILS CLOSED (401) — never open. Set via Doppler or:
+#                               wrangler secret put WKRP_ADMIN_TOKEN
+#                               wrangler secret put WKRP_ADMIN_TOKEN --env production
+#                             DO NOT hardcode a value here.
+#
 # Local dev setup:
 #   doppler setup           -> select ourwkrp project + dev config
 #   doppler run -- wrangler dev

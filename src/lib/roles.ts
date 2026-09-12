@@ -37,9 +37,9 @@ export function isPrivilegedRole(role: unknown): role is PrivilegedRole {
 /**
  * Confer a privileged role on an existing contributor. This is the ONLY code
  * path by which `dj` / `curator` may be assigned, so every privileged grant
- * flows through one auditable place. It is deliberately not exported to any
- * router entry: callers must already have established admin authority (future
- * OW admin gate) before invoking it. Returns false if no contributor matched.
+ * flows through one auditable place. Its sole caller is handleGrantRole
+ * (POST /admin/roles/grant), which establishes admin authority via the WKRP
+ * admin token (admin-auth.ts) first. Returns false if no contributor matched.
  */
 export async function grantPrivilegedRole(
   env: Env,

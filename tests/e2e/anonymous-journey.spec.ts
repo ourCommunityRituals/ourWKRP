@@ -8,7 +8,7 @@
  * Data setup (contributors/DJs to view) uses the `request` fixture, which has
  * its own context — so the `page` stays genuinely anonymous.
  */
-import { test, expect } from './fixtures';
+import { test, expect, registerAs } from './fixtures';
 
 test.describe('Anonymous journey — no account', () => {
   test('"Browse the Catalog" reaches the catalog with no name', async ({ page }) => {
@@ -36,32 +36,23 @@ test.describe('Anonymous journey — no account', () => {
   });
 
   test('a contributor profile is publicly viewable', async ({ page, request }) => {
-    const res = await request.post('/auth/register', {
-      data: { name: 'Public Pat', role: 'curator', generation: 'gen2' },
-    });
-    const { contributor } = (await res.json()) as { contributor: { id: string } };
+    const { id } = await registerAs(request, { name: 'Public Pat', role: 'curator', generation: 'gen2' });
 
-    await page.goto(`/contributor/${contributor.id}`);
+    await page.goto(`/contributor/${id}`);
     await expect(page.getByTestId('nav-catalog')).toBeVisible();
   });
 
   test('a DJ live page renders for a DJ with no active set', async ({ page, request }) => {
-    const res = await request.post('/auth/register', {
-      data: { name: 'Offline Olly', role: 'dj', generation: 'founder' },
-    });
-    const { contributor } = (await res.json()) as { contributor: { id: string } };
+    const { id } = await registerAs(request, { name: 'Offline Olly', role: 'dj', generation: 'founder' });
 
-    await page.goto(`/dj/${contributor.id}`);
+    await page.goto(`/dj/${id}`);
     await expect(page.getByTestId('offline-view')).toBeVisible();
   });
 
   test('the DJ QR poster renders', async ({ page, request }) => {
-    const res = await request.post('/auth/register', {
-      data: { name: 'Poster Pam', role: 'dj', generation: 'founder' },
-    });
-    const { contributor } = (await res.json()) as { contributor: { id: string } };
+    const { id } = await registerAs(request, { name: 'Poster Pam', role: 'dj', generation: 'founder' });
 
-    await page.goto(`/dj/${contributor.id}/poster`);
+    await page.goto(`/dj/${id}/poster`);
     await expect(page.getByTestId('display-card')).toBeVisible();
   });
 

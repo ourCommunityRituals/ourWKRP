@@ -23,6 +23,11 @@ export interface Env {
   // Optional so unset environments FAIL CLOSED (401), never open. Injected as a
   // Doppler/Workers secret; documented placeholder in wrangler.toml.
   OSE_INTEGRATION_TOKEN?: string;
+  // Admin service token (F1 auth hardening). Presented to POST /admin/roles/grant
+  // and compared constant-time in admin-auth.ts. Optional so unset environments
+  // FAIL CLOSED (401), never open. Injected as a Doppler/Workers secret;
+  // documented placeholder in wrangler.toml.
+  WKRP_ADMIN_TOKEN?: string;
 }
 
 export type ContributorRole = 'founder' | 'curator' | 'contributor' | 'dj';

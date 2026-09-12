@@ -59,12 +59,20 @@ export const spotifyTrackIdSchema = z.string().regex(
 
 // --- Auth ---
 
-// Role + generation default so the simplest sign-up is just a name.
-// Callers (e.g. DJ-specific onboarding) can still pass explicit values.
+// Role + generation default so the simplest sign-up is just a name. Sign-up may
+// only self-assign an unprivileged role (F1); dj/curator are granted via
+// POST /admin/roles/grant (grantRoleBodySchema below).
 export const registerBodySchema = z.object({
   name: nameSchema,
   role: selfAssignableRoleSchema.default('contributor'),
   generation: generationSchema.default('founder'),
+});
+
+// Admin grant of a privileged role (F1). Only dj/curator are grantable here —
+// self-assignable roles are the register default and need no grant.
+export const grantRoleBodySchema = z.object({
+  contributorId: uuidSchema,
+  role: z.enum(['dj', 'curator'], { message: 'Grantable role must be dj or curator' }),
 });
 
 // --- Playlists ---

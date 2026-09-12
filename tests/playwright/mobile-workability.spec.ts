@@ -117,11 +117,19 @@ function auditContracts(ctaTestids: string[]): string[] {
 }
 
 async function registerDj(page: import('@playwright/test').Page): Promise<string> {
+  // Self-service register only mints unprivileged roles (F1). Register as a
+  // contributor, then grant `dj` via the admin endpoint (the real grant path)
+  // using the local-only token from wrangler.e2e.toml.
   const res = await page.request.post('/auth/register', {
-    data: { name: 'Audit DJ', role: 'dj', generation: 'founder' },
+    data: { name: 'Audit DJ', role: 'contributor', generation: 'founder' },
   });
   expect(res.status(), 'DJ registration for audit setup').toBe(201);
   const body = (await res.json()) as { contributor: { id: string } };
+  const grant = await page.request.post('/admin/roles/grant', {
+    headers: { Authorization: 'Bearer e2e-admin-token' },
+    data: { contributorId: body.contributor.id, role: 'dj' },
+  });
+  expect(grant.status(), 'admin grant of dj role').toBe(200);
   return body.contributor.id;
 }
 
