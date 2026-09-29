@@ -32,6 +32,12 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
+      # wrangler dev bundles @ocr/ui (/ui.css), so the pinned hub package must
+      # be staged first, exactly as ci.yml does (OW-151).
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
