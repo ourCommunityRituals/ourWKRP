@@ -55,6 +55,29 @@
 
 import type { Env } from './types';
 import { serveCss } from '@ocr/ui/css';
+
+let uiCssEtagMemo: { css: string; etag: string } | undefined;
+/**
+ * /ui.css with ETag revalidation (OSE-1398). The href never changes, so
+ * @ocr/ui's 24h max-age would pair new HTML with stale CSS for a day after
+ * every .ocr-hub-ref bump; a strong ETag + must-revalidate costs one 304.
+ */
+async function revalidatingCss(request: Request): Promise<Response> {
+  const res = serveCss();
+  const css = await res.text();
+  if (uiCssEtagMemo?.css !== css) {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(css));
+    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    uiCssEtagMemo = { css, etag: `"${hex.slice(0, 32)}"` };
+  }
+  const headers = new Headers(res.headers);
+  headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
+  headers.set('ETag', uiCssEtagMemo.etag);
+  if (request.headers.get('If-None-Match') === uiCssEtagMemo.etag) {
+    return new Response(null, { status: 304, headers });
+  }
+  return new Response(css, { status: res.status, headers });
+}
 import { handleHealth } from './handlers/health';
 import { handleAuthStart } from './handlers/auth-start';
 import { handleRegister } from './handlers/auth-register';
@@ -119,7 +142,7 @@ export async function route(request: Request, env: Env): Promise<Response> {
   }
   // Shared design system CSS
   else if (method === 'GET' && path === '/ui.css') {
-    response = serveCss();
+    response = await revalidatingCss(request);
   }
   // Auth endpoints
   else if (method === 'POST' && path === '/auth/register') {

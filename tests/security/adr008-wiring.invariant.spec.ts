@@ -113,7 +113,7 @@ describe('ADR-008 wiring lock', () => {
     const { text } = workflows.find((w) => w.file === 'ci.yml')!;
     const job = Object.values(jobs(text)).find((j) => j.includes('check-spoke-styles.mjs'));
     expect(job).toBeDefined();
-    expect(job!).toMatch(/run: node \.\.\/packages\/ui\/scripts\/check-spoke-styles\.mjs --root \./);
+    expect(job!).toMatch(/node \.\.\/packages\/ui\/scripts\/check-spoke-styles\.mjs --root \./);
     expect(job!.indexOf(STAGE)).toBeGreaterThan(-1);
     expect(job!.indexOf(STAGE)).toBeLessThan(job!.indexOf('check-spoke-styles.mjs'));
     const step = job!.slice(job!.lastIndexOf('- name:', job!.indexOf('check-spoke-styles.mjs')));

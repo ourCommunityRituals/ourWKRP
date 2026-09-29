@@ -136,8 +136,21 @@ jobs:
       # Blocking (ADR-008): WKRP may not grow its own tokens or stylesheet. The
       # checker is the hub's own, from the pinned commit in .ocr-hub-ref; the
       # baseline in .ocr-design-check.json may only shrink.
+      # On PRs the baseline file itself is compared against the base branch's
+      # copy (--base-config, OSE-1397): a PR may lower it, never raise it.
       - name: Design check (@ocr/ui — no spoke-local tokens or stylesheet)
-        run: node ../packages/ui/scripts/check-spoke-styles.mjs --root .
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          ARGS=()
+          if [ -n "$BASE_REF" ]; then
+            git fetch -q --depth=1 origin "$BASE_REF"
+            if git cat-file -e FETCH_HEAD:.ocr-design-check.json 2>/dev/null; then
+              git show FETCH_HEAD:.ocr-design-check.json > "$RUNNER_TEMP/base-design-check.json"
+              ARGS=(--base-config "$RUNNER_TEMP/base-design-check.json")
+            fi
+          fi
+          node ../packages/ui/scripts/check-spoke-styles.mjs --root . "${ARGS[@]}"
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
