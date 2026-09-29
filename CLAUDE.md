@@ -67,6 +67,9 @@ src/
     └── stats.html            # Catalog stats
 ```
 
+### Styling — the shared @ocr/ui design system (ADR-008)
+Every template links `/ui.css` (served by `router.ts` via `serveCss` from `@ocr/ui`) and sets `<html data-brand="ow">` — amber on black in dark, burnt amber on warm paper in light, registered as `brandThemes.ow` in the hub. Templates keep only a tiny page `<style>` (≤400 chars, no tokens, no hex); anything bigger belongs in the hub's `styles.ts` "named surfaces (ourWKRP)" section. `--live` is the fleet teal and destructive actions use `.btn-danger` — both locked, the brand cannot recolour them. The hub commit is pinned in `.ocr-hub-ref` (CI stages exactly that SHA), and the blocking **Design check** step runs the hub's `check-spoke-styles.mjs` against `.ocr-design-check.json` — its baseline may only shrink.
+
 ### Endpoints (core subset — see `src/router.ts` header for the full ~54-route table)
 | Method | Path | Purpose |
 |--------|------|---------|
