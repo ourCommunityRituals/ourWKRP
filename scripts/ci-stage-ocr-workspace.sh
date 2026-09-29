@@ -10,16 +10,16 @@
 # the repo root — one full 40-char SHA of ourCommunityRituals. The same WKRP
 # commit therefore always builds, tests and design-checks against the same
 # @ocr/ui; a hub change reaches WKRP only through a PR that bumps the pin.
-# (Previously this tracked origin/main, so a hub push could turn WKRP red — or
-# green — with no WKRP change at all.)
+# The pin must also be a MERGED hub commit (reachable from hub main): `git
+# fetch <sha>` serves unmerged branch and PR commits too (OSE-1394).
 #
-# Idempotent: initialises the cache on first run, then fetches exactly the
-# pinned commit. Cache directory (_ocr-workspace-cache) is one level above the
-# WKRP checkout.
+# AUTH (OW-150): the org secret OCR_PROPAGATE_TOKEN is passed ONLY to the
+# staging step (step-scoped env, never workflow-level) and used as a transient
+# `-c http.extraheader=...` — never embedded in the remote URL, so it is never
+# written to $WS_CACHE/.git/config. Same posture as ourSharedEvents'
+# scripts/ci-stage-ocr-workspace.sh.
 #
-# Auth is unchanged: SOURCE_REPO (OCR_WORKSPACE_REPO) carries the
-# x-access-token URL CI builds from OCR_PROPAGATE_TOKEN; GitHub masks it.
-# If the fetch fails, the cache is used ONLY when it is already at the pinned
+# If the fetch fails, the cache is used ONLY when it already holds the pinned
 # commit — a stale cache at some other commit is never staged.
 set -euo pipefail
 
@@ -28,47 +28,66 @@ WS_CACHE="$ROOT/../_ocr-workspace-cache"
 TARGET_PARENT="$ROOT/../packages"
 SOURCE_REPO="${OCR_WORKSPACE_REPO:-https://github.com/ourCommunityRituals/ourCommunityRituals.git}"
 REF_FILE="$ROOT/.ocr-hub-ref"
+HUB_MAIN="${OCR_HUB_MAIN_BRANCH:-main}"
 
-if [ ! -f "$REF_FILE" ]; then
-  echo "[stage] ERROR: $REF_FILE missing — WKRP must pin the hub commit it builds against" >&2
+fail() {
+  # $1 = short title, $2 = detail. Annotation + non-zero exit: @ocr/ui is required.
+  echo "::error title=@ocr/ui staging failed (ADR-008 pin)::$2"
+  echo "[stage] FATAL: $1" >&2
   exit 1
-fi
+}
+
+[ -f "$REF_FILE" ] || fail "no pin file" "$REF_FILE is missing — WKRP must pin the hub commit it builds against."
 REF="$(tr -d '[:space:]' < "$REF_FILE")"
-if ! printf '%s' "$REF" | grep -Eq '^[0-9a-f]{40}$'; then
-  echo "[stage] ERROR: .ocr-hub-ref must hold one full 40-char commit SHA, got '$REF'" >&2
-  exit 1
-fi
+[[ "$REF" =~ ^[0-9a-f]{40}$ ]] || fail "bad pin" ".ocr-hub-ref must hold one full 40-char commit SHA (got '$REF')."
 echo "[stage] @ocr/ui pinned to ourCommunityRituals@$REF"
+
+AUTH_ARGS=()
+if [ -n "${OCR_PROPAGATE_TOKEN:-}" ]; then
+  AUTH_HEADER="AUTHORIZATION: basic $(printf '%s' "x-access-token:${OCR_PROPAGATE_TOKEN}" | base64 | tr -d '\n')"
+  AUTH_ARGS=(-c "http.extraheader=${AUTH_HEADER}")
+fi
 
 if [ ! -d "$WS_CACHE/.git" ]; then
   echo "[stage] initialising hub cache at $WS_CACHE"
+  rm -rf "$WS_CACHE"
   git init -q "$WS_CACHE"
   git -C "$WS_CACHE" remote add origin "$SOURCE_REPO"
 else
   git -C "$WS_CACHE" remote set-url origin "$SOURCE_REPO"
 fi
 
-if git -C "$WS_CACHE" fetch --depth 1 origin "$REF" && \
-   git -C "$WS_CACHE" checkout -q --detach FETCH_HEAD; then
+if git -C "$WS_CACHE" ${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"} fetch -q --depth 1 origin "$REF" && \
+   git -C "$WS_CACHE" -c advice.detachedHead=false checkout -q --force --detach FETCH_HEAD; then
   echo "[stage] fetched pinned hub commit"
+elif git -C "$WS_CACHE" cat-file -e "${REF}^{commit}" 2>/dev/null && \
+     git -C "$WS_CACHE" -c advice.detachedHead=false checkout -q --force --detach "$REF"; then
+  echo "::warning title=hub fetch failed — using cached pinned commit::fetch of $REF failed, but the local cache already holds that exact commit, so it was used."
 else
-  echo "[stage] ============================================================"
-  echo "[stage] WARNING: fetch of pinned hub commit failed"
-  echo "[stage] ============================================================"
+  if [ -z "${OCR_PROPAGATE_TOKEN:-}" ]; then
+    CAUSE="OCR_PROPAGATE_TOKEN is not available in this run context (e.g. dependabot or a step without the step-scoped env), so the fetch from the private hub was unauthenticated"
+  else
+    CAUSE="the token is present but the fetch still failed (revoked/expired token, network error, or the pinned commit does not exist on the hub)"
+  fi
+  fail "could not fetch pinned hub commit" "could not fetch hub commit $REF (.ocr-hub-ref): $CAUSE."
 fi
 
-HEAD_SHA="$(git -C "$WS_CACHE" rev-parse HEAD 2>/dev/null || echo none)"
-if [ "$HEAD_SHA" != "$REF" ]; then
-  echo "[stage] ERROR: hub cache is at $HEAD_SHA, not the pinned $REF" >&2
-  echo "[stage] likely cause: runner lacks credentials for the hub repo, or the pinned commit was never pushed" >&2
-  exit 1
-fi
-echo "[stage] hub cache at $HEAD_SHA"
+HEAD_SHA="$(git -C "$WS_CACHE" rev-parse HEAD)"
+[ "$HEAD_SHA" = "$REF" ] || fail "pin mismatch" "hub cache HEAD is $HEAD_SHA, expected pinned $REF."
 
-if [ ! -d "$WS_CACHE/packages/ui" ]; then
-  echo "[stage] ERROR: $WS_CACHE/packages/ui missing at $REF" >&2
-  exit 1
+# MERGED-ONLY (OSE-1394): the pin must be an ancestor of hub main.
+if git -C "$WS_CACHE" ${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"} fetch -q --filter=blob:none origin \
+     "+refs/heads/$HUB_MAIN:refs/remotes/origin/$HUB_MAIN"; then
+  git -C "$WS_CACHE" merge-base --is-ancestor "$REF" "refs/remotes/origin/$HUB_MAIN" || \
+    fail "pin not on hub $HUB_MAIN" "hub commit $REF (.ocr-hub-ref) is not reachable from hub $HUB_MAIN — pin only merged hub commits."
+  echo "[stage] pin is on hub $HUB_MAIN"
+elif [ -z "${GITHUB_ACTIONS:-}" ]; then
+  echo "::warning title=pin ancestry unverified::could not fetch hub $HUB_MAIN (local run) — ancestry of $REF not checked."
+else
+  fail "could not fetch hub $HUB_MAIN" "could not fetch hub $HUB_MAIN to verify $REF is merged."
 fi
+
+[ -d "$WS_CACHE/packages/ui" ] || fail "pinned hub has no @ocr/ui" "hub commit $REF has no packages/ui."
 
 mkdir -p "$TARGET_PARENT"
 rm -rf "$TARGET_PARENT/ui"

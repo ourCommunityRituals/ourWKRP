@@ -51,14 +51,11 @@ defaults:
     shell: bash
 
 # The @ocr/ui staging script (scripts/ci-stage-ocr-workspace.sh) fetches the
-# private ourCommunityRituals workspace repo at the commit pinned in
-# .ocr-hub-ref (never a moving branch). The self-hosted runner had
-# ambient git credentials; a hosted ubuntu VM does not — so pass an
-# authenticated clone URL via OCR_PROPAGATE_TOKEN (the org secret that
-# brain-contract-check already uses to read private OCR repos). GitHub masks
-# the token in logs.
-env:
-  OCR_WORKSPACE_REPO: https://x-access-token:${{ secrets.OCR_PROPAGATE_TOKEN }}@github.com/ourCommunityRituals/ourCommunityRituals.git
+# private ourCommunityRituals hub at the commit pinned in .ocr-hub-ref (never a
+# moving branch). OCR_PROPAGATE_TOKEN is passed ONLY to each staging step
+# (step-scoped env) and used as a transient http.extraheader — never at
+# workflow level, where every step (npm lifecycle scripts, tests, the dev
+# server) could read it (OW-150, CCR OSE-1393 H2).
 
 jobs:
   # ============================================
@@ -80,6 +77,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
 
       - name: Initialize CodeQL
@@ -132,6 +131,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       # Blocking (ADR-008): WKRP may not grow its own tokens or stylesheet. The
       # checker is the hub's own, from the pinned commit in .ocr-hub-ref; the
       # baseline in .ocr-design-check.json may only shrink.
@@ -176,6 +177,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
       - run: npm run test:unit
 
@@ -191,6 +194,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
       - run: npm run test:integration
 
@@ -206,6 +211,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
       - run: npm run test:contract
 
@@ -221,6 +228,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
       - run: npm run test:security
 
@@ -242,6 +251,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
@@ -282,6 +293,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
       # `bru run --reporter-junit` EXITS non-zero if the target directory does
       # not exist — even when every assertion passes (mirrors OSE-1191). Make it
@@ -311,6 +324,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
       # Property-based fuzzing (fast-check) over the untrusted input boundaries:
       # CSV parser, pagination cursors, catalog query-param sanitizers.
@@ -332,6 +347,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
       - run: npm run test:performance
 
@@ -380,6 +397,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
 
       # Preflight: refuse to deploy if security wiring is missing from
@@ -446,6 +465,8 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
 
       - name: Preflight — security wiring present
