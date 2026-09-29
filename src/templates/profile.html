@@ -1,386 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-brand="ow">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>ourWKRP — Contributor</title>
-  <style>
-    :root {
-      --bg: #0a0a0a;
-      --surface: #141414;
-      --surface-hover: #1a1a1a;
-      --border: #2a2a2a;
-      --text: #f0f0f0;
-      --text-muted: #888;
-      --accent: #D4954B;
-      --accent-hover: #E8A849;
-      --radius: 12px;
-      --radius-sm: 8px;
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: var(--font);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100dvh;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* --- Loading --- */
-    .loading {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 60vh;
-      gap: 20px;
-    }
-
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .loading-text {
-      font-size: 1rem;
-      color: var(--text-muted);
-    }
-
-    /* --- Profile Header --- */
-    .profile-header {
-      padding: 32px 20px 20px;
-      text-align: center;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .profile-avatar {
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      background: var(--accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.75rem;
-      font-weight: 700;
-      color: #000;
-      margin: 0 auto 12px;
-    }
-
-    .profile-name {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .profile-role {
-      font-size: 0.8rem;
-      color: var(--accent);
-      background: rgba(212, 149, 75, 0.1);
-      padding: 4px 12px;
-      border-radius: 20px;
-      display: inline-block;
-      margin-bottom: 4px;
-    }
-
-    /* Vanity URL (OW-122) — unobtrusive, sits under the role chips. */
-    .profile-slug {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      margin-top: 6px;
-      margin-bottom: 2px;
-      word-break: break-all;
-    }
-
-    .profile-generation {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-    }
-
-    .profile-joined {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      margin-top: 8px;
-    }
-
-    /* --- Stats Cards --- */
-    .stats-row {
-      display: flex;
-      gap: 12px;
-      padding: 20px;
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
-
-    .stats-row::-webkit-scrollbar { display: none; }
-
-    .stat-card {
-      flex: 1;
-      min-width: 90px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 14px;
-      text-align: center;
-    }
-
-    .stat-value {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--accent);
-    }
-
-    .stat-label {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    /* --- Sections --- */
-    .section {
-      padding: 16px 20px;
-      border-top: 1px solid var(--border);
-    }
-
-    .section-title {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 12px;
-    }
-
-    /* --- Genre Tags --- */
-    .genre-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .genre-tag {
-      display: inline-block;
-      font-size: 0.8rem;
-      padding: 6px 14px;
-      border-radius: 20px;
-      background: rgba(212, 149, 75, 0.1);
-      color: var(--accent);
-      cursor: pointer;
-      transition: background 0.15s;
-      min-height: 44px;
-      line-height: 30px;
-    }
-
-    .genre-tag:hover {
-      background: rgba(212, 149, 75, 0.25);
-    }
-
-    .genre-count {
-      font-size: 0.65rem;
-      color: var(--text-muted);
-      margin-left: 4px;
-    }
-
-    /* --- Facet Chips (declared domain + depth) --- */
-    .facet-chip {
-      display: inline-block;
-      font-size: 0.8rem;
-      padding: 6px 14px;
-      border-radius: 20px;
-      background: rgba(212, 149, 75, 0.1);
-      color: var(--accent);
-      min-height: 44px;
-      line-height: 30px;
-    }
-
-    .facet-depth {
-      font-size: 0.65rem;
-      color: var(--text-muted);
-      margin-left: 6px;
-      text-transform: capitalize;
-    }
-
-    /* --- Playlists --- */
-    .playlist-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px;
-      border-radius: var(--radius-sm);
-      transition: background 0.15s;
-      min-height: 48px;
-    }
-
-    .playlist-item:hover {
-      background: var(--surface-hover);
-    }
-
-    .playlist-name {
-      font-size: 0.9rem;
-      font-weight: 500;
-    }
-
-    .playlist-count {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-    }
-
-    /* --- Source Badges --- */
-    .source-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .source-badge {
-      font-size: 0.75rem;
-      padding: 6px 14px;
-      border-radius: 20px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text);
-      min-height: 44px;
-      line-height: 30px;
-    }
-
-    /* --- Brands --- */
-    .brand-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px;
-      border-radius: var(--radius-sm);
-      min-height: 48px;
-    }
-
-    .brand-name {
-      font-size: 0.9rem;
-      font-weight: 500;
-    }
-
-    .brand-tracks {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-    }
-
-    /* --- Not Found --- */
-    .not-found {
-      text-align: center;
-      padding: 80px 20px;
-    }
-
-    .not-found h2 {
-      margin-bottom: 8px;
-    }
-
-    .not-found p {
-      color: var(--text-muted);
-    }
-
-    /* --- Genre Popup (reuse from catalog) --- */
-    .genre-popup {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      border-radius: 16px 16px 0 0;
-      padding: 20px 20px env(safe-area-inset-bottom, 20px);
-      z-index: 100;
-      transform: translateY(100%);
-      transition: transform 0.25s ease-out;
-    }
-
-    .genre-popup.open { transform: translateY(0); }
-
-    .genre-popup-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 99;
-      display: none;
-    }
-
-    .genre-popup-backdrop.open { display: block; }
-
-    .genre-popup-title {
-      font-size: 1rem;
-      font-weight: 600;
-      margin-bottom: 16px;
-    }
-
-    .genre-popup-links {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .genre-link {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 12px;
-      border-radius: var(--radius-sm);
-      color: var(--text);
-      text-decoration: none;
-      font-size: 0.9rem;
-      transition: background 0.15s;
-      min-height: 48px;
-    }
-
-    .genre-link:hover { background: var(--surface-hover); }
-
-    .genre-link-icon { width: 28px; text-align: center; font-size: 1.1rem; flex-shrink: 0; }
-
-    .genre-link-info { flex: 1; }
-    .genre-link-label { font-weight: 500; }
-    .genre-link-desc { font-size: 0.75rem; color: var(--text-muted); }
-    .genre-link::after { content: '↗'; font-size: 0.8rem; color: var(--text-muted); margin-left: auto; padding-left: 8px; }
-
-    /* --- Bottom Nav --- */
-    .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(10, 10, 10, 0.95);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: space-around;
-      padding: 10px 0 env(safe-area-inset-bottom, 10px);
-    }
-
-    .nav-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      font-size: 0.65rem;
-      color: var(--text-muted);
-      text-decoration: none;
-      padding: 6px 16px;
-      transition: color 0.2s;
-    }
-
-    .nav-item svg { width: 22px; height: 22px; }
-
-    .content-wrap { padding-bottom: 80px; }
-
-    .hidden { display: none; }
-  </style>
+  <link rel="stylesheet" href="/ui.css">
+  <style>.stats-row{gap:12px;padding:20px}.section{padding:16px 20px;border-top:1px solid var(--border)}.section-title{font-size:.85rem}#portfolio-error{margin-bottom:10px;font-size:.85rem}</style>
 </head>
 <body>
   <!-- Loading State -->
@@ -400,7 +25,7 @@
     <div class="profile-header" data-testid="profile-header">
       <div class="profile-avatar" id="profile-avatar" data-testid="profile-avatar"></div>
       <div class="profile-name" id="profile-name" data-testid="profile-name"></div>
-      <div id="profile-roles" data-testid="profile-roles"></div>
+      <div id="profile-roles" class="profile-roles" data-testid="profile-roles"></div>
       <div class="profile-slug hidden" id="profile-slug" data-testid="profile-slug"></div>
       <div class="profile-generation" id="profile-generation" data-testid="profile-generation"></div>
       <div class="profile-joined" id="profile-joined" data-testid="profile-joined"></div>
@@ -438,13 +63,13 @@
 
     <div class="section hidden" id="portfolio-section" data-testid="portfolio-section">
       <div class="section-title">Preferred Playlists</div>
-      <div id="portfolio-add" data-testid="portfolio-add" class="hidden" style="display:flex;gap:8px;margin-bottom:12px;">
+      <div id="portfolio-add" data-testid="portfolio-add" class="portfolio-add hidden">
         <input type="url" id="portfolio-url" data-testid="portfolio-url" placeholder="Paste a Spotify playlist link"
-          style="flex:1;min-height:44px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;font-family:var(--font);outline:none;">
+          class="input">
         <button type="button" id="portfolio-add-btn" data-testid="portfolio-add-btn"
-          style="min-height:44px;min-width:44px;padding:10px 18px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:16px;font-weight:600;font-family:var(--font);cursor:pointer;">Add</button>
+          class="btn btn-primary">Add</button>
       </div>
-      <div id="portfolio-error" data-testid="portfolio-error" class="hidden" style="color:#e5484d;font-size:0.85rem;margin-bottom:10px;"></div>
+      <div id="portfolio-error" data-testid="portfolio-error" class="form-error hidden"></div>
       <div id="portfolio-list" data-testid="portfolio-list"></div>
     </div>
 
@@ -548,7 +173,7 @@
         document.getElementById('profile-name').textContent = c.name;
         var roles = data.roles || [c.role];
         document.getElementById('profile-roles').innerHTML = roles.map(function(r) {
-          return '<span class="profile-role">' + escapeHtml(r) + '</span>';
+          return '<span class="user-badge">' + escapeHtml(r) + '</span>';
         }).join(' ');
         // Vanity URL (OW-122) — shown only when the contributor has claimed a
         // slug. textContent, never innerHTML: the slug is user-chosen.
@@ -588,7 +213,7 @@
           document.getElementById('genres-section').classList.add('hidden');
         } else {
           genreList.innerHTML = genres.map(function(g) {
-            return '<span class="genre-tag" data-genre="' + escapeHtml(g.genre) + '" data-testid="genre-tag">' +
+            return '<span class="genre-tag genre-tag--lg" data-genre="' + escapeHtml(g.genre) + '" data-testid="genre-tag">' +
               escapeHtml(g.genre) + '<span class="genre-count">' + g.count + '</span></span>';
           }).join('');
         }
@@ -600,9 +225,9 @@
           document.getElementById('playlists-section').classList.add('hidden');
         } else {
           playlistList.innerHTML = playlists.map(function(p) {
-            return '<div class="playlist-item" data-testid="playlist-item">' +
-              '<span class="playlist-name">' + escapeHtml(p.name) + '</span>' +
-              '<span class="playlist-count">' + p.track_count + ' tracks</span>' +
+            return '<div class="list-item" data-testid="playlist-item">' +
+              '<span class="list-name">' + escapeHtml(p.name) + '</span>' +
+              '<span class="list-sub">' + p.track_count + ' tracks</span>' +
               '</div>';
           }).join('');
         }
@@ -632,9 +257,9 @@
           document.getElementById('brands-section').classList.add('hidden');
         } else {
           brandListEl.innerHTML = brands.map(function(b) {
-            return '<div class="brand-item" data-testid="brand-item">' +
-              '<span class="brand-name">' + escapeHtml(b.name) + '</span>' +
-              '<span class="brand-tracks">' + b.track_count + ' tracks</span>' +
+            return '<div class="list-item" data-testid="brand-item">' +
+              '<span class="list-name">' + escapeHtml(b.name) + '</span>' +
+              '<span class="list-sub">' + b.track_count + ' tracks</span>' +
               '</div>';
           }).join('');
         }
@@ -703,10 +328,10 @@
         }
         list.innerHTML = playlists.map(function(p) {
           var remove = isOwner
-            ? '<button type="button" class="portfolio-remove" data-id="' + escapeHtml(p.id) + '" data-testid="portfolio-remove" style="margin-top:6px;min-height:44px;padding:8px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:0.85rem;font-family:var(--font);cursor:pointer;">Remove</button>'
+            ? '<button type="button" class="btn btn-secondary portfolio-remove" data-id="' + escapeHtml(p.id) + '" data-testid="portfolio-remove" style="margin-top:6px;">Remove</button>'
             : '';
-          return '<div class="portfolio-item" data-testid="portfolio-item" style="margin-bottom:16px;">' +
-            '<iframe data-testid="portfolio-embed" src="' + escapeHtml(p.embed_url) + '" width="100%" height="152" frameborder="0" loading="lazy" allow="encrypted-media" style="border-radius:12px;"></iframe>' +
+          return '<div class="portfolio-item" data-testid="portfolio-item">' +
+            '<iframe data-testid="portfolio-embed" src="' + escapeHtml(p.embed_url) + '" width="100%" height="152" frameborder="0" loading="lazy" allow="encrypted-media"></iframe>' +
             remove +
             '</div>';
         }).join('');

@@ -1,0 +1,11 @@
+{
+  "include": [
+    "src/**/*.html",
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "**/*.d.ts"
+  ],
+  "inlineStyleBudget": 400,
+  "baseline": {}
+}

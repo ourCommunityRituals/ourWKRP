@@ -50,8 +50,9 @@ defaults:
   run:
     shell: bash
 
-# The @ocr/ui staging script (scripts/ci-stage-ocr-workspace.sh) clones the
-# private ourCommunityRituals workspace repo. The self-hosted runner had
+# The @ocr/ui staging script (scripts/ci-stage-ocr-workspace.sh) fetches the
+# private ourCommunityRituals workspace repo at the commit pinned in
+# .ocr-hub-ref (never a moving branch). The self-hosted runner had
 # ambient git credentials; a hosted ubuntu VM does not — so pass an
 # authenticated clone URL via OCR_PROPAGATE_TOKEN (the org secret that
 # brain-contract-check already uses to read private OCR repos). GitHub masks
@@ -131,6 +132,11 @@ jobs:
           node-version: '20'
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
+      # Blocking (ADR-008): WKRP may not grow its own tokens or stylesheet. The
+      # checker is the hub's own, from the pinned commit in .ocr-hub-ref; the
+      # baseline in .ocr-design-check.json may only shrink.
+      - name: Design check (@ocr/ui — no spoke-local tokens or stylesheet)
+        run: node ../packages/ui/scripts/check-spoke-styles.mjs --root .
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint

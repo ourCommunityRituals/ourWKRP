@@ -10,12 +10,23 @@
 import { describe, test, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ocrStylesheet } from '@ocr/ui/css';
 
 const TEMPLATE = (name: string) =>
   fs.readFileSync(path.join(__dirname, '../../src/templates', name), 'utf-8');
 
 const catalogHtml = TEMPLATE('catalog.html');
 const createHtml = TEMPLATE('create.html');
+
+// The [hidden] rule now lives in the shared @ocr/ui stylesheet every page links
+// (ADR-008), not in each template — so "authoritative" means: the page links
+// /ui.css, the sheet carries the !important rule, and it is the sheet's last rule
+// (a later component display rule could otherwise un-hide the element).
+function hiddenIsAuthoritative(html: string): void {
+  expect(html).toContain('<link rel="stylesheet" href="/ui.css">');
+  expect(ocrStylesheet).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important;?\s*\}/);
+  expect(ocrStylesheet.trimEnd().endsWith('[hidden]{display:none!important}')).toBe(true);
+}
 
 // ============================================
 // Where: the catalog page, whose audio-feature chips and sliders only work
@@ -60,7 +71,7 @@ describe('catalog.html audio-feature gating (OW-120)', () => {
     });
 
     test('keeps [hidden] authoritative over the display rules on those elements', () => {
-      expect(catalogHtml).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important;\s*\}/);
+      hiddenIsAuthoritative(catalogHtml);
     });
   });
 });
@@ -85,7 +96,7 @@ describe('create.html audio-feature gating (OW-120)', () => {
     });
 
     test('keeps [hidden] authoritative over the display rules on that section', () => {
-      expect(createHtml).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important;\s*\}/);
+      hiddenIsAuthoritative(createHtml);
     });
   });
 });

@@ -1,205 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-brand="ow">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>ourWKRP — Live Set</title>
-  <style>
-    :root {
-      --bg: #0a0a0a;
-      --surface: #141414;
-      --surface-hover: #1a1a1a;
-      --border: #2a2a2a;
-      --text: #f0f0f0;
-      --text-muted: #888;
-      --accent: #D4954B;
-      --accent-hover: #E8A849;
-      --radius: 12px;
-      --radius-sm: 8px;
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: var(--font);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100dvh;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .header {
-      text-align: center;
-      padding: 32px 20px 20px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .dj-name {
-      font-size: 1.5rem;
-      font-weight: 700;
-    }
-
-    .live-badge {
-      display: inline-block;
-      font-size: 0.7rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: #ff4136;
-      background: rgba(255, 65, 54, 0.15);
-      padding: 4px 10px;
-      border-radius: 20px;
-      margin-top: 8px;
-      animation: pulse 2s ease-in-out infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
-    .venue {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 6px;
-    }
-
-    .offline-msg {
-      text-align: center;
-      padding: 60px 20px;
-    }
-
-    .offline-msg h2 { margin-bottom: 8px; }
-    .offline-msg p { color: var(--text-muted); }
-
-    .content { padding: 20px; }
-
-    .section-title {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 12px;
-    }
-
-    .track-card {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      margin-bottom: 8px;
-      transition: border-color 0.2s;
-    }
-
-    .track-card:first-of-type {
-      border-color: var(--accent);
-      background: rgba(212, 149, 75, 0.05);
-    }
-
-    .now-playing-label {
-      font-size: 0.6rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-    .track-art {
-      width: 48px;
-      height: 48px;
-      border-radius: 6px;
-      background: var(--surface);
-      flex-shrink: 0;
-      object-fit: cover;
-    }
-
-    .track-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .track-name {
-      font-size: 0.9rem;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .track-artist {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-    }
-
-    .attr-btn {
-      background: var(--accent);
-      color: #000;
-      border: none;
-      border-radius: 20px;
-      padding: 8px 16px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: var(--font);
-      min-height: 44px;
-      min-width: 44px;
-      transition: opacity 0.2s;
-      flex-shrink: 0;
-    }
-
-    .attr-btn:disabled {
-      opacity: 0.4;
-      cursor: default;
-    }
-
-    .attr-btn.done {
-      background: var(--surface);
-      color: var(--accent);
-      border: 1px solid var(--accent);
-    }
-
-    .footer-cta {
-      text-align: center;
-      padding: 24px 20px;
-      border-top: 1px solid var(--border);
-      margin-top: 20px;
-    }
-
-    .footer-cta a {
-      color: var(--accent);
-      text-decoration: none;
-      font-size: 0.85rem;
-    }
-
-    .loading {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 60vh;
-      gap: 20px;
-    }
-
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .hidden { display: none; }
-
-    /* Mobile workability (OCR standard): 44px touch targets */
-    .offline-msg a { display: inline-block; min-height: 44px; line-height: 44px; }
-  </style>
+  <link rel="stylesheet" href="/ui.css">
+  <style>.content{padding:20px}</style>
 </head>
 <body>
   <div id="loading-view" class="loading" data-testid="loading-view">
@@ -215,15 +21,15 @@
   </div>
 
   <div id="live-view" class="hidden" data-testid="live-view">
-    <div class="header">
+    <div class="live-view-header">
       <div class="dj-name" id="dj-name" data-testid="dj-name"></div>
       <div class="live-badge" data-testid="live-badge">Live</div>
-      <div class="venue" id="venue" data-testid="venue"></div>
+      <div class="venue-name" id="venue" data-testid="venue"></div>
     </div>
 
     <div class="content">
       <div class="section-title">Set List</div>
-      <div id="track-list" data-testid="track-list"></div>
+      <div id="track-list" class="set-list" data-testid="track-list"></div>
     </div>
 
     <div class="footer-cta" id="footer-cta" data-testid="footer-cta">

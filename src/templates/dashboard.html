@@ -1,87 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-brand="ow">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>ourWKRP — DJ Dashboard</title>
-  <style>
-    :root {
-      --bg: #0a0a0a;
-      --surface: #141414;
-      --surface-hover: #1a1a1a;
-      --border: #2a2a2a;
-      --text: #f0f0f0;
-      --text-muted: #888;
-      --accent: #D4954B;
-      --accent-hover: #E8A849;
-      --live: #ff4136;
-      --radius: 12px;
-      --radius-sm: 8px;
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100dvh; -webkit-font-smoothing: antialiased; }
-
-    .header { position: sticky; top: 0; z-index: 10; background: rgba(10,10,10,0.9); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
-    .header h1 { font-size: 1.25rem; font-weight: 700; }
-    .live-indicator { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; padding: 4px 10px; border-radius: 20px; }
-    .live-indicator.on { color: var(--live); background: rgba(255,65,54,0.15); animation: pulse 2s ease-in-out infinite; }
-    .live-indicator.off { color: var(--text-muted); background: var(--surface); }
-    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
-
-    .content { padding: 20px 20px 100px; }
-    .section { margin-bottom: 24px; }
-    .section-title { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
-
-    .stats-row { display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; scrollbar-width: none; }
-    .stats-row::-webkit-scrollbar { display: none; }
-    .stat-card { flex: 1; min-width: 80px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; text-align: center; }
-    .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
-    .stat-label { font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; }
-
-    .set-controls { display: flex; gap: 10px; margin-bottom: 16px; }
-    .btn { padding: 14px 20px; border: none; border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 600; cursor: pointer; font-family: var(--font); min-height: 48px; transition: opacity 0.2s; }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary { background: var(--accent); color: #000; flex: 1; }
-    .btn-danger { background: var(--live); color: #fff; flex: 1; }
-    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); flex: 1; }
-
-    .venue-input { width: 100%; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 0.85rem; font-family: var(--font); outline: none; margin-bottom: 10px; }
-    .venue-input:focus { border-color: var(--accent); }
-    .venue-input::placeholder { color: var(--text-muted); }
-
-    .track-search { width: 100%; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 0.85rem; font-family: var(--font); outline: none; margin-bottom: 8px; }
-    .track-search:focus { border-color: var(--accent); }
-    .track-search::placeholder { color: var(--text-muted); }
-
-    .search-result, .set-track, .timeline-item, .history-item { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: var(--radius-sm); min-height: 48px; }
-    .search-result:hover, .history-item:hover { background: var(--surface-hover); }
-    .item-info { flex: 1; min-width: 0; }
-    .item-name { font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .item-sub { font-size: 0.75rem; color: var(--text-muted); }
-    .item-action { flex-shrink: 0; }
-
-    .add-btn { background: var(--accent); color: #000; border: none; border-radius: 20px; padding: 6px 14px; font-size: 0.75rem; font-weight: 600; cursor: pointer; min-height: 44px; }
-    .add-btn:disabled { opacity: 0.4; }
-
-    .poster-link { display: block; text-align: center; padding: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--accent); text-decoration: none; font-size: 0.85rem; font-weight: 500; margin-top: 12px; min-height: 48px; line-height: 20px; }
-
-    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(10,10,10,0.95); backdrop-filter: blur(12px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0 env(safe-area-inset-bottom, 10px); }
-    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 0.65rem; color: var(--text-muted); text-decoration: none; padding: 6px 16px; }
-    .nav-item.active { color: var(--accent); }
-    .nav-item svg { width: 22px; height: 22px; }
-
-    .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 20px; }
-    .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .hidden { display: none; }
-    .access-denied { text-align: center; padding: 60px 20px; }
-    .access-denied h3 { margin-bottom: 8px; }
-    .access-denied p { color: var(--text-muted); }
-
-    /* Mobile workability (OCR standard): 16px input fonts */
-    .venue-input, .track-search { font-size: 16px; }
-  </style>
+  <link rel="stylesheet" href="/ui.css">
+  <style>.stats-row{margin-bottom:20px}#venue-input{margin-bottom:10px}#set-track-search{margin-bottom:8px}.poster-link{margin-top:12px}</style>
 </head>
 <body>
   <!-- connect-gate is first in the body so the page-smoke's gate locator
@@ -90,7 +14,7 @@
   <div id="connect-gate" class="access-denied hidden" data-testid="connect-gate">
     <h3>Connect to continue</h3>
     <p>Sign in with Spotify to access your DJ dashboard.</p>
-    <a href="/" class="btn btn-primary" data-testid="connect-cta" style="display:inline-block;min-height:48px;box-sizing:border-box;margin-top:16px;">Connect with Spotify</a>
+    <a href="/" class="btn btn-primary" data-testid="connect-cta" style="margin-top:16px;">Connect with Spotify</a>
   </div>
   <div id="loading-view" class="loading" data-testid="loading-view"><div class="spinner"></div></div>
   <div id="access-denied" class="access-denied hidden" data-testid="access-denied">
@@ -115,18 +39,18 @@
       <!-- Set Controls -->
       <div class="section" data-testid="set-controls-section">
         <div class="section-title">Live Set</div>
-        <input type="text" class="venue-input" id="venue-input" placeholder="Venue name (optional)" data-testid="venue-input">
+        <input type="text" class="input" id="venue-input" placeholder="Venue name (optional)" data-testid="venue-input">
         <div class="set-controls">
           <button class="btn btn-primary" id="start-set-btn" data-testid="start-set-btn">Start Set</button>
           <button class="btn btn-danger hidden" id="end-set-btn" data-testid="end-set-btn">End Set</button>
         </div>
-        <a class="poster-link hidden" id="poster-link" data-testid="poster-link" target="_blank">Open Poster (for venue display)</a>
+        <a class="btn btn-secondary btn-block poster-link hidden" id="poster-link" data-testid="poster-link" target="_blank">Open Poster (for venue display)</a>
       </div>
 
       <!-- Add Track to Set -->
       <div class="section hidden" id="add-track-section" data-testid="add-track-section">
         <div class="section-title">Add Track to Set</div>
-        <input type="text" class="track-search" id="set-track-search" placeholder="Search tracks..." data-testid="set-track-search">
+        <input type="text" class="input" id="set-track-search" placeholder="Search tracks..." data-testid="set-track-search">
         <div id="set-search-results" data-testid="set-search-results"></div>
         <div class="section-title" style="margin-top:16px;">Current Set</div>
         <div id="current-set-tracks" data-testid="current-set-tracks"></div>
@@ -294,7 +218,7 @@
       function renderSearchResults(tracks) {
         var el = document.getElementById('set-search-results');
         el.innerHTML = tracks.map(function(t) {
-          return '<div class="search-result" data-id="' + t.id + '"><div class="item-info"><div class="item-name">' + esc(t.name) + '</div><div class="item-sub">' + esc(t.artist) + '</div></div><div class="item-action"><button class="add-btn" data-testid="add-to-set-btn">Add</button></div></div>';
+          return '<div class="search-result" data-id="' + t.id + '"><div class="item-info"><div class="item-name">' + esc(t.name) + '</div><div class="item-sub">' + esc(t.artist) + '</div></div><div class="item-action"><button class="attr-btn add-btn" data-testid="add-to-set-btn">Add</button></div></div>';
         }).join('');
         el.querySelectorAll('.add-btn').forEach(function(btn) {
           btn.addEventListener('click', function() { addTrackToSet(btn.closest('.search-result').dataset.id, btn); });
@@ -326,7 +250,7 @@
         var el = document.getElementById('current-set-tracks');
         if (tracks.length === 0) { el.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">No tracks yet. Search and add.</div>'; return; }
         el.innerHTML = tracks.map(function(t, i) {
-          return '<div class="set-track"><div style="font-size:0.7rem;color:var(--text-muted);min-width:24px;">' + (tracks.length - i) + '</div><div class="item-info"><div class="item-name">' + esc(t.name) + '</div><div class="item-sub">' + esc(t.artist) + '</div></div></div>';
+          return '<div class="set-track"><div class="set-pos">' + (tracks.length - i) + '</div><div class="item-info"><div class="item-name">' + esc(t.name) + '</div><div class="item-sub">' + esc(t.artist) + '</div></div></div>';
         }).join('');
       }
 

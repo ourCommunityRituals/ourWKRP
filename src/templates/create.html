@@ -1,251 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-brand="ow">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>ourWKRP — Create Playlist</title>
-  <style>
-    :root {
-      --bg: #0a0a0a;
-      --surface: #141414;
-      --surface-hover: #1a1a1a;
-      --border: #2a2a2a;
-      --text: #f0f0f0;
-      --text-muted: #888;
-      --accent: #D4954B;
-      --accent-hover: #E8A849;
-      --radius: 12px;
-      --radius-sm: 8px;
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: var(--font);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100dvh;
-      -webkit-font-smoothing: antialiased;
-      padding-bottom: 80px;
-    }
-
-    .header {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: rgba(10, 10, 10, 0.9);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-      padding: 16px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .header h1 {
-      font-size: 1.25rem;
-      font-weight: 700;
-    }
-
-    .content {
-      padding: 24px 20px;
-      max-width: 500px;
-      margin: 0 auto;
-    }
-
-    .section {
-      margin-bottom: 28px;
-    }
-
-    /* Feature gating uses the hidden attribute — keep it authoritative. */
-    [hidden] { display: none !important; }
-
-    .section-title {
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 12px;
-    }
-
-    input[type="text"], textarea {
-      width: 100%;
-      padding: 14px 16px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-size: 1rem;
-      font-family: var(--font);
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    input:focus, textarea:focus {
-      border-color: var(--accent);
-    }
-
-    input::placeholder, textarea::placeholder {
-      color: var(--text-muted);
-    }
-
-    textarea {
-      resize: vertical;
-      min-height: 80px;
-    }
-
-    .range-group {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-
-    .range-group label {
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      min-width: 100px;
-    }
-
-    .range-group input[type="range"] {
-      flex: 1;
-      accent-color: var(--accent);
-    }
-
-    .range-value {
-      font-size: 0.875rem;
-      color: var(--text);
-      min-width: 40px;
-      text-align: right;
-    }
-
-    .preview-count {
-      text-align: center;
-      padding: 16px;
-      background: var(--surface);
-      border-radius: var(--radius);
-      color: var(--text-muted);
-      font-size: 0.9rem;
-    }
-
-    .preview-count strong {
-      color: var(--accent);
-      font-size: 1.5rem;
-      display: block;
-      margin-bottom: 4px;
-    }
-
-    .btn {
-      width: 100%;
-      padding: 16px;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color 0.2s, transform 0.1s;
-      min-height: 52px;
-      touch-action: manipulation;
-    }
-
-    .btn:active { transform: scale(0.98); }
-
-    .btn-create {
-      background: var(--accent);
-      color: #000;
-      margin-top: 8px;
-    }
-
-    .btn-create:hover { background: var(--accent-hover); }
-    .btn-create:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 0;
-    }
-
-    .toggle-label {
-      font-size: 0.9rem;
-    }
-
-    .toggle {
-      position: relative;
-      width: 44px;
-      height: 24px;
-    }
-
-    .toggle input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-
-    .toggle-track {
-      position: absolute;
-      inset: 0;
-      background: var(--border);
-      border-radius: 12px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .toggle-track::after {
-      content: '';
-      position: absolute;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: white;
-      top: 3px;
-      left: 3px;
-      transition: transform 0.2s;
-    }
-
-    .toggle input:checked + .toggle-track {
-      background: var(--accent);
-    }
-
-    .toggle input:checked + .toggle-track::after {
-      transform: translateX(20px);
-    }
-
-    .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(10, 10, 10, 0.95);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: space-around;
-      padding: 10px 0 env(safe-area-inset-bottom, 10px);
-    }
-
-    .nav-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      font-size: 0.65rem;
-      color: var(--text-muted);
-      text-decoration: none;
-      padding: 6px 16px;
-    }
-
-    .nav-item.active { color: var(--accent); }
-    .nav-item svg { width: 22px; height: 22px; }
-    /* Mobile workability (OCR standard): 44px touch targets, 16px input fonts */
-    #min-energy, #min-valence, #min-dance, #min-tempo { height: 44px; font-size: 16px; }
-    #playlist-filter { min-height: 44px; font-size: 16px; }
-    #is-public { font-size: 16px; }
-  </style>
+  <link rel="stylesheet" href="/ui.css">
+  <style>.content{padding:24px 20px 100px;max-width:500px;margin:0 auto}#create-btn{margin-top:8px}.export-row{display:flex;gap:8px;margin-top:16px}.export-row .btn{flex:1}.stat-chips{display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none}.stat-chips .detail-chip{white-space:nowrap;flex-shrink:0}</style>
 </head>
 <body>
   <div class="header">
@@ -263,6 +23,7 @@
           required
           maxlength="100"
           data-testid="input-playlist-name"
+          class="input"
           style="margin-bottom: 12px;"
         >
         <textarea
@@ -270,6 +31,7 @@
           placeholder="Description (optional)"
           maxlength="300"
           data-testid="input-playlist-desc"
+          class="input"
         ></textarea>
       </div>
 
@@ -316,7 +78,7 @@
         </div>
       </div>
 
-      <button type="submit" class="btn btn-create" id="create-btn" data-testid="btn-create">
+      <button type="submit" class="btn btn-primary btn-block" id="create-btn" data-testid="btn-create">
         Create Playlist
       </button>
     </form>
@@ -324,7 +86,7 @@
     <!-- Track search + add (shown after playlist created) -->
     <div id="track-add-section" class="section" style="display:none;" data-testid="track-add-section">
       <div class="section-title">Add Tracks</div>
-      <input type="text" id="track-search" placeholder="Search tracks to add..." data-testid="track-search" style="margin-bottom:12px;">
+      <input type="text" id="track-search" placeholder="Search tracks to add..." data-testid="track-search" class="input" style="margin-bottom:12px;">
       <div id="search-results" data-testid="search-results"></div>
     </div>
 
@@ -333,18 +95,18 @@
       <div class="section-title">Playlist Tracks (<span id="playlist-track-count">0</span>)</div>
 
       <!-- Playlist stats mini-bar -->
-      <div id="playlist-stats" data-testid="playlist-stats" style="display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;"></div>
+      <div id="playlist-stats" class="stat-chips" data-testid="playlist-stats"></div>
 
       <!-- Filter within playlist -->
-      <input type="text" id="playlist-filter" placeholder="Filter this playlist..." data-testid="playlist-filter" style="margin-bottom:12px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;width:100%;font-family:var(--font);outline:none;">
+      <input type="text" id="playlist-filter" placeholder="Filter this playlist..." data-testid="playlist-filter" class="input" style="margin-bottom:12px;">
 
       <div id="playlist-track-list" data-testid="playlist-track-list"></div>
 
-      <div style="display:flex;gap:8px;margin-top:16px;">
-        <button class="btn btn-create" id="export-btn" style="flex:1;background:var(--accent);color:#000;" data-testid="export-btn">
+      <div class="export-row">
+        <button class="btn btn-primary" id="export-btn" data-testid="export-btn">
           Export for Apple Music
         </button>
-        <button class="btn btn-create" id="export-csv-btn" style="flex:1;background:var(--surface);color:var(--text);border:1px solid var(--border);" data-testid="export-csv-btn">
+        <button class="btn btn-secondary" id="export-csv-btn" data-testid="export-csv-btn">
           Export CSV
         </button>
       </div>
@@ -384,7 +146,7 @@
               '<div class="access-denied" data-testid="connect-gate" style="text-align:center;padding:60px 20px;">' +
               '<h3>Connect to create playlists</h3>' +
               '<p style="color:var(--text-muted);margin-top:8px;">Sign in with Spotify to build and save playlists.</p>' +
-              '<a href="/" class="btn btn-create" data-testid="connect-cta" style="display:inline-block;min-height:48px;box-sizing:border-box;padding:14px 24px;margin-top:20px;">Connect with Spotify</a></div>';
+              '<a href="/" class="btn btn-primary" data-testid="connect-cta" style="margin-top:20px;">Connect with Spotify</a></div>';
             return;
           }
           var allowed = ['founder', 'curator', 'dj'];
@@ -499,13 +261,13 @@
           return;
         }
         container.innerHTML = tracks.map(function(t) {
-          return '<div style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;cursor:pointer;min-height:48px;" ' +
+          return '<div class="search-result" ' +
             'data-track-id="' + escapeHtml(t.id) + '" data-testid="search-result">' +
-            '<div style="flex:1;min-width:0;">' +
-              '<div style="font-size:0.9rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.name) + '</div>' +
-              '<div style="font-size:0.8rem;color:var(--text-muted);">' + escapeHtml(t.artist) + '</div>' +
+            '<div class="track-info">' +
+              '<div class="track-name">' + escapeHtml(t.name) + '</div>' +
+              '<div class="track-artist">' + escapeHtml(t.artist) + '</div>' +
             '</div>' +
-            '<button style="background:var(--accent);color:#000;border:none;border-radius:20px;padding:6px 14px;font-size:0.75rem;font-weight:600;cursor:pointer;min-height:44px;" ' +
+            '<button class="attr-btn" ' +
               'data-testid="add-track-btn">Add</button>' +
           '</div>';
         }).join('');
@@ -606,14 +368,14 @@
 
         var statsHtml = '';
         topGenres.forEach(function(g) {
-          statsHtml += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.65rem;white-space:nowrap;flex-shrink:0;">' +
+          statsHtml += '<div class="detail-chip">' +
             '<span style="color:var(--accent);">' + escapeHtml(g[0]) + '</span> ' + g[1] + '</div>';
         });
         topDecades.forEach(function(d) {
-          statsHtml += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.65rem;white-space:nowrap;flex-shrink:0;">' + d[0] + ' ' + d[1] + '</div>';
+          statsHtml += '<div class="detail-chip">' + d[0] + ' ' + d[1] + '</div>';
         });
         if (avgEnergy !== null) {
-          statsHtml += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.65rem;white-space:nowrap;flex-shrink:0;">' +
+          statsHtml += '<div class="detail-chip">' +
             'Energy ' + avgEnergy + '</div>';
         }
 
