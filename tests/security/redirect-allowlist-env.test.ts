@@ -15,6 +15,8 @@
  * Mirrors lib/cors.ts, which already gates the staging origin by WORKER_ENV.
  */
 import { describe, it, expect } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import { handleAuthCallback, validateRedirectTarget } from '../../src/handlers/auth-callback';
 import type { Env } from '../../src/types';
 
@@ -108,4 +110,34 @@ describe('OW-153 | the callback itself refuses a non-production APP_URL in produ
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe('https://ourwkrp.com/?error=spotify_denied');
   });
+});
+
+describe('OW-153 | wrangler.toml APP_URL passes its own environment\'s allowlist', () => {
+  const toml = fs.readFileSync(path.join(__dirname, '../../wrangler.toml'), 'utf-8');
+
+  /** The quoted value of `key` inside one [vars] table (top-level = staging). */
+  function varIn(table: string, key: string): string | undefined {
+    const header = new RegExp(`^\\[${table.replace(/\./g, '\\.')}\\][ \\t]*\\r?$`, 'm');
+    const m = header.exec(toml);
+    if (!m) return undefined;
+    const rest = toml.slice(m.index + m[0].length);
+    const next = rest.search(/^\s*\[/m);
+    const section = next === -1 ? rest : rest.slice(0, next);
+    return new RegExp(`^${key}\\s*=\\s*"([^"]*)"`, 'm').exec(section)?.[1];
+  }
+
+  const cases = [
+    { table: 'vars', workerEnv: 'staging' },
+    { table: 'env.production.vars', workerEnv: 'production' },
+  ];
+
+  for (const { table, workerEnv } of cases) {
+    it(`[${table}] WORKER_ENV, APP_URL and SPOTIFY_REDIRECT_URI agree with the ${workerEnv} allowlist`, () => {
+      expect(varIn(table, 'WORKER_ENV')).toBe(workerEnv);
+      const appUrl = varIn(table, 'APP_URL') ?? '';
+      expect(validateRedirectTarget(appUrl, workerEnv), `APP_URL="${appUrl}"`).toBe(appUrl);
+      expect(varIn(table, 'SPOTIFY_REDIRECT_URI')).toBe(`${appUrl}/auth/callback`);
+      expect(varIn(table, 'SPOTIFY_CLIENT_ID')).toMatch(/^[0-9a-f]{32}$/);
+    });
+  }
 });
