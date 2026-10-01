@@ -178,8 +178,11 @@ async function upsertContributor(
  * Redirect allowlist, per environment — prevents open redirect (OW-153).
  *
  * Production redirects only to its own hosts; staging only to staging and local
- * dev. Any other WORKER_ENV (unset, development, miscased) gets the production
- * set, so a misconfigured env fails closed. Mirrors lib/cors.ts, which gates the
+ * dev. Any other WORKER_ENV (unset, development, miscased) gets NO hosts, so the
+ * callback answers 500 instead of logging anyone in. That keeps redirect policy
+ * and cookie policy in step: the session cookie is Secure only when WORKER_ENV
+ * is exactly 'production', so an unrecognised env must never complete a login
+ * (review on #74). Mirrors lib/cors.ts, which gates the
  * staging origin by WORKER_ENV the same way. The *.mzdano.workers.dev hosts are
  * gone: workers_dev = false closed them, and they were never production hosts.
  */
@@ -190,8 +193,12 @@ const ALLOWED_REDIRECT_HOSTS = {
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 
+const NO_HOSTS: ReadonlySet<string> = new Set();
+
 export function allowedRedirectHosts(workerEnv: string | undefined): ReadonlySet<string> {
-  return workerEnv === 'staging' ? ALLOWED_REDIRECT_HOSTS.staging : ALLOWED_REDIRECT_HOSTS.production;
+  if (workerEnv === 'production') return ALLOWED_REDIRECT_HOSTS.production;
+  if (workerEnv === 'staging') return ALLOWED_REDIRECT_HOSTS.staging;
+  return NO_HOSTS;
 }
 
 export function validateRedirectTarget(urlString: string, workerEnv: string | undefined): string | null {

@@ -76,12 +76,15 @@ globs = ["**/*.html"]
 fallthrough = true
 
 # ============================================
-# Default vars (overridden by Doppler at deploy time)
+# Staging vars: `wrangler deploy` (default env) uploads exactly these.
 # ============================================
+# The process env that `doppler run` sets does NOT change [vars], so these must
+# be staging's real values. For local `wrangler dev`, put localhost values
+# (APP_URL=http://localhost:8787, SPOTIFY_REDIRECT_URI=.../auth/callback) in
+# .dev.vars, which wrangler dev reads and which overrides [vars].
 [vars]
 WORKER_ENV = "staging"
 WORKER_VERSION = "0.1.0"
-# Fallback for local dev without Doppler -- Doppler overrides in stg/prd
 SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
 SPOTIFY_REDIRECT_URI = "https://stg.ourwkrp.com/auth/callback"
 APP_URL = "https://stg.ourwkrp.com"

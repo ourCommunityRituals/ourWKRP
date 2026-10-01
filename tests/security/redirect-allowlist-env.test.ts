@@ -8,7 +8,9 @@
  *
  *   production → ourwkrp.com, www.ourwkrp.com (https only)
  *   staging    → stg.ourwkrp.com, localhost, 127.0.0.1
- *   anything else (unset, development, miscased) → the production set (fail closed)
+ *   anything else (unset, development, miscased) → no hosts: the callback answers 500
+ *   (the session cookie is Secure only for exactly 'production', so an unknown
+ *   env must never complete a login)
  *
  * Mirrors lib/cors.ts, which already gates the staging origin by WORKER_ENV.
  */
@@ -48,29 +50,29 @@ describe('OW-153 | staging redirects only to staging hosts', () => {
     });
   }
 
-  for (const url of WORKERS_DEV) {
+  for (const url of [...PRODUCTION_HOSTS, ...WORKERS_DEV]) {
     it(`staging refuses ${url}`, () => {
       expect(validateRedirectTarget(url, 'staging')).toBeNull();
     });
   }
 });
 
-describe('OW-153 | an unknown environment fails closed to the production set', () => {
-  for (const workerEnv of [undefined, '', 'development', 'Staging', 'prod']) {
-    it(`WORKER_ENV=${String(workerEnv)} refuses stg.ourwkrp.com and localhost`, () => {
-      expect(validateRedirectTarget('https://stg.ourwkrp.com', workerEnv)).toBeNull();
-      expect(validateRedirectTarget('http://localhost:8787', workerEnv)).toBeNull();
-      expect(validateRedirectTarget('https://ourwkrp.com', workerEnv)).toBe('https://ourwkrp.com');
+describe('OW-153 | an unknown environment allows no redirect at all', () => {
+  for (const workerEnv of [undefined, '', 'development', 'Staging', 'Production', 'prod']) {
+    it(`WORKER_ENV=${String(workerEnv)} refuses every host`, () => {
+      for (const url of [...PRODUCTION_HOSTS, ...STAGING_HOSTS, ...WORKERS_DEV]) {
+        expect(validateRedirectTarget(url, workerEnv), url).toBeNull();
+      }
     });
   }
 });
 
 describe('OW-153 | the callback itself refuses a non-production APP_URL in production', () => {
-  function env(appUrl: string): Env {
+  function env(appUrl: string, workerEnv = 'production'): Env {
     return {
       WKRP_KV: {} as KVNamespace,
       WKRP_DB: {} as D1Database,
-      WORKER_ENV: 'production',
+      WORKER_ENV: workerEnv,
       WORKER_VERSION: '0.1.0',
       SPOTIFY_CLIENT_ID: 'test',
       SPOTIFY_REDIRECT_URI: `${appUrl}/auth/callback`,
@@ -88,6 +90,15 @@ describe('OW-153 | the callback itself refuses a non-production APP_URL in produ
       expect(res.headers.get('location')).toBeNull();
     });
   }
+
+  it('a miscased WORKER_ENV (Production) → 500, never a login with a non-Secure cookie', async () => {
+    const res = await handleAuthCallback(
+      new Request('https://ourwkrp.com/auth/callback?error=access_denied'),
+      env('https://ourwkrp.com', 'Production')
+    );
+    expect(res.status).toBe(500);
+    expect(res.headers.get('location')).toBeNull();
+  });
 
   it('APP_URL=https://ourwkrp.com still redirects (happy path unchanged)', async () => {
     const res = await handleAuthCallback(
