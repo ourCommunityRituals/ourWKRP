@@ -115,15 +115,23 @@ describe('OW-153 | the callback itself refuses a non-production APP_URL in produ
 describe('OW-153 | wrangler.toml APP_URL passes its own environment\'s allowlist', () => {
   const toml = fs.readFileSync(path.join(__dirname, '../../wrangler.toml'), 'utf-8');
 
-  /** The quoted value of `key` inside one [vars] table (top-level = staging). */
+  /**
+   * The quoted value of `key` inside one [vars] table (top-level = staging).
+   * Plain line comparison, no regex built from the arguments.
+   */
   function varIn(table: string, key: string): string | undefined {
-    const header = new RegExp(`^\\[${table.replace(/\./g, '\\.')}\\][ \\t]*\\r?$`, 'm');
-    const m = header.exec(toml);
-    if (!m) return undefined;
-    const rest = toml.slice(m.index + m[0].length);
-    const next = rest.search(/^\s*\[/m);
-    const section = next === -1 ? rest : rest.slice(0, next);
-    return new RegExp(`^${key}\\s*=\\s*"([^"]*)"`, 'm').exec(section)?.[1];
+    const lines = toml.split(/\r?\n/);
+    const start = lines.findIndex((l) => l.trim() === `[${table}]`);
+    if (start === -1) return undefined;
+    for (const raw of lines.slice(start + 1)) {
+      const line = raw.trim();
+      if (line.startsWith('[')) return undefined;
+      const eq = line.indexOf('=');
+      if (eq === -1 || line.slice(0, eq).trim() !== key) continue;
+      const value = line.slice(eq + 1).trim();
+      return value.startsWith('"') ? value.slice(1, value.indexOf('"', 1)) : undefined;
+    }
+    return undefined;
   }
 
   const cases = [
