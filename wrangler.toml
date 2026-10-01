@@ -10,10 +10,12 @@
 # Doppler project: ourwkrp
 # Configs: dev, stg, prd
 #
-# Doppler injects these as environment variables at runtime:
-#   SPOTIFY_CLIENT_ID      -> Spotify app client ID
-#   SPOTIFY_REDIRECT_URI   -> OAuth callback URL (per environment)
-#   APP_URL                -> Frontend base URL (per environment)
+# Public config is NOT in Doppler. SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI and
+# APP_URL live in the [vars] tables below (top-level = staging,
+# [env.production.vars] = production): `wrangler deploy` uploads [vars] as-is,
+# and the process env that `doppler run` sets does not change them (OW-153).
+# Doppler holds the secrets: CLOUDFLARE_API_TOKEN for the deploy itself (stg
+# and prd configs, OW-152) and the Worker secrets listed below.
 #
 # Cross-product service token (OSE-1299 — SECRET, never a [vars] value):
 #   OSE_INTEGRATION_TOKEN  -> shared secret OSE presents on the music /
@@ -51,8 +53,9 @@
 #   doppler setup           -> select ourwkrp project + dev config
 #   doppler run -- wrangler dev
 #
-# The [vars] block below provides fallback defaults for local dev
-# when Doppler is not available. Doppler env vars override these.
+# For local dev, put APP_URL=http://localhost:8787 and
+# SPOTIFY_REDIRECT_URI=http://localhost:8787/auth/callback in .dev.vars
+# (gitignored); wrangler dev reads it and it overrides [vars].
 # ============================================
 
 name = "ourwkrp-stg"
@@ -76,15 +79,18 @@ globs = ["**/*.html"]
 fallthrough = true
 
 # ============================================
-# Default vars (overridden by Doppler at deploy time)
+# Staging vars: `wrangler deploy` (default env) uploads exactly these.
 # ============================================
+# The process env that `doppler run` sets does NOT change [vars], so these must
+# be staging's real values. For local `wrangler dev`, put localhost values
+# (APP_URL=http://localhost:8787, SPOTIFY_REDIRECT_URI=.../auth/callback) in
+# .dev.vars, which wrangler dev reads and which overrides [vars].
 [vars]
 WORKER_ENV = "staging"
 WORKER_VERSION = "0.1.0"
-# Fallback for local dev without Doppler -- Doppler overrides in stg/prd
 SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
-SPOTIFY_REDIRECT_URI = "https://ourwkrp-staging.mzdano.workers.dev/auth/callback"
-APP_URL = "https://ourwkrp-staging.mzdano.workers.dev"
+SPOTIFY_REDIRECT_URI = "https://stg.ourwkrp.com/auth/callback"
+APP_URL = "https://stg.ourwkrp.com"
 # Last.fm -- get API key at https://www.last.fm/api/account/create
 LASTFM_API_KEY = ""
 LASTFM_SHARED_SECRET = ""
@@ -138,10 +144,14 @@ routes = [
 [env.production.vars]
 WORKER_ENV = "production"
 WORKER_VERSION = "0.1.0"
-# Doppler (prd config) overrides these at deploy time
-SPOTIFY_CLIENT_ID = ""
-SPOTIFY_REDIRECT_URI = ""
-APP_URL = ""
+# Public values, uploaded as-is by `wrangler deploy --env production`. The
+# process env that `doppler run` sets does NOT change [vars], so these cannot
+# be left empty for Doppler to fill: an empty APP_URL makes every OAuth callback
+# answer 500 (review on #74). redirect-allowlist-env.test.ts checks APP_URL here
+# against the production redirect allowlist.
+SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
+SPOTIFY_REDIRECT_URI = "https://ourwkrp.com/auth/callback"
+APP_URL = "https://ourwkrp.com"
 LASTFM_API_KEY = ""
 LASTFM_SHARED_SECRET = ""
 
