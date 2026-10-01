@@ -70,6 +70,14 @@ function routePatterns(section: string): string[] {
 const prodStart = toml.search(/^\[env\.production\][ \t]*\r?$/m);
 const prodSection = prodStart === -1 ? '' : toml.slice(prodStart);
 const nextTable = prodSection.slice(1).search(/^\[/m);
+/** The host part of a route pattern (everything before the first '/'). */
+const hostOf = (pattern: string) => pattern.split('/')[0];
+
+/** Patterns whose HOST contains a wildcard in any spelling (`*.x`, `*x`, `a*.x`). */
+function wildcardHosts(patterns: string[]): string[] {
+  return patterns.filter((p) => hostOf(p).includes('*'));
+}
+
 const prodRoutes = routePatterns(nextTable === -1 ? prodSection : prodSection.slice(0, nextTable + 1));
 const stagingRoutes = routePatterns(prodStart === -1 ? toml : toml.slice(0, prodStart));
 
@@ -90,13 +98,18 @@ describe('OW-152 | staging and production are isolated in wrangler.toml', () => 
     expect(shared).toEqual([]);
   });
 
+  it('the wildcard detector catches every host-wildcard spelling (not vacuous)', () => {
+    expect(
+      wildcardHosts(['*.ourwkrp.com/*', '*ourwkrp.com/*', 'st*.ourwkrp.com/*', 'ourwkrp.com/*'])
+    ).toEqual(['*.ourwkrp.com/*', '*ourwkrp.com/*', 'st*.ourwkrp.com/*']);
+  });
+
   it('production routes are explicit hosts, never a wildcard', () => {
-    expect(prodRoutes.filter((p) => p.includes('*.'))).toEqual([]);
+    expect(wildcardHosts(prodRoutes)).toEqual([]);
   });
 
   it('no production route can match a staging host', () => {
-    const stagingHosts = stagingRoutes.map((p) => p.split('/')[0]);
-    const hostOf = (p: string) => p.split('/')[0];
+    const stagingHosts = stagingRoutes.map(hostOf);
     const overlaps = prodRoutes.filter((p) => stagingHosts.includes(hostOf(p)));
     expect(overlaps).toEqual([]);
   });
