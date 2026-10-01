@@ -126,10 +126,13 @@ crons = ["17 4 * * *"]
 # ============================================
 [env.production]
 name = "ourwkrp-production"
+# Explicit hosts only (OW-152). The old `*.ourwkrp.com/*` also matched
+# stg.ourwkrp.com. Branded subdomains (bronzeville.ourwkrp.com, ...) get their
+# own route line when they launch. tests/security/env-isolation.invariant.test.ts
+# fails on a wildcard or on a production route that matches a staging host.
 routes = [
   { pattern = "ourwkrp.com/*", zone_name = "ourwkrp.com" },
-  { pattern = "www.ourwkrp.com/*", zone_name = "ourwkrp.com" },
-  { pattern = "*.ourwkrp.com/*", zone_name = "ourwkrp.com" }
+  { pattern = "www.ourwkrp.com/*", zone_name = "ourwkrp.com" }
 ]
 
 [env.production.vars]
@@ -149,9 +152,12 @@ LASTFM_SHARED_SECRET = ""
 [env.production.triggers]
 crons = ["17 4 * * *"]
 
+# Production's own namespace (OW-152, created 2026-10-01). It used to point at
+# aa9de79e..., the staging namespace, so a staging session or Spotify token was
+# valid in production. env-isolation.invariant.test.ts fails on any shared id.
 [[env.production.kv_namespaces]]
 binding = "WKRP_KV"
-id = "aa9de79edebf4a1cac9a41a727ab85da"
+id = "5488f6de2486447691329052d1c8c579"
 
 [[env.production.d1_databases]]
 binding = "WKRP_DB"
