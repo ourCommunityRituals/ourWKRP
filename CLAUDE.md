@@ -161,13 +161,16 @@ Registered at developer.spotify.com for app `b0af039c67b14c2fbeb1f5ab0b5ff662`:
 Doppler project: `ourwkrp`
 Configs: `dev`, `stg`, `prd`
 
-| Secret | Doppler Config | Purpose |
+| Value | Where it lives | Purpose |
 |--------|---------------|---------|
-| SPOTIFY_CLIENT_ID | all | Spotify app ID (`b0af039c67b14c2fbeb1f5ab0b5ff662`) |
-| SPOTIFY_REDIRECT_URI | per-env | OAuth callback URL |
-| APP_URL | per-env | Frontend base URL |
+| SPOTIFY_CLIENT_ID | `wrangler.toml` `[vars]` (public) | Spotify app ID (`b0af039c67b14c2fbeb1f5ab0b5ff662`) |
+| SPOTIFY_REDIRECT_URI | `wrangler.toml` `[vars]`, per env (public) | OAuth callback URL |
+| APP_URL | `wrangler.toml` `[vars]`, per env (public) | Frontend base URL; must pass that env's redirect allowlist |
+| CLOUDFLARE_API_TOKEN | Doppler `stg` + `prd` (secret) | Lets CI's `doppler run -- wrangler …` deploy and migrate |
 | KV namespace ID | wrangler.toml | Auth/session state (CF infra, not a secret) |
 | D1 database ID | wrangler.toml | Catalog data (CF infra, not a secret) |
+
+**Public config is not in Doppler** (OW-153). `wrangler deploy` uploads the `[vars]` tables as-is; the process environment that `doppler run` sets does not change them. So `APP_URL` / `SPOTIFY_REDIRECT_URI` / `SPOTIFY_CLIENT_ID` are set in `wrangler.toml` (top-level `[vars]` = staging, `[env.production.vars]` = production), and `tests/security/redirect-allowlist-env.test.ts` checks each against its environment's redirect allowlist. For local `wrangler dev`, put the localhost values in `.dev.vars` (gitignored). Doppler holds secrets only.
 
 No client_secret needed — PKCE flow.
 
@@ -187,7 +190,9 @@ doppler run -c stg -- wrangler deploy
 doppler run -c prd -- wrangler deploy --env production
 ```
 
-### Doppler Config Values
+### Public config values per environment
+
+`dev` → `.dev.vars`; `stg` → top-level `[vars]`; `prd` → `[env.production.vars]`.
 
 **dev:**
 ```

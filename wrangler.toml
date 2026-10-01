@@ -10,10 +10,12 @@
 # Doppler project: ourwkrp
 # Configs: dev, stg, prd
 #
-# Doppler injects these as environment variables at runtime:
-#   SPOTIFY_CLIENT_ID      -> Spotify app client ID
-#   SPOTIFY_REDIRECT_URI   -> OAuth callback URL (per environment)
-#   APP_URL                -> Frontend base URL (per environment)
+# Public config is NOT in Doppler. SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI and
+# APP_URL live in the [vars] tables below (top-level = staging,
+# [env.production.vars] = production): `wrangler deploy` uploads [vars] as-is,
+# and the process env that `doppler run` sets does not change them (OW-153).
+# Doppler holds the secrets: CLOUDFLARE_API_TOKEN for the deploy itself (stg
+# and prd configs, OW-152) and the Worker secrets listed below.
 #
 # Cross-product service token (OSE-1299 — SECRET, never a [vars] value):
 #   OSE_INTEGRATION_TOKEN  -> shared secret OSE presents on the music /
@@ -51,8 +53,9 @@
 #   doppler setup           -> select ourwkrp project + dev config
 #   doppler run -- wrangler dev
 #
-# The [vars] block below provides fallback defaults for local dev
-# when Doppler is not available. Doppler env vars override these.
+# For local dev, put APP_URL=http://localhost:8787 and
+# SPOTIFY_REDIRECT_URI=http://localhost:8787/auth/callback in .dev.vars
+# (gitignored); wrangler dev reads it and it overrides [vars].
 # ============================================
 
 name = "ourwkrp-stg"
