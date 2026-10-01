@@ -8,7 +8,8 @@
  *
  *   production → ourwkrp.com, www.ourwkrp.com (https only)
  *   staging    → stg.ourwkrp.com, localhost, 127.0.0.1
- *   anything else (unset, development, miscased) → no hosts: the callback answers 500
+ *   development → localhost, 127.0.0.1 (wrangler.e2e.toml: Playwright + local dev)
+ *   anything else (unset, miscased, unknown) → no hosts: the callback answers 500
  *   (the session cookie is Secure only for exactly 'production', so an unknown
  *   env must never complete a login)
  *
@@ -59,8 +60,22 @@ describe('OW-153 | staging redirects only to staging hosts', () => {
   }
 });
 
+describe('OW-153 | development redirects only to localhost', () => {
+  for (const url of ['http://localhost:8787', 'http://127.0.0.1:8787']) {
+    it(`development accepts ${url}`, () => {
+      expect(validateRedirectTarget(url, 'development')).toBe(url);
+    });
+  }
+
+  for (const url of ['https://stg.ourwkrp.com', ...PRODUCTION_HOSTS, ...WORKERS_DEV]) {
+    it(`development refuses ${url}`, () => {
+      expect(validateRedirectTarget(url, 'development')).toBeNull();
+    });
+  }
+});
+
 describe('OW-153 | an unknown environment allows no redirect at all', () => {
-  for (const workerEnv of [undefined, '', 'development', 'Staging', 'Production', 'prod']) {
+  for (const workerEnv of [undefined, '', 'dev', 'Development', 'Staging', 'Production', 'prod']) {
     it(`WORKER_ENV=${String(workerEnv)} refuses every host`, () => {
       for (const url of [...PRODUCTION_HOSTS, ...STAGING_HOSTS, ...WORKERS_DEV]) {
         expect(validateRedirectTarget(url, workerEnv), url).toBeNull();
@@ -112,15 +127,20 @@ describe('OW-153 | the callback itself refuses a non-production APP_URL in produ
   });
 });
 
-describe('OW-153 | wrangler.toml APP_URL passes its own environment\'s allowlist', () => {
-  const toml = fs.readFileSync(path.join(__dirname, '../../wrangler.toml'), 'utf-8');
+describe('OW-153 | each wrangler config\'s APP_URL passes its own environment\'s allowlist', () => {
+  const SPOTIFY_CLIENT_ID = 'b0af039c67b14c2fbeb1f5ab0b5ff662'; // the one registered app (CLAUDE.md §5)
+  const read = (file: string) => fs.readFileSync(path.join(__dirname, '../..', file), 'utf-8');
+  const configs: Record<string, string> = {
+    'wrangler.toml': read('wrangler.toml'),
+    'wrangler.e2e.toml': read('wrangler.e2e.toml'),
+  };
 
   /**
    * The quoted value of `key` inside one [vars] table (top-level = staging).
    * Plain line comparison, no regex built from the arguments.
    */
-  function varIn(table: string, key: string): string | undefined {
-    const lines = toml.split(/\r?\n/);
+  function varIn(file: string, table: string, key: string): string | undefined {
+    const lines = configs[file].split(/\r?\n/);
     const start = lines.findIndex((l) => l.trim() === `[${table}]`);
     if (start === -1) return undefined;
     for (const raw of lines.slice(start + 1)) {
@@ -135,17 +155,18 @@ describe('OW-153 | wrangler.toml APP_URL passes its own environment\'s allowlist
   }
 
   const cases = [
-    { table: 'vars', workerEnv: 'staging' },
-    { table: 'env.production.vars', workerEnv: 'production' },
+    { file: 'wrangler.toml', table: 'vars', workerEnv: 'staging' },
+    { file: 'wrangler.toml', table: 'env.production.vars', workerEnv: 'production' },
+    { file: 'wrangler.e2e.toml', table: 'vars', workerEnv: 'development' },
   ];
 
-  for (const { table, workerEnv } of cases) {
-    it(`[${table}] WORKER_ENV, APP_URL and SPOTIFY_REDIRECT_URI agree with the ${workerEnv} allowlist`, () => {
-      expect(varIn(table, 'WORKER_ENV')).toBe(workerEnv);
-      const appUrl = varIn(table, 'APP_URL') ?? '';
+  for (const { file, table, workerEnv } of cases) {
+    it(`${file} [${table}]: WORKER_ENV, APP_URL, redirect URI and client id agree with ${workerEnv}`, () => {
+      expect(varIn(file, table, 'WORKER_ENV')).toBe(workerEnv);
+      const appUrl = varIn(file, table, 'APP_URL') ?? '';
       expect(validateRedirectTarget(appUrl, workerEnv), `APP_URL="${appUrl}"`).toBe(appUrl);
-      expect(varIn(table, 'SPOTIFY_REDIRECT_URI')).toBe(`${appUrl}/auth/callback`);
-      expect(varIn(table, 'SPOTIFY_CLIENT_ID')).toMatch(/^[0-9a-f]{32}$/);
+      expect(varIn(file, table, 'SPOTIFY_REDIRECT_URI')).toBe(`${appUrl}/auth/callback`);
+      expect(varIn(file, table, 'SPOTIFY_CLIENT_ID')).toBe(SPOTIFY_CLIENT_ID);
     });
   }
 });

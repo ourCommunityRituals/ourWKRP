@@ -178,7 +178,8 @@ async function upsertContributor(
  * Redirect allowlist, per environment — prevents open redirect (OW-153).
  *
  * Production redirects only to its own hosts; staging only to staging and local
- * dev. Any other WORKER_ENV (unset, development, miscased) gets NO hosts, so the
+ * dev; development (wrangler.e2e.toml: Playwright + local dev) only to localhost.
+ * Any other WORKER_ENV (unset, miscased, unknown) gets NO hosts, so the
  * callback answers 500 instead of logging anyone in. That keeps redirect policy
  * and cookie policy in step: the session cookie is Secure only when WORKER_ENV
  * is exactly 'production', so an unrecognised env must never complete a login
@@ -189,6 +190,7 @@ async function upsertContributor(
 const ALLOWED_REDIRECT_HOSTS = {
   production: new Set(['ourwkrp.com', 'www.ourwkrp.com']),
   staging: new Set(['stg.ourwkrp.com', 'localhost', '127.0.0.1']),
+  development: new Set(['localhost', '127.0.0.1']),
 } as const;
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
@@ -198,6 +200,7 @@ const NO_HOSTS: ReadonlySet<string> = new Set();
 export function allowedRedirectHosts(workerEnv: string | undefined): ReadonlySet<string> {
   if (workerEnv === 'production') return ALLOWED_REDIRECT_HOSTS.production;
   if (workerEnv === 'staging') return ALLOWED_REDIRECT_HOSTS.staging;
+  if (workerEnv === 'development') return ALLOWED_REDIRECT_HOSTS.development;
   return NO_HOSTS;
 }
 
