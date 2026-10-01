@@ -83,8 +83,8 @@ WORKER_ENV = "staging"
 WORKER_VERSION = "0.1.0"
 # Fallback for local dev without Doppler -- Doppler overrides in stg/prd
 SPOTIFY_CLIENT_ID = "b0af039c67b14c2fbeb1f5ab0b5ff662"
-SPOTIFY_REDIRECT_URI = "https://ourwkrp-staging.mzdano.workers.dev/auth/callback"
-APP_URL = "https://ourwkrp-staging.mzdano.workers.dev"
+SPOTIFY_REDIRECT_URI = "https://stg.ourwkrp.com/auth/callback"
+APP_URL = "https://stg.ourwkrp.com"
 # Last.fm -- get API key at https://www.last.fm/api/account/create
 LASTFM_API_KEY = ""
 LASTFM_SHARED_SECRET = ""

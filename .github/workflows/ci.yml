@@ -468,7 +468,7 @@ jobs:
   #
   # Production deploy procedure (run only when prod is explicitly approved):
   #   1. Confirm staging is healthy:
-  #        curl https://ourwkrp-staging.mzdano.workers.dev/health
+  #        curl https://stg.ourwkrp.com/health
   #   2. Trigger this workflow: GitHub → Actions → CI → "Run workflow" on the
   #      main branch. It re-runs the full gate (S0 → tests), then the verified
   #      deploy chain: preflight → D1 migrations → deploy → smoke. The job

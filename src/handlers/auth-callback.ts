@@ -25,7 +25,7 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
   const error = url.searchParams.get('error');
 
   // Validate APP_URL is a safe redirect target (prevent open redirect)
-  const appUrl = validateRedirectTarget(env.APP_URL);
+  const appUrl = validateRedirectTarget(env.APP_URL, env.WORKER_ENV);
   if (!appUrl) {
     logError('AUTH_CALLBACK_UNSAFE_REDIRECT', new Error(`Unsafe APP_URL: ${env.APP_URL}`));
     return Response.json({ ok: false, error: 'Server misconfiguration' }, { status: 500 });
@@ -174,22 +174,31 @@ async function upsertContributor(
   return contributorId;
 }
 
-/** Validate redirect target is an allowed domain — prevents open redirect */
-const ALLOWED_REDIRECT_HOSTS = new Set([
-  'ourwkrp.com',
-  'www.ourwkrp.com',
-  'stg.ourwkrp.com',
-  'ourwkrp-staging.mzdano.workers.dev',
-  'ourwkrp-production.mzdano.workers.dev',
-  'localhost',
-  '127.0.0.1',
-]);
+/**
+ * Redirect allowlist, per environment — prevents open redirect (OW-153).
+ *
+ * Production redirects only to its own hosts; staging only to staging and local
+ * dev. Any other WORKER_ENV (unset, development, miscased) gets the production
+ * set, so a misconfigured env fails closed. Mirrors lib/cors.ts, which gates the
+ * staging origin by WORKER_ENV the same way. The *.mzdano.workers.dev hosts are
+ * gone: workers_dev = false closed them, and they were never production hosts.
+ */
+const ALLOWED_REDIRECT_HOSTS = {
+  production: new Set(['ourwkrp.com', 'www.ourwkrp.com']),
+  staging: new Set(['stg.ourwkrp.com', 'localhost', '127.0.0.1']),
+} as const;
 
-function validateRedirectTarget(urlString: string): string | null {
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
+
+export function allowedRedirectHosts(workerEnv: string | undefined): ReadonlySet<string> {
+  return workerEnv === 'staging' ? ALLOWED_REDIRECT_HOSTS.staging : ALLOWED_REDIRECT_HOSTS.production;
+}
+
+export function validateRedirectTarget(urlString: string, workerEnv: string | undefined): string | null {
   try {
     const url = new URL(urlString);
-    if (!ALLOWED_REDIRECT_HOSTS.has(url.hostname)) return null;
-    if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1' && url.protocol !== 'https:') return null;
+    if (!allowedRedirectHosts(workerEnv).has(url.hostname)) return null;
+    if (!LOCAL_HOSTS.has(url.hostname) && url.protocol !== 'https:') return null;
     return url.origin;
   } catch {
     return null;
