@@ -24,8 +24,8 @@ describe('logger redaction', () => {
     const out = captureLog(() => log('TEST', {
       access_token: 'secret-abc',
       refresh_token: 'refresh-xyz',
-      display_name: 'Matt Z',
-      email: 'mzdano@gmail.com',
+      display_name: 'Sample Person',
+      email: 'person@example.com',
       brand_id: 'wkrp',
     }));
     expect(out.access_token).toBe('[redacted]');

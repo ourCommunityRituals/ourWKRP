@@ -184,7 +184,7 @@ async function upsertContributor(
  * and cookie policy in step: the session cookie is Secure only when WORKER_ENV
  * is exactly 'production', so an unrecognised env must never complete a login
  * (review on #74). Mirrors lib/cors.ts, which gates the
- * staging origin by WORKER_ENV the same way. The *.mzdano.workers.dev hosts are
+ * staging origin by WORKER_ENV the same way. The account *.workers.dev hosts are
  * gone: workers_dev = false closed them, and they were never production hosts.
  */
 const ALLOWED_REDIRECT_HOSTS = {

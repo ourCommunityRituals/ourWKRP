@@ -4,7 +4,7 @@
  * The callback redirects to APP_URL after login, and only to an allowed host.
  * Until OW-153 the allowlist was one flat set for every environment, so
  * production would redirect a fresh session to stg.ourwkrp.com or to either
- * *.mzdano.workers.dev host. Each extra host is another place a login can land.
+ * account *.workers.dev host. Each extra host is another place a login can land.
  *
  *   production → ourwkrp.com, www.ourwkrp.com (https only)
  *   staging    → stg.ourwkrp.com, localhost, 127.0.0.1
@@ -23,8 +23,8 @@ import type { Env } from '../../src/types';
 
 const STAGING_HOSTS = ['https://stg.ourwkrp.com', 'http://localhost:8787', 'http://127.0.0.1:8787'];
 const WORKERS_DEV = [
-  'https://ourwkrp-staging.mzdano.workers.dev',
-  'https://ourwkrp-production.mzdano.workers.dev',
+  'https://ourwkrp-staging.example-account.workers.dev',
+  'https://ourwkrp-production.example-account.workers.dev',
 ];
 const PRODUCTION_HOSTS = ['https://ourwkrp.com', 'https://www.ourwkrp.com'];
 
