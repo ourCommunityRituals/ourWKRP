@@ -281,7 +281,7 @@ SPOTIFY_CLIENT_ID = "your-new-client-id"
 
 ```bash
 npm run deploy:staging
-# Equivalent to: doppler run -c stg -- wrangler deploy
+# Equivalent to: doppler run -c stg_deploy -- bash scripts/ci/wrangler-ci.sh stg_deploy deploy
 ```
 
 ### 6.2 Smoke test staging
@@ -298,7 +298,7 @@ open https://stg.yourdomain.com
 
 ```bash
 npm run deploy:prod
-# Equivalent to: doppler run -c prd -- wrangler deploy --env production
+# Equivalent to: doppler run -c prd_deploy -- bash scripts/ci/wrangler-ci.sh prd_deploy deploy --env production
 ```
 
 ### 6.4 Smoke test production
