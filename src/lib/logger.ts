@@ -14,10 +14,13 @@
  * Covers credentials, personal identifiers, and free-text the user typed
  * (search/filter terms) plus raw SQL diagnostics.
  */
-const REDACT_KEYS = new Set([
+export const REDACT_KEYS = new Set([
   'access_token', 'refresh_token', 'code_verifier', 'session_key', 'password',
   'authorization', 'cookie', 'set-cookie',
   'display_name', 'displayname', 'email', 'realname',
+  // A contributor's name and a linked account's username are personal
+  // identifiers too. Ids (contributor, listener, DJ) stay: they are opaque.
+  'name', 'username', 'lastfm_username',
   'binds', 'sql', 'q', 'query', 'search', 'searchterm',
 ]);
 

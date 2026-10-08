@@ -39,8 +39,23 @@ jobs:
         env:
           OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
       - run: npm ci
+      # The Ubuntu packages `--with-deps` installs for WebKit (181 packages,
+      # 126 MB) come from the runner's mirror (azure.archive.ubuntu.com). On
+      # 2026-10-08 that mirror stalled this step for 25 minutes on OW-158's PR
+      # (run 37819813838) before any test ran. The script below copies this
+      # cache into apt's own, limits each download attempt, drops the slow
+      # mirror for the next one, and refreshes the cache after. Ported from
+      # ourSharedEvents scripts/ci/install-playwright-browsers.sh (#862).
+      - name: Restore Playwright system package cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pw-apt-archives
+          key: ${{ runner.os }}-pw-apt-chromium-webkit-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pw-apt-chromium-webkit-
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium webkit
+        timeout-minutes: 10
+        run: bash scripts/ci/install-playwright-browsers.sh chromium webkit
       - name: Audit customer-facing surfaces
         # Informational on PR/push; blocking on schedule + manual dispatch.
         continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
