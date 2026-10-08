@@ -117,8 +117,9 @@
           var res = await fetch('/dj/' + contributor.id + '/stats');
           var data = await res.json();
           if (data.ok) {
-            document.getElementById('stat-attributions').textContent = data.stats.total_attributions;
-            document.getElementById('stat-listeners').textContent = data.stats.unique_listeners;
+            // Listener counts are floored (K = 5): none and 1 to 4 read the same.
+            document.getElementById('stat-attributions').textContent = floored(data.stats.total_attributions);
+            document.getElementById('stat-listeners').textContent = floored(data.stats.unique_listeners);
             document.getElementById('stat-sets').textContent = data.stats.total_sets;
             renderTopTracks(data.stats.top_discovered_tracks || []);
           }
@@ -127,9 +128,9 @@
 
       function renderTopTracks(tracks) {
         var el = document.getElementById('top-tracks');
-        if (tracks.length === 0) { el.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">No attributions yet. Start a set and share your poster.</div>'; return; }
+        if (tracks.length === 0) { el.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">No track has 5 or more attributions yet. Start a set and share your poster.</div>'; return; }
         el.innerHTML = tracks.map(function(t) {
-          return '<div class="set-track"><div class="item-info"><div class="item-name">' + esc(t.name) + '</div><div class="item-sub">' + esc(t.artist) + '</div></div><div class="item-action" style="font-size:0.8rem;color:var(--accent);">' + t.attribution_count + '</div></div>';
+          return '<div class="set-track"><div class="item-info"><div class="item-name">' + esc(t.name) + '</div><div class="item-sub">' + esc(t.artist) + '</div></div><div class="item-action" style="font-size:0.8rem;color:var(--accent);">' + esc(String(t.attribution_count)) + '</div></div>';
         }).join('');
       }
 
@@ -265,6 +266,7 @@
         } catch (e) {}
       }
 
+      function floored(n) { return typeof n === 'number' ? String(n) : 'Fewer than 5'; }
       function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
     })();
   </script>

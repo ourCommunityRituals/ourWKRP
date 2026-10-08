@@ -18,6 +18,7 @@ import { startSetBodySchema, addSetTrackBodySchema, createAttributionBodySchema 
 import { validateBody } from '../lib/validate';
 import { recordAudit } from '../lib/audit';
 import { log } from '../lib/logger';
+import { applyCountFloor, dropSubFloorRows, sumContributingBuckets } from '../lib/count-floor';
 
 /**
  * POST /api/sets
@@ -239,12 +240,20 @@ export async function handleCreateAttribution(request: Request, env: Env): Promi
 /**
  * GET /dj/:id/stats
  * DJ influence stats — total attributions, unique listeners, top discovered tracks.
+ *
+ * Public route, so every listener-derived figure takes the uniform floor
+ * (lib/count-floor.ts, K = 5, the same rule OSE applies). The DJ is the named
+ * pole; listeners are counts, never individuals. "None" and "1 to 4" read the
+ * same: null with `_suppressed: true`.
+ *   - unique_listeners: one count of people, floored.
+ *   - top tracks: a track under the floor is dropped, never shown as "3".
+ *   - total_attributions: the sum of the tracks that each clear the floor
+ *     (drop before sum), so the total minus the listed tracks never gives a
+ *     dropped track's count back.
+ *   - total_sets: the DJ's own sets, exact (not listener-derived).
  */
 export async function handleGetDjStats(_request: Request, env: Env, djId: string): Promise<Response> {
-  const [totalResult, listenersResult, topTracksResult, setsResult] = await env.WKRP_DB.batch([
-    env.WKRP_DB.prepare(
-      'SELECT COUNT(*) as count FROM attributions WHERE dj_id = ?'
-    ).bind(djId),
+  const [listenersResult, tracksResult, setsResult] = await env.WKRP_DB.batch([
     env.WKRP_DB.prepare(
       'SELECT COUNT(DISTINCT listener_id) as count FROM attributions WHERE dj_id = ? AND listener_id IS NOT NULL'
     ).bind(djId),
@@ -253,25 +262,32 @@ export async function handleGetDjStats(_request: Request, env: Env, djId: string
        FROM attributions a
        INNER JOIN tracks t ON a.track_id = t.id
        WHERE a.dj_id = ?
-       GROUP BY t.id ORDER BY attribution_count DESC, t.id ASC LIMIT 10`
+       GROUP BY t.id ORDER BY attribution_count DESC, t.id ASC`
     ).bind(djId),
     env.WKRP_DB.prepare(
       'SELECT COUNT(*) as count FROM dj_sets WHERE dj_id = ?'
     ).bind(djId),
   ]);
 
-  const totalAttributions = (totalResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
-  const uniqueListeners = (listenersResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
-  const totalSets = (setsResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
+  const countOf = (r: unknown): number => Number((r as Record<string, unknown>).attribution_count ?? 0);
+  const tracks = tracksResult.results as Record<string, unknown>[];
+  const uniqueListeners = applyCountFloor(Number((listenersResult.results[0] as Record<string, unknown>)?.count ?? 0));
+  const totalAttributions = applyCountFloor(sumContributingBuckets(tracks, countOf));
+  const topTracks = dropSubFloorRows(tracks, countOf);
+  const totalSets = Number((setsResult.results[0] as Record<string, unknown>)?.count ?? 0);
 
   return Response.json({
     ok: true,
     dj_id: djId,
+    privacy: 'floored_aggregate_listeners_named_djs',
     stats: {
-      total_attributions: totalAttributions,
-      unique_listeners: uniqueListeners,
+      total_attributions: totalAttributions.count,
+      total_attributions_suppressed: totalAttributions.suppressed,
+      unique_listeners: uniqueListeners.count,
+      unique_listeners_suppressed: uniqueListeners.suppressed,
       total_sets: totalSets,
-      top_discovered_tracks: topTracksResult.results,
+      top_discovered_tracks: topTracks.rows.slice(0, 10),
+      reporting_floor: uniqueListeners.floor,
     },
   });
 }
