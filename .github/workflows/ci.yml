@@ -407,13 +407,18 @@ jobs:
   # Deploy jobs — Doppler injects secrets at runtime
   # ============================================
   # Setup: Doppler Dashboard > ourwkrp > Integrations > GitHub Actions
-  #   1. Create service token for stg config → add as DOPPLER_TOKEN_STG secret in GitHub
-  #   2. Create service token for prd config → add as DOPPLER_TOKEN_PRD secret in GitHub
-  #   3. CLOUDFLARE_API_TOKEN lives in Doppler (stg AND prd configs), never in
-  #      GitHub secrets: `doppler run` injects it into wrangler. Token: Cloudflare
-  #      "Edit Cloudflare Workers" template + Account > D1 > Edit, zone ourwkrp.com.
-  #      (OW-152: the old GitHub secret was never set, so every deploy since June
-  #      failed at its first wrangler call.)
+  #   1. Deploy keys live in their own Doppler configs, stg_deploy and
+  #      prd_deploy (root environments, not branches of stg/prd), never in the
+  #      runtime configs that can reach the Worker (ADR-012 §3).
+  #   2. Service token for stg_deploy → GitHub secret DOPPLER_TOKEN_STG;
+  #      service token for prd_deploy → GitHub secret DOPPLER_TOKEN_PRD.
+  #   3. Each deploy config holds CLOUDFLARE_API_TOKEN_OW: the Cloudflare token
+  #      named ourwkrp-ci-deploy ("Edit Cloudflare Workers" template + Account >
+  #      D1 > Edit, zone ourwkrp.com, expiry ≤ 90 days). Every wrangler call
+  #      goes through scripts/ci/wrangler-ci.sh, which checks the service token
+  #      reads the right config and hands wrangler the token as
+  #      CLOUDFLARE_API_TOKEN. (OW-152: the old GitHub secret was never set, so
+  #      every deploy since June failed at its first wrangler call.)
   # ============================================
 
   deploy-staging:
@@ -447,23 +452,24 @@ jobs:
       - name: Install Doppler CLI
         uses: dopplerhq/cli-action@v3
 
-      # Fail with a named cause if Doppler (stg) has no Cloudflare token, instead
-      # of wrangler's generic "non-interactive environment" error (OW-152).
-      - name: Doppler provides CLOUDFLARE_API_TOKEN (stg)
-        run: doppler run -- bash -c 'test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::CLOUDFLARE_API_TOKEN is not set in the Doppler stg config (project ourwkrp)."; exit 1; }'
+      # Fail with a named cause if the service token reads the wrong Doppler
+      # config, or the config has no deploy token, instead of wrangler's generic
+      # "non-interactive environment" error (OW-152).
+      - name: Doppler provides the deploy token (stg_deploy)
+        run: doppler run -- bash scripts/ci/wrangler-ci.sh stg_deploy check
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STG }}
 
       # wrangler deploy does NOT apply migrations — do it first, explicitly.
-      # wrangler is run via npx so it resolves from node_modules after npm ci.
-      # The DOPPLER_TOKEN service token already scopes project+config, so no -p/-c.
+      # wrangler-ci.sh runs wrangler via npx, so it resolves from node_modules
+      # after npm ci. The DOPPLER_TOKEN service token scopes project+config.
       - name: Apply D1 migrations (staging)
-        run: doppler run -- npx wrangler d1 migrations apply ourwkrp-staging --remote
+        run: doppler run -- bash scripts/ci/wrangler-ci.sh stg_deploy d1 migrations apply ourwkrp-staging --remote
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STG }}
 
       - name: Deploy to Staging
-        run: doppler run -- npx wrangler deploy
+        run: doppler run -- bash scripts/ci/wrangler-ci.sh stg_deploy deploy
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STG }}
 
@@ -513,22 +519,22 @@ jobs:
       - name: Install Doppler CLI
         uses: dopplerhq/cli-action@v3
 
-      # Fail with a named cause if Doppler (prd) has no Cloudflare token, instead
-      # of wrangler's generic "non-interactive environment" error (OW-152).
-      - name: Doppler provides CLOUDFLARE_API_TOKEN (prd)
-        run: doppler run -- bash -c 'test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::CLOUDFLARE_API_TOKEN is not set in the Doppler prd config (project ourwkrp)."; exit 1; }'
+      # Fail with a named cause if the service token reads the wrong Doppler
+      # config, or the config has no deploy token, instead of wrangler's generic
+      # "non-interactive environment" error (OW-152).
+      - name: Doppler provides the deploy token (prd_deploy)
+        run: doppler run -- bash scripts/ci/wrangler-ci.sh prd_deploy check
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PRD }}
 
-      # wrangler via npx — see the deploy-staging note above. The DOPPLER_TOKEN
-      # service token scopes project+config, so no -p/-c flags.
+      # wrangler via wrangler-ci.sh — see the deploy-staging note above.
       - name: Apply D1 migrations (production)
-        run: doppler run -- npx wrangler d1 migrations apply ourwkrp-production --remote --env production
+        run: doppler run -- bash scripts/ci/wrangler-ci.sh prd_deploy d1 migrations apply ourwkrp-production --remote --env production
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PRD }}
 
       - name: Deploy to Production
-        run: doppler run -- npx wrangler deploy --env production
+        run: doppler run -- bash scripts/ci/wrangler-ci.sh prd_deploy deploy --env production
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PRD }}
 

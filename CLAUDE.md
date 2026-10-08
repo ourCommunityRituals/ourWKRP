@@ -159,14 +159,14 @@ Registered at developer.spotify.com for app `b0af039c67b14c2fbeb1f5ab0b5ff662`:
 **Secrets manager: [Doppler](https://doppler.com)**
 
 Doppler project: `ourwkrp`
-Configs: `dev`, `stg`, `prd`
+Runtime configs: `dev`, `stg`, `prd`. Deploy configs: `stg_deploy`, `prd_deploy` (root environments, not branches; ADR-012 §3).
 
 | Value | Where it lives | Purpose |
 |--------|---------------|---------|
 | SPOTIFY_CLIENT_ID | `wrangler.toml` `[vars]` (public) | Spotify app ID (`b0af039c67b14c2fbeb1f5ab0b5ff662`) |
 | SPOTIFY_REDIRECT_URI | `wrangler.toml` `[vars]`, per env (public) | OAuth callback URL |
 | APP_URL | `wrangler.toml` `[vars]`, per env (public) | Frontend base URL; must pass that env's redirect allowlist |
-| CLOUDFLARE_API_TOKEN | Doppler `stg` + `prd` (secret) | Lets CI's `doppler run -- wrangler …` deploy and migrate |
+| CLOUDFLARE_API_TOKEN_OW | Doppler `stg_deploy` + `prd_deploy` only (secret) | Deploys and migrates. The Cloudflare token is named `ourwkrp-ci-deploy` and rotated every 90 days. `scripts/ci/wrangler-ci.sh` checks the config and hands it to wrangler as `CLOUDFLARE_API_TOKEN`. GitHub holds only the service tokens `DOPPLER_TOKEN_STG` / `DOPPLER_TOKEN_PRD`, one per deploy config |
 | KV namespace ID | wrangler.toml | Auth/session state (CF infra, not a secret) |
 | D1 database ID | wrangler.toml | Catalog data (CF infra, not a secret) |
 
@@ -183,11 +183,11 @@ doppler setup            # select ourwkrp project + dev config
 # Local dev
 doppler run -- wrangler dev
 
-# Deploy staging
-doppler run -c stg -- wrangler deploy
+# Deploy staging (Doppler config stg_deploy)
+npm run deploy:staging
 
-# Deploy production
-doppler run -c prd -- wrangler deploy --env production
+# Deploy production (Doppler config prd_deploy)
+npm run deploy:prod
 ```
 
 ### Public config values per environment

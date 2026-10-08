@@ -1,21 +1,23 @@
 # ============================================
 # ourWKRP — Cloudflare Worker Configuration
 # ============================================
-# Staging: doppler run -- wrangler deploy
-# Production: doppler run -c prd -- wrangler deploy --env production
+# Staging: npm run deploy:staging (Doppler config stg_deploy)
+# Production: npm run deploy:prod (Doppler config prd_deploy)
 # Local dev: doppler run -c dev -- wrangler dev
 # ============================================
 # Secrets Management: Doppler (preferred)
 #
 # Doppler project: ourwkrp
-# Configs: dev, stg, prd
+# Runtime configs: dev, stg, prd. Deploy configs: stg_deploy, prd_deploy.
 #
 # Public config is NOT in Doppler. SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI and
 # APP_URL live in the [vars] tables below (top-level = staging,
 # [env.production.vars] = production): `wrangler deploy` uploads [vars] as-is,
 # and the process env that `doppler run` sets does not change them (OW-153).
-# Doppler holds the secrets: CLOUDFLARE_API_TOKEN for the deploy itself (stg
-# and prd configs, OW-152) and the Worker secrets listed below.
+# Doppler holds the secrets: CLOUDFLARE_API_TOKEN_OW for the deploy itself
+# (stg_deploy and prd_deploy only, never the runtime configs; ADR-012 §3,
+# OW-152; scripts/ci/wrangler-ci.sh hands it to wrangler) and the Worker
+# secrets listed below.
 #
 # Cross-product service token (OSE-1299 — SECRET, never a [vars] value):
 #   OSE_INTEGRATION_TOKEN  -> shared secret OSE presents on the music /
