@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
       # wrangler dev bundles @ocr/ui (/ui.css), so the pinned hub package must
       # be staged first, exactly as ci.yml does (OW-151).
       - name: Stage @ocr/ui package
