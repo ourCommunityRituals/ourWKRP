@@ -235,6 +235,28 @@ doppler secrets set LASTFM_API_KEY="your-key" LASTFM_SHARED_SECRET="your-secret"
 npm run dev    # Uses doppler run -- wrangler dev
 ```
 
+### 4.5 Deploy secrets: set up and rotate (OW-154)
+
+The Cloudflare deploy token (`ourwkrp-ci-deploy`) lives only in the Doppler
+deploy configs `stg_deploy` and `prd_deploy` (root environments, ADR-012 §3).
+GitHub holds only a read-only Doppler service token per config, as the
+environment secrets `DOPPLER_TOKEN_STG` (`staging`) and `DOPPLER_TOKEN_PRD`
+(`production`). One command sets all of it up, and re-running it rotates it.
+Run it on your own computer, logged in to `gh` as a repo admin and to Doppler:
+
+```bash
+npm run deploy-keys -- --dry-run       # shows what it would change
+Get-Clipboard | npm run deploy-keys    # Windows PowerShell
+pbpaste | npm run deploy-keys          # macOS
+npm run deploy-keys -- --env staging   # one environment only
+```
+
+It reads the Cloudflare token from the clipboard pipe (or a hidden prompt),
+never prints it or a service token, revokes older `github-actions-*` service
+tokens only after GitHub has the new one, and deletes the old
+repository-level secret of the same name. Every 90 days: make the new
+Cloudflare token, run it again, then delete the old Cloudflare token.
+
 ---
 
 ## Phase 5: Spotify App (15 min)
