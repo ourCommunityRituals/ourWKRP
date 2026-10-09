@@ -235,6 +235,31 @@ doppler secrets set LASTFM_API_KEY="your-key" LASTFM_SHARED_SECRET="your-secret"
 npm run dev    # Uses doppler run -- wrangler dev
 ```
 
+### 4.5 Deploy secrets: set up and rotate (OW-154)
+
+The Cloudflare deploy token (`ourwkrp-ci-deploy`) lives only in the Doppler
+project `ourwkrp-deploy` (configs `stg` and `prd`), apart from the runtime
+project `ourwkrp` (ADR-012 §3; a separate project because Doppler's free plan
+allows 4 environments per project).
+GitHub holds only a read-only Doppler service token per config, as the
+environment secrets `DOPPLER_TOKEN_STG` (`staging`) and `DOPPLER_TOKEN_PRD`
+(`production`). One command sets all of it up, and re-running it rotates it.
+Run it on your own computer, logged in to `gh` as a repo admin and to Doppler:
+
+```bash
+npm run deploy-keys -- --dry-run       # shows what it would change
+npm run deploy-keys                    # asks for the token (hidden); paste it, Enter
+npm run deploy-keys -- --env staging   # one environment only
+Get-Clipboard | npm run deploy-keys    # or pipe it (Windows); pbpaste | ... on macOS
+```
+
+It reads the Cloudflare token from a hidden prompt (or a pipe). If you pipe the
+clipboard, copy the token last: copying the command replaces it. It
+never prints it or a service token, revokes older `github-actions-*` service
+tokens only after GitHub has the new one, and deletes the old
+repository-level secret of the same name. Every 90 days: make the new
+Cloudflare token, run it again, then delete the old Cloudflare token.
+
 ---
 
 ## Phase 5: Spotify App (15 min)
@@ -281,7 +306,7 @@ SPOTIFY_CLIENT_ID = "your-new-client-id"
 
 ```bash
 npm run deploy:staging
-# Equivalent to: doppler run -c stg_deploy -- bash scripts/ci/wrangler-ci.sh stg_deploy deploy
+# Equivalent to: doppler run -p ourwkrp-deploy -c stg -- bash scripts/ci/wrangler-ci.sh stg deploy
 ```
 
 ### 6.2 Smoke test staging
@@ -298,7 +323,7 @@ open https://stg.yourdomain.com
 
 ```bash
 npm run deploy:prod
-# Equivalent to: doppler run -c prd_deploy -- bash scripts/ci/wrangler-ci.sh prd_deploy deploy --env production
+# Equivalent to: doppler run -p ourwkrp-deploy -c prd -- bash scripts/ci/wrangler-ci.sh prd deploy --env production
 ```
 
 ### 6.4 Smoke test production
