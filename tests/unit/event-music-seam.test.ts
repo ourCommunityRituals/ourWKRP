@@ -21,8 +21,12 @@ type Row = Record<string, unknown>;
 
 const TOKEN = 'test-ose-integration-token';
 
-/** Mock WKRP_DB.batch: returns the three result sets the handler destructures. */
-function makeEnv(sets: Row[], attributions: Row[], topTracks: Row[]): Env {
+/**
+ * Mock WKRP_DB.batch: returns the result sets the handler destructures, in
+ * order. `trackCounts` is the per-track count over every track of the event
+ * (no LIMIT), which the total is built from (OW-160).
+ */
+function makeEnv(sets: Row[], attributions: Row[], topTracks: Row[], trackCounts: Row[] = []): Env {
   return {
     OSE_INTEGRATION_TOKEN: TOKEN,
     WKRP_DB: {
@@ -31,6 +35,7 @@ function makeEnv(sets: Row[], attributions: Row[], topTracks: Row[]): Env {
         { results: sets },
         { results: attributions },
         { results: topTracks },
+        { results: trackCounts },
       ],
     },
   } as unknown as Env;
@@ -242,5 +247,67 @@ describe('T-SEAM music export — requires the cross-product service token (OSE-
       'evt1',
     );
     expect(res.status).toBe(200);
+  });
+});
+
+/**
+ * OW-160 — the total is the sum of the tracks that each clear the floor.
+ *
+ * Before: total_attributions was the raw COUNT(*) floored as one number, next
+ * to a top-track list with sub-floor tracks dropped. With exactly one track
+ * dropped, total minus the listed tracks gave that track's count back. Now the
+ * total sums only per-track counts that are each >= the floor, over every
+ * track of the event (not just the top 25), the rule OW-158 applies to
+ * /dj/:id/stats and OSE applies with floorTotalOfParts.
+ */
+describe('T-SEAM music export — total is the sum of floored tracks (OW-160)', () => {
+  const tracksOf = (...counts: number[]) =>
+    counts.map((n, i) => ({ id: `t${i}`, name: `Song ${i}`, artist: 'A', attribution_count: n, attributed_dj: 'DJ Nova' }));
+  const perTrack = (...counts: number[]) => counts.map((n, i) => ({ track_id: `t${i}`, attribution_count: n }));
+  const envFor = (...counts: number[]) => {
+    const raw = counts.reduce((a, b) => a + b, 0);
+    return makeEnv([], [{ total_attributions: raw, distinct_listeners: ABOVE, dj_count: 1 }], tracksOf(...counts), perTrack(...counts));
+  };
+  const publishedOf = async (env: Env) => {
+    const { music } = await musicOf(env);
+    return { stats: music.stats, top_tracks: music.top_tracks, below: music.top_tracks_below_floor };
+  };
+
+  it('neighbours one attribution apart on a sub-floor track publish the same thing', async () => {
+    const a = await publishedOf(envFor(ABOVE, BELOW - 1));
+    const b = await publishedOf(envFor(ABOVE, BELOW));
+    expect(b).toEqual(a);
+  });
+
+  it('control: one attribution more on a track above the floor changes the total', async () => {
+    const a = await publishedOf(envFor(ABOVE, BELOW));
+    const b = await publishedOf(envFor(ABOVE + 1, BELOW));
+    expect((b.stats as Row).total_attributions).toBe((a.stats as Row).total_attributions as number + 1);
+  });
+
+  it('total minus the listed tracks never gives a dropped track back', async () => {
+    const { music } = await musicOf(envFor(ABOVE, ABOVE + 2, BELOW));
+    const stats = music.stats as Row;
+    const listed = (music.top_tracks as Row[]).reduce((s, t) => s + Number(t.attribution_count), 0);
+    expect(stats.total_attributions).toBe(listed);
+  });
+
+  it('counts tracks beyond the top-25 list that clear the floor', async () => {
+    const counts = Array.from({ length: 26 }, () => ABOVE);
+    const env = makeEnv(
+      [],
+      [{ total_attributions: 26 * ABOVE, distinct_listeners: ABOVE, dj_count: 1 }],
+      tracksOf(...counts.slice(0, 25)),
+      perTrack(...counts),
+    );
+    const { music } = await musicOf(env);
+    expect((music.stats as Row).total_attributions).toBe(26 * ABOVE);
+  });
+
+  it('is null and suppressed when no track clears the floor, even if the raw total would', async () => {
+    const { music } = await musicOf(envFor(BELOW, BELOW, BELOW));
+    const stats = music.stats as Row;
+    expect(stats.total_attributions).toBeNull();
+    expect(stats.total_attributions_suppressed).toBe(true);
   });
 });
