@@ -263,9 +263,12 @@ describe('CCR #9 — Music export applies the uniform count floor (T-SEAM)', () 
     expect(eventsSource).toContain('dropSubFloorRows');
   });
 
-  it('floors the listener-derived scalars (distinct_listeners, total_attributions)', () => {
+  it('floors distinct_listeners as one count, and builds total_attributions from floored tracks (OW-160)', () => {
     expect(eventsSource).toMatch(/applyCountFloor\(Number\(stats\.distinct_listeners/);
-    expect(eventsSource).toMatch(/applyCountFloor\(Number\(stats\.total_attributions/);
+    // Drop before sum: the total is the sum of per-track counts that each clear
+    // the floor, never the raw COUNT(*) floored as one number.
+    expect(eventsSource).toMatch(/applyCountFloor\(\s*sumContributingBuckets\(/);
+    expect(eventsSource).not.toMatch(/stats\.total_attributions/);
   });
 
   it('names counts honestly (#27) — no banned "unique_listeners" token on the seam', () => {
