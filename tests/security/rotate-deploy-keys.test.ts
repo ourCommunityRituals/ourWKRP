@@ -24,7 +24,7 @@ import { delimiter, join } from "node:path";
 
 const ROOT = join(__dirname, "..", "..");
 const SCRIPT = join(ROOT, "scripts/ops/rotate-deploy-keys.mjs");
-const CF = "cf-secret-value-123";
+const CF = "cfut_TestTokenValue_0123456789-abc";
 
 interface Call {
   method: string;
@@ -255,6 +255,17 @@ describe("OW-154 | rotate-deploy-keys.mjs", () => {
     expect(r.out).toContain("5 words on 1 line(s)");
     expect(r.out).toContain("Nothing was changed");
     expect(r.out).not.toContain("Get-Clipboard");
+  });
+
+  it("refuses a token with a control character (Ctrl+V in an older console), before any write", async () => {
+    writeGh({});
+    const r = await runScript([], "\u0016");
+    expect(r.code).toBe(2);
+    expect(writes()).toEqual([]);
+    expect(r.out).toContain("1 of them not a letter, digit, - or _");
+    const r2 = await runScript([], `${CF}\u0016`);
+    expect(r2.code).toBe(2);
+    expect(r2.out).not.toContain(CF);
   });
 
   it("accepts a token with the trailing CRLF PowerShell adds to a pipe", async () => {

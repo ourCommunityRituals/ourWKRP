@@ -193,6 +193,17 @@ async function readCloudflareToken() {
       2,
     );
   }
+  // A Cloudflare token is letters, digits, "-" and "_". A control character
+  // (Ctrl+V in an older Windows console types one) passes the space check but
+  // makes every request fail with "fetch failed" (OW-154, 2026-10-09).
+  const bad = value.replace(/[A-Za-z0-9_-]/g, "").length;
+  if (bad > 0 || value.length < 20) {
+    throw new Stop(
+      `That does not look like a Cloudflare token: ${value.length} characters, ${bad} of them not a letter, digit, - or _. Nothing was changed.\n` +
+        "  Copy the token again and paste it with right-click (Ctrl+V in an older console can type a hidden character).",
+      2,
+    );
+  }
   return value;
 }
 
