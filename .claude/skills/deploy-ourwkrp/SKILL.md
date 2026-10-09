@@ -20,10 +20,10 @@ Deploy to **$ARGUMENTS** environment.
 
 ## Map environment
 
-- `staging` or `stg` → Doppler deploy config `stg_deploy`, wrangler default env
-- `prod` or `production` or `prd` → Doppler deploy config `prd_deploy`, wrangler `--env production`
+- `staging` or `stg` → Doppler `ourwkrp-deploy/stg`, wrangler default env
+- `prod` or `production` or `prd` → Doppler `ourwkrp-deploy/prd`, wrangler `--env production`
 
-The deploy token lives only in the deploy configs (ADR-012 §3), and `scripts/ci/wrangler-ci.sh` refuses any other config.
+The deploy token lives only in the separate Doppler project `ourwkrp-deploy` (ADR-012 §3), never in the runtime project `ourwkrp`, and `scripts/ci/wrangler-ci.sh` refuses any other config. `npm run deploy-keys` sets it up and rotates it.
 
 ## Deploy
 

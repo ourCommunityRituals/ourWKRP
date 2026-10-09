@@ -238,7 +238,9 @@ npm run dev    # Uses doppler run -- wrangler dev
 ### 4.5 Deploy secrets: set up and rotate (OW-154)
 
 The Cloudflare deploy token (`ourwkrp-ci-deploy`) lives only in the Doppler
-deploy configs `stg_deploy` and `prd_deploy` (root environments, ADR-012 §3).
+project `ourwkrp-deploy` (configs `stg` and `prd`), apart from the runtime
+project `ourwkrp` (ADR-012 §3; a separate project because Doppler's free plan
+allows 4 environments per project).
 GitHub holds only a read-only Doppler service token per config, as the
 environment secrets `DOPPLER_TOKEN_STG` (`staging`) and `DOPPLER_TOKEN_PRD`
 (`production`). One command sets all of it up, and re-running it rotates it.
@@ -304,7 +306,7 @@ SPOTIFY_CLIENT_ID = "your-new-client-id"
 
 ```bash
 npm run deploy:staging
-# Equivalent to: doppler run -c stg_deploy -- bash scripts/ci/wrangler-ci.sh stg_deploy deploy
+# Equivalent to: doppler run -p ourwkrp-deploy -c stg -- bash scripts/ci/wrangler-ci.sh stg deploy
 ```
 
 ### 6.2 Smoke test staging
@@ -321,7 +323,7 @@ open https://stg.yourdomain.com
 
 ```bash
 npm run deploy:prod
-# Equivalent to: doppler run -c prd_deploy -- bash scripts/ci/wrangler-ci.sh prd_deploy deploy --env production
+# Equivalent to: doppler run -p ourwkrp-deploy -c prd -- bash scripts/ci/wrangler-ci.sh prd deploy --env production
 ```
 
 ### 6.4 Smoke test production

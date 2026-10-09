@@ -3,8 +3,11 @@
  *
  * It runs against a local Doppler stand-in and a stub `gh`, with no network.
  * The tests lock what makes it safe to run:
- *   - the deploy configs are root environments (stg_deploy, prd_deploy), made
- *     only when missing, and only CLOUDFLARE_API_TOKEN_OW is written to them;
+ *   - the deploy keys go to their own project, ourwkrp-deploy (configs stg,
+ *     prd), never the runtime project ourwkrp; project and environments are
+ *     made only when missing, and only CLOUDFLARE_API_TOKEN_OW is written;
+ *   - an old in-project deploy config (ourwkrp/stg_deploy) is reported for
+ *     deletion by hand, never deleted by the script;
  *   - the service token is read-only, goes from Doppler to `gh secret set` on
  *     stdin, and neither it nor the Cloudflare token is ever printed;
  *   - older github-actions-* tokens are revoked only after GitHub took the new
@@ -33,7 +36,8 @@ interface Call {
 let server: Server;
 let api = "";
 let calls: Call[] = [];
-let envs: Set<string>;
+let envs: Set<string>; // "project/environment"
+let projects: Set<string>;
 let tokens: Record<string, { name: string; slug: string }[]>;
 let dir = "";
 let n = 0;
@@ -53,10 +57,19 @@ function startDoppler(): Promise<void> {
       };
       const key = `${req.method} ${url.pathname}`;
       if (key === "GET /v3/me") return send(200, { workplace: { name: "t" } });
+      if (key === "GET /v3/projects/project")
+        return projects.has(query.project) ? send(200, { project: { id: query.project } }) : send(404, { messages: ["not found"] });
+      if (key === "POST /v3/projects") {
+        projects.add(body.name);
+        return send(200, { project: { id: body.name } });
+      }
       if (key === "GET /v3/environments/environment")
-        return envs.has(query.environment) ? send(200, { environment: { id: query.environment } }) : send(404, { messages: ["not found"] });
+        return envs.has(`${query.project}/${query.environment}`)
+          ? send(200, { environment: { id: query.environment } })
+          : send(404, { messages: ["not found"] });
       if (key === "POST /v3/environments") {
-        envs.add(body.slug);
+        if (!projects.has(query.project)) return send(404, { messages: ["no project"] });
+        envs.add(`${query.project}/${body.slug}`);
         return send(200, { environment: { id: body.slug } });
       }
       if (key === "GET /v3/configs/config/tokens") return send(200, { tokens: tokens[query.config] ?? [] });
@@ -124,8 +137,9 @@ const writes = () => calls.filter((c) => c.method !== "GET");
 beforeEach(async () => {
   calls = [];
   n = 0;
-  envs = new Set(["stg"]);
-  tokens = { stg_deploy: [{ name: "github-actions-old", slug: "slug-old" }, { name: "laptop", slug: "slug-laptop" }] };
+  projects = new Set(["ourwkrp", "ourwkrp-deploy"]);
+  envs = new Set(["ourwkrp/dev", "ourwkrp/stg", "ourwkrp/prd", "ourwkrp-deploy/stg"]);
+  tokens = { stg: [{ name: "github-actions-old", slug: "slug-old" }, { name: "laptop", slug: "slug-laptop" }] };
   dir = mkdtempSync(join(tmpdir(), "deploy-keys-"));
   await startDoppler();
 });
@@ -136,32 +150,33 @@ afterEach(async () => {
 });
 
 describe("OW-154 | rotate-deploy-keys.mjs", () => {
-  it("makes the root deploy environments, stores only the Cloudflare token, saves read-only service tokens", async () => {
+  it("uses the deploy project only, makes what is missing, stores only the Cloudflare token, saves read-only service tokens", async () => {
     writeGh({ repoSecrets: ["DOPPLER_TOKEN_STG", "LINEAR_API_KEY"] });
     const r = await runScript([]);
     expect(r.code, r.out).toBe(0);
 
+    expect(calls.filter((c) => c.method === "POST" && c.path === "/v3/projects")).toEqual([]);
     const made = calls.filter((c) => c.method === "POST" && c.path === "/v3/environments");
-    expect(made.map((c) => [c.query.project, c.body.slug])).toEqual([
-      ["ourwkrp", "stg_deploy"],
-      ["ourwkrp", "prd_deploy"],
-    ]);
+    expect(made.map((c) => [c.query.project, c.body.slug])).toEqual([["ourwkrp-deploy", "prd"]]);
 
     const secrets = calls.filter((c) => c.path === "/v3/configs/config/secrets");
     expect(secrets.map((c) => [c.body.project, c.body.config, c.body.secrets])).toEqual([
-      ["ourwkrp", "stg_deploy", { CLOUDFLARE_API_TOKEN_OW: CF }],
-      ["ourwkrp", "prd_deploy", { CLOUDFLARE_API_TOKEN_OW: CF }],
+      ["ourwkrp-deploy", "stg", { CLOUDFLARE_API_TOKEN_OW: CF }],
+      ["ourwkrp-deploy", "prd", { CLOUDFLARE_API_TOKEN_OW: CF }],
     ]);
 
+    // Nothing is ever written to the runtime project.
+    expect(writes().filter((c) => c.body?.project === "ourwkrp" || c.query.project === "ourwkrp")).toEqual([]);
+
     const made_tokens = calls.filter((c) => c.method === "POST" && c.path === "/v3/configs/config/tokens");
-    expect(made_tokens.map((c) => [c.body.config, c.body.access])).toEqual([
-      ["stg_deploy", "read"],
-      ["prd_deploy", "read"],
+    expect(made_tokens.map((c) => [c.body.project, c.body.config, c.body.access])).toEqual([
+      ["ourwkrp-deploy", "stg", "read"],
+      ["ourwkrp-deploy", "prd", "read"],
     ]);
 
     const log = ghLog();
-    expect(log).toContain("secret set DOPPLER_TOKEN_STG --env staging --repo ourCommunityRituals/ourWKRP\tdp.st.stg_deploy.KEY1");
-    expect(log).toContain("secret set DOPPLER_TOKEN_PRD --env production --repo ourCommunityRituals/ourWKRP\tdp.st.prd_deploy.KEY2");
+    expect(log).toContain("secret set DOPPLER_TOKEN_STG --env staging --repo ourCommunityRituals/ourWKRP\tdp.st.stg.KEY1");
+    expect(log).toContain("secret set DOPPLER_TOKEN_PRD --env production --repo ourCommunityRituals/ourWKRP\tdp.st.prd.KEY2");
     expect(log).toContain("api --method PUT repos/ourCommunityRituals/ourWKRP/environments/production --silent");
   });
 
@@ -180,7 +195,7 @@ describe("OW-154 | rotate-deploy-keys.mjs", () => {
     expect(r.code, r.out).toBe(0);
     const revoked = calls.filter((c) => c.method === "DELETE").map((c) => c.body.slug);
     expect(revoked).toEqual(["slug-old"]);
-    expect(tokens.stg_deploy.map((t) => t.slug).sort()).toEqual(["slug-laptop", "slug-new-1"]);
+    expect(tokens.stg.map((t) => t.slug).sort()).toEqual(["slug-laptop", "slug-new-1"]);
     expect(ghLog()).toContain("secret delete DOPPLER_TOKEN_STG --repo ourCommunityRituals/ourWKRP");
   });
 
@@ -190,8 +205,30 @@ describe("OW-154 | rotate-deploy-keys.mjs", () => {
     expect(r.code).toBe(1);
     expect(r.out).toContain("gh secret set");
     expect(calls.filter((c) => c.method === "DELETE").map((c) => c.body.slug)).toEqual(["slug-new-1"]);
-    expect(tokens.stg_deploy.map((t) => t.slug)).toContain("slug-old");
+    expect(tokens.stg.map((t) => t.slug)).toContain("slug-old");
     expect(ghLog()).not.toContain("secret delete");
+  });
+
+  it("makes the deploy project when it is missing, before its environments", async () => {
+    projects.delete("ourwkrp-deploy");
+    envs = new Set(["ourwkrp/dev", "ourwkrp/stg", "ourwkrp/prd"]);
+    tokens = {};
+    writeGh({});
+    const r = await runScript([]);
+    expect(r.code, r.out).toBe(0);
+    const order = writes().map((c) => `${c.method} ${c.path} ${c.body?.slug ?? c.body?.name ?? ""}`.trim());
+    expect(order.slice(0, 2)).toEqual(["POST /v3/projects ourwkrp-deploy", "POST /v3/environments stg"]);
+    expect(r.out).toContain("Doppler project ourwkrp-deploy: created");
+  });
+
+  it("reports the old deploy configs in the runtime project for deletion by hand, and deletes nothing there", async () => {
+    envs.add("ourwkrp/stg_deploy");
+    writeGh({});
+    const r = await runScript(["--env", "staging"]);
+    expect(r.code, r.out).toBe(0);
+    expect(r.out).toContain("in Doppler project ourwkrp, delete the environment(s) stg_deploy");
+    expect(calls.filter((c) => c.method === "DELETE" && c.path.startsWith("/v3/environments"))).toEqual([]);
+    expect(envs.has("ourwkrp/stg_deploy")).toBe(true);
   });
 
   it("--dry-run writes nothing and asks for no Cloudflare token", async () => {

@@ -6,10 +6,11 @@
  * GitHub secret that was never created, and wrangler only said "non-interactive
  * environment". Secrets live in Doppler.
  *
- * ADR-012 §3 adds that a deploy key lives in its own Doppler config
- * (stg_deploy, prd_deploy), never in the runtime configs (stg, prd) that can
- * reach the Worker. Its stored name is OW's own, CLOUDFLARE_API_TOKEN_OW, and
- * scripts/ci/wrangler-ci.sh hands it to wrangler as CLOUDFLARE_API_TOKEN.
+ * ADR-012 §3 adds that a deploy key never sits where the Worker's runtime keys
+ * are: OW's deploy keys live in their own Doppler project, ourwkrp-deploy
+ * (configs stg, prd), apart from the runtime project ourwkrp. Its stored name
+ * is OW's own, CLOUDFLARE_API_TOKEN_OW, and scripts/ci/wrangler-ci.sh hands it
+ * to wrangler as CLOUDFLARE_API_TOKEN.
  *
  * This test locks, for both deploy jobs:
  *   1. no step sets either token name itself (Doppler is the only source);
@@ -40,8 +41,8 @@ const ci = readFileSync(join(ROOT, ".github/workflows/ci.yml"), "utf-8");
 const SCRIPT_REL = "scripts/ci/wrangler-ci.sh";
 
 const DEPLOY_JOBS: Record<string, { config: string; secret: string }> = {
-  "deploy-staging": { config: "stg_deploy", secret: "DOPPLER_TOKEN_STG" },
-  "deploy-production": { config: "prd_deploy", secret: "DOPPLER_TOKEN_PRD" },
+  "deploy-staging": { config: "stg", secret: "DOPPLER_TOKEN_STG" },
+  "deploy-production": { config: "prd", secret: "DOPPLER_TOKEN_PRD" },
 };
 const CHECK_NAME = /name:\s*Doppler provides the deploy token/;
 
@@ -115,18 +116,18 @@ function synthetic(stepsYaml: string[]): string {
   ].join("\n");
 }
 const audit = (w: string) =>
-  auditJob(w, "deploy-staging", "stg_deploy", "DOPPLER_TOKEN_STG");
+  auditJob(w, "deploy-staging", "stg", "DOPPLER_TOKEN_STG");
 
 const STG = "          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_STG }}";
 const CHECK_STEP = [
-  "      - name: Doppler provides the deploy token (stg_deploy)",
-  `        run: doppler run -- bash ${SCRIPT_REL} stg_deploy check`,
+  "      - name: Doppler provides the deploy token (ourwkrp-deploy/stg)",
+  `        run: doppler run -- bash ${SCRIPT_REL} stg check`,
   "        env:",
   STG,
 ];
 const GOOD_DEPLOY = [
   "      - name: Deploy",
-  `        run: doppler run -- bash ${SCRIPT_REL} stg_deploy deploy`,
+  `        run: doppler run -- bash ${SCRIPT_REL} stg deploy`,
   "        env:",
   STG,
 ];
@@ -151,7 +152,7 @@ describe("OW-152 | deploy token wiring detectors (not vacuous)", () => {
     for (const run of [
       "doppler run -- npx wrangler deploy",
       "npx wrangler deploy",
-      `doppler run -- bash ${SCRIPT_REL} prd_deploy deploy`,
+      `doppler run -- bash ${SCRIPT_REL} prd deploy`,
     ]) {
       const bad = synthetic([
         ...CHECK_STEP,
@@ -159,7 +160,7 @@ describe("OW-152 | deploy token wiring detectors (not vacuous)", () => {
         `        run: ${run}`,
       ]);
       expect(audit(bad)).toEqual([
-        `step 1 calls wrangler without ${SCRIPT_REL} stg_deploy`,
+        `step 1 calls wrangler without ${SCRIPT_REL} stg`,
       ]);
     }
   });
@@ -227,13 +228,13 @@ describe("OW-152 | wrangler-ci.sh", () => {
     return { code: res.status, out: `${res.stdout}${res.stderr}`, calls };
   }
   const STG_ENV = {
-    DOPPLER_PROJECT: "ourwkrp",
-    DOPPLER_CONFIG: "stg_deploy",
+    DOPPLER_PROJECT: "ourwkrp-deploy",
+    DOPPLER_CONFIG: "stg",
     CLOUDFLARE_API_TOKEN_OW: "tok-test",
   };
 
   it("hands wrangler the token as CLOUDFLARE_API_TOKEN and nothing under the stored name", () => {
-    const r = run(["stg_deploy", "d1", "migrations", "apply", "ourwkrp-staging", "--remote"], STG_ENV);
+    const r = run(["stg", "d1", "migrations", "apply", "ourwkrp-staging", "--remote"], STG_ENV);
     expect(r.code).toBe(0);
     expect(r.calls).toEqual([
       "wrangler d1 migrations apply ourwkrp-staging --remote | api=tok-test | ow=unset",
@@ -241,19 +242,20 @@ describe("OW-152 | wrangler-ci.sh", () => {
   });
 
   it("check mode confirms the token and never calls wrangler", () => {
-    const r = run(["stg_deploy", "check"], STG_ENV);
+    const r = run(["stg", "check"], STG_ENV);
     expect(r.code).toBe(0);
-    expect(r.out).toContain("Doppler ourwkrp/stg_deploy provides CLOUDFLARE_API_TOKEN_OW.");
+    expect(r.out).toContain("Doppler ourwkrp-deploy/stg provides CLOUDFLARE_API_TOKEN_OW.");
     expect(r.calls).toEqual([]);
   });
 
-  it("refuses a service token for a runtime config, another project, or the other deploy config", () => {
+  it("refuses the runtime project, the old in-project deploy config, another product, or the other deploy config", () => {
     for (const [project, config] of [
       ["ourwkrp", "stg"],
-      ["ourwkrp", "prd_deploy"],
-      ["oursharedevents", "stg_deploy"],
+      ["ourwkrp", "stg_deploy"],
+      ["oursharedevents-deploy", "stg"],
+      ["ourwkrp-deploy", "prd"],
     ]) {
-      const r = run(["stg_deploy", "deploy"], {
+      const r = run(["stg", "deploy"], {
         ...STG_ENV,
         DOPPLER_PROJECT: project,
         DOPPLER_CONFIG: config,
@@ -267,27 +269,27 @@ describe("OW-152 | wrangler-ci.sh", () => {
   });
 
   it("refuses when Doppler did not say which config it read", () => {
-    const r = run(["stg_deploy", "check"], { CLOUDFLARE_API_TOKEN_OW: "tok-test" });
+    const r = run(["stg", "check"], { CLOUDFLARE_API_TOKEN_OW: "tok-test" });
     expect(r.code).toBe(1);
     expect(r.out).toContain("reads ?/?");
   });
 
   it("names the missing token, and does not fall back to a generic CLOUDFLARE_API_TOKEN", () => {
-    const r = run(["stg_deploy", "deploy"], {
-      DOPPLER_PROJECT: "ourwkrp",
-      DOPPLER_CONFIG: "stg_deploy",
+    const r = run(["stg", "deploy"], {
+      DOPPLER_PROJECT: "ourwkrp-deploy",
+      DOPPLER_CONFIG: "stg",
       CLOUDFLARE_API_TOKEN: "tok-generic",
     });
     expect(r.code).toBe(1);
     expect(r.out).toContain(
-      "::error title=Deploy token missing::CLOUDFLARE_API_TOKEN_OW is not set in the Doppler stg_deploy config (project ourwkrp).",
+      "::error title=Deploy token missing::CLOUDFLARE_API_TOKEN_OW is not set in the Doppler stg config (project ourwkrp-deploy).",
     );
     expect(r.calls).toEqual([]);
   });
 
   it("rejects an unknown config and a missing command as usage errors", () => {
-    expect(run(["stg", "deploy"], STG_ENV).code).toBe(2);
-    expect(run(["stg_deploy"], STG_ENV).code).toBe(2);
+    expect(run(["stg_deploy", "deploy"], STG_ENV).code).toBe(2);
+    expect(run(["stg"], STG_ENV).code).toBe(2);
   });
 
   it("is executable in git and has LF line endings", () => {

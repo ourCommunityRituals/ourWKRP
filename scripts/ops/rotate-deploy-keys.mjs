@@ -7,10 +7,14 @@
 // handles two secrets, and neither should leave your machine except to the
 // service it belongs to.
 //
-// For each environment it:
-//   1. makes the Doppler deploy environment (stg_deploy / prd_deploy) if it is
-//      missing. These are root environments, not branches of stg / prd, so they
-//      inherit no runtime secret (ADR-012 §3);
+// Deploy keys live in their own Doppler project, ourwkrp-deploy (configs stg
+// and prd), apart from the runtime project ourwkrp whose keys reach the Worker
+// (ADR-012 §3). A separate project, because Doppler's free plan allows 4
+// environments per project and ourwkrp already holds dev, stg and prd.
+//
+// It makes the project ourwkrp-deploy if it is missing. Then, for each
+// environment, it:
+//   1. makes the environment (stg / prd) in that project if it is missing;
 //   2. stores the Cloudflare token as CLOUDFLARE_API_TOKEN_OW in that config;
 //   3. makes a new read-only Doppler service token for that config, and saves
 //      it as the GitHub environment secret DOPPLER_TOKEN_STG / DOPPLER_TOKEN_PRD
@@ -19,10 +23,12 @@
 //      deletes a repository-level secret of the same name, which the
 //      environment secret replaces.
 // Re-run it at every 90-day rotation, after making the new Cloudflare token.
+// It also says when the old in-project deploy configs (ourwkrp/stg_deploy,
+// ourwkrp/prd_deploy) still exist; delete those by hand in Doppler.
 //
 // What it needs:
-//   - DOPPLER_ADMIN_TOKEN: a Doppler personal token that can edit project
-//     ourwkrp. If unset, the script asks the Doppler CLI for the token you are
+//   - DOPPLER_ADMIN_TOKEN: a Doppler personal token that can create projects
+//     and edit ourwkrp-deploy. If unset, the script asks the Doppler CLI for the token you are
 //     logged in with (`doppler configure get token --plain`).
 //   - `gh`, logged in as a repo admin of ourCommunityRituals/ourWKRP.
 //   - The Cloudflare token (ourwkrp-ci-deploy). It is read from a hidden prompt
@@ -35,15 +41,17 @@
 // nothing. DOPPLER_API_URL overrides the Doppler API (tests only).
 import { spawn } from "node:child_process";
 
-const PROJECT = "ourwkrp";
+const PROJECT = "ourwkrp-deploy";
+const RUNTIME_PROJECT = "ourwkrp";
+const OLD_DEPLOY_CONFIGS = ["stg_deploy", "prd_deploy"];
 const REPO = "ourCommunityRituals/ourWKRP";
 const SECRET_NAME = "CLOUDFLARE_API_TOKEN_OW";
 const TOKEN_PREFIX = "github-actions-";
 const API = (process.env.DOPPLER_API_URL || "https://api.doppler.com").replace(/\/$/, "");
 
 const TARGETS = {
-  staging: { config: "stg_deploy", name: "Staging deploy", ghEnv: "staging", ghSecret: "DOPPLER_TOKEN_STG" },
-  production: { config: "prd_deploy", name: "Production deploy", ghEnv: "production", ghSecret: "DOPPLER_TOKEN_PRD" },
+  staging: { config: "stg", name: "Staging", ghEnv: "staging", ghSecret: "DOPPLER_TOKEN_STG" },
+  production: { config: "prd", name: "Production", ghEnv: "production", ghSecret: "DOPPLER_TOKEN_PRD" },
 };
 
 class Stop extends Error {
@@ -192,6 +200,36 @@ function stamp() {
   return new Date().toISOString().replace(/[-:]/g, "").replace(/\..*$/, "").replace("T", "-");
 }
 
+async function ensureProject(token, dryRun) {
+  const got = await doppler(token, "GET", "/v3/projects/project", { query: { project: PROJECT } });
+  if (got.status === 200) {
+    console.log(`Doppler project ${PROJECT}: exists`);
+    return;
+  }
+  if (got.status !== 404) throw dopplerError(`read of project ${PROJECT}`, got);
+  if (dryRun) {
+    console.log(`Doppler project ${PROJECT}: missing, would create it`);
+    return;
+  }
+  const made = await doppler(token, "POST", "/v3/projects", {
+    body: { name: PROJECT, description: "ourWKRP deploy keys only (ADR-012 §3). Runtime keys live in ourwkrp." },
+  });
+  if (made.status !== 200 && made.status !== 201) throw dopplerError(`create of project ${PROJECT}`, made);
+  console.log(`Doppler project ${PROJECT}: created`);
+}
+
+/** The old deploy configs inside the runtime project, which this layout replaces. */
+async function leftoverDeployConfigs(token) {
+  const left = [];
+  for (const env of OLD_DEPLOY_CONFIGS) {
+    const r = await doppler(token, "GET", "/v3/environments/environment", {
+      query: { project: RUNTIME_PROJECT, environment: env },
+    });
+    if (r.status === 200) left.push(env);
+  }
+  return left;
+}
+
 async function ensureEnvironment(token, t, dryRun) {
   const got = await doppler(token, "GET", "/v3/environments/environment", {
     query: { project: PROJECT, environment: t.config },
@@ -300,7 +338,17 @@ async function main() {
   if (me.status !== 200) throw dopplerError("token check", me);
 
   const cfToken = opts.dryRun ? "" : await readCloudflareToken();
+  await ensureProject(token, opts.dryRun);
   for (const t of opts.targets) await setUp(token, t, cfToken, opts.dryRun);
+
+  const left = await leftoverDeployConfigs(token);
+  if (left.length) {
+    console.log(
+      `\nStill to do by hand: in Doppler project ${RUNTIME_PROJECT}, delete the environment(s) ${left.join(", ")}.` +
+        `\n  They are the old deploy configs and still hold a copy of the Cloudflare token.` +
+        `\n  Do it after the next deploy succeeds (Doppler > ${RUNTIME_PROJECT} > the environment > Settings > Delete).`,
+    );
+  }
 
   if (!opts.dryRun) {
     console.log("\nGitHub now holds (names only):");
