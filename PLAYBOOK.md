@@ -246,12 +246,13 @@ Run it on your own computer, logged in to `gh` as a repo admin and to Doppler:
 
 ```bash
 npm run deploy-keys -- --dry-run       # shows what it would change
-Get-Clipboard | npm run deploy-keys    # Windows PowerShell
-pbpaste | npm run deploy-keys          # macOS
+npm run deploy-keys                    # asks for the token (hidden); paste it, Enter
 npm run deploy-keys -- --env staging   # one environment only
+Get-Clipboard | npm run deploy-keys    # or pipe it (Windows); pbpaste | ... on macOS
 ```
 
-It reads the Cloudflare token from the clipboard pipe (or a hidden prompt),
+It reads the Cloudflare token from a hidden prompt (or a pipe). If you pipe the
+clipboard, copy the token last: copying the command replaces it. It
 never prints it or a service token, revokes older `github-actions-*` service
 tokens only after GitHub has the new one, and deletes the old
 repository-level secret of the same name. Every 90 days: make the new

@@ -25,10 +25,11 @@
 //     ourwkrp. If unset, the script asks the Doppler CLI for the token you are
 //     logged in with (`doppler configure get token --plain`).
 //   - `gh`, logged in as a repo admin of ourCommunityRituals/ourWKRP.
-//   - The Cloudflare token (ourwkrp-ci-deploy). It is read from a hidden prompt,
-//     or from stdin when piped, so it never sits in your shell history:
-//       Windows PowerShell:  Get-Clipboard | node scripts/ops/rotate-deploy-keys.mjs
-//       macOS:               pbpaste | node scripts/ops/rotate-deploy-keys.mjs
+//   - The Cloudflare token (ourwkrp-ci-deploy). It is read from a hidden prompt
+//     (`npm run deploy-keys`, then paste), or from stdin when piped, so it never
+//     sits in your shell history. When piping the clipboard, copy the token last:
+//       Windows PowerShell:  Get-Clipboard | npm run deploy-keys
+//       macOS:               pbpaste | npm run deploy-keys
 //
 // --dry-run reads Doppler and GitHub, prints what it would change, and writes
 // nothing. DOPPLER_API_URL overrides the Doppler API (tests only).
@@ -138,21 +139,22 @@ async function readCloudflareToken() {
   let value = "";
   if (stdin.isTTY) {
     process.stderr.write("Paste the Cloudflare token ourwkrp-ci-deploy (hidden), then Enter: ");
-    value = await new Promise((resolve) => {
+    value = await new Promise((resolve, reject) => {
       let buf = "";
-      stdin.setRawMode(true);
-      stdin.setEncoding("utf8");
+      const done = () => {
+        stdin.setRawMode(false);
+        stdin.pause();
+        stdin.off("data", onData);
+        process.stderr.write("\n");
+      };
       const onData = (chunk) => {
         for (const ch of chunk) {
           if (ch === "\u0003") {
-            stdin.setRawMode(false);
-            process.stderr.write("\n");
-            process.exit(130);
+            done();
+            reject(new Stop("Cancelled.", 130));
+            return;
           } else if (ch === "\r" || ch === "\n") {
-            stdin.setRawMode(false);
-            stdin.pause();
-            stdin.off("data", onData);
-            process.stderr.write("\n");
+            done();
             resolve(buf);
             return;
           } else if (ch === "\u007f" || ch === "\b") {
@@ -162,6 +164,8 @@ async function readCloudflareToken() {
           }
         }
       };
+      stdin.setRawMode(true);
+      stdin.setEncoding("utf8");
       stdin.on("data", onData);
       stdin.resume();
     });
@@ -170,7 +174,17 @@ async function readCloudflareToken() {
   }
   value = value.trim();
   if (!value) throw new Stop("No Cloudflare token was given.", 2);
-  if (/\s/.test(value)) throw new Stop("The Cloudflare token has a space or line break in it; copy it again.", 2);
+  if (/\s/.test(value)) {
+    // Say what came in, never what it was: the clipboard may hold anything.
+    const lines = value.split(/\r?\n/).length;
+    const words = value.split(/\s+/).length;
+    throw new Stop(
+      `That was not a single token: it had ${words} words on ${lines} line(s). Nothing was changed.\n` +
+        "  The clipboard often holds the command you just copied, not the token. Either copy the token\n" +
+        "  alone and pipe it again, or run `npm run deploy-keys` with no pipe and paste it at the prompt.",
+      2,
+    );
+  }
   return value;
 }
 
@@ -298,7 +312,9 @@ async function main() {
   }
 }
 
+// Set exitCode and let Node exit on its own: exiting at once while the stdin pipe
+// is still closing aborts Node on Windows (libuv "UV_HANDLE_CLOSING" assertion).
 main().catch((err) => {
   console.error(`error: ${err instanceof Stop ? err.message : err?.message || err}`);
-  process.exit(err instanceof Stop ? err.code : 1);
+  process.exitCode = err instanceof Stop ? err.code : 1;
 });

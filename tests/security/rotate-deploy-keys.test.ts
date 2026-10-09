@@ -210,6 +210,28 @@ describe("OW-154 | rotate-deploy-keys.mjs", () => {
     expect(writes()).toEqual([]);
   });
 
+  it("refuses input that is not a single token, says what came in but never echoes it", async () => {
+    writeGh({});
+    const r = await runScript([], "Get-Clipboard | npm run deploy-keys\r\n");
+    expect(r.code).toBe(2);
+    expect(writes()).toEqual([]);
+    expect(r.out).toContain("5 words on 1 line(s)");
+    expect(r.out).toContain("Nothing was changed");
+    expect(r.out).not.toContain("Get-Clipboard");
+  });
+
+  it("accepts a token with the trailing CRLF PowerShell adds to a pipe", async () => {
+    writeGh({});
+    const r = await runScript(["--env", "staging"], `${CF}\r\n`);
+    expect(r.code, r.out).toBe(0);
+    const set = calls.find((c) => c.path === "/v3/configs/config/secrets");
+    expect(set?.body.secrets).toEqual({ CLOUDFLARE_API_TOKEN_OW: CF });
+  });
+
+  it("never calls process.exit (it aborts Node on Windows while stdin closes)", () => {
+    expect(readFileSync(SCRIPT, "utf-8")).not.toMatch(/process\.exit\(/);
+  });
+
   it("refuses an unknown --env", async () => {
     writeGh({});
     const r = await runScript(["--env", "prd"]);
