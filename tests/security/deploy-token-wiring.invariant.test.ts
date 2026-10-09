@@ -287,6 +287,15 @@ describe("OW-152 | wrangler-ci.sh", () => {
     expect(r.calls).toEqual([]);
   });
 
+  it("names a malformed token (a control character) instead of letting wrangler say \"fetch failed\"", () => {
+    const r = run(["stg", "deploy"], { ...STG_ENV, CLOUDFLARE_API_TOKEN_OW: "tok\u0016test" });
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("::error title=Deploy token malformed::");
+    expect(r.out).toContain("8 characters, 1 of them not a letter, digit, - or _");
+    expect(r.out).not.toContain("tok\u0016test");
+    expect(r.calls).toEqual([]);
+  });
+
   it("rejects an unknown config and a missing command as usage errors", () => {
     expect(run(["stg_deploy", "deploy"], STG_ENV).code).toBe(2);
     expect(run(["stg"], STG_ENV).code).toBe(2);

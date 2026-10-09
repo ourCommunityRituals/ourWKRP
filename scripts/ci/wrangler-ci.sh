@@ -39,6 +39,15 @@ if [ -z "${CLOUDFLARE_API_TOKEN_OW:-}" ]; then
   exit 1
 fi
 
+# A Cloudflare token is letters, digits, "-" and "_". Anything else (a control
+# character typed by Ctrl+V in an older Windows console, a stray quote) makes
+# Node refuse the request header, and wrangler only says "fetch failed".
+bad=$(printf '%s' "$CLOUDFLARE_API_TOKEN_OW" | LC_ALL=C tr -d 'A-Za-z0-9_-' | wc -c | tr -d ' ')
+if [ "$bad" != 0 ]; then
+  echo "::error title=Deploy token malformed::CLOUDFLARE_API_TOKEN_OW in the Doppler $want config (project $project) has ${#CLOUDFLARE_API_TOKEN_OW} characters, $bad of them not a letter, digit, - or _. Run npm run deploy-keys again and paste the token with right-click."
+  exit 1
+fi
+
 if [ "$1" = check ]; then
   echo "Doppler $project/$want provides CLOUDFLARE_API_TOKEN_OW."
   exit 0
