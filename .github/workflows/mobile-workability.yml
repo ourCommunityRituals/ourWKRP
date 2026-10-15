@@ -37,7 +37,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
       # The Ubuntu packages `--with-deps` installs for WebKit (181 packages,
       # 126 MB) come from the runner's mirror (azure.archive.ubuntu.com). On

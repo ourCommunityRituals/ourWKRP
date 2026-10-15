@@ -52,7 +52,7 @@ defaults:
 
 # The @ocr/ui staging script (scripts/ci-stage-ocr-workspace.sh) fetches the
 # private ourCommunityRituals hub at the commit pinned in .ocr-hub-ref (never a
-# moving branch). OCR_PROPAGATE_TOKEN is passed ONLY to each staging step
+# moving branch). OCR_HUB_READ is passed ONLY to each staging step
 # (step-scoped env) and used as a transient http.extraheader — never at
 # workflow level, where every step (npm lifecycle scripts, tests, the dev
 # server) could read it (OW-150, CCR OSE-1393 H2).
@@ -78,7 +78,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
 
       - name: Initialize CodeQL
@@ -132,7 +132,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       # Blocking (ADR-008): WKRP may not grow its own tokens or stylesheet. The
       # checker is the hub's own, from the pinned commit in .ocr-hub-ref; the
       # baseline in .ocr-design-check.json may only shrink.
@@ -191,7 +191,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
       - run: npm run test:unit
 
@@ -208,7 +208,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
       - run: npm run test:integration
 
@@ -225,7 +225,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
       - run: npm run test:contract
 
@@ -242,7 +242,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
       - run: npm run test:security
 
@@ -265,7 +265,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
       # The Ubuntu packages `--with-deps` installs for WebKit (181 packages,
       # 126 MB) come from the runner's mirror (azure.archive.ubuntu.com). On
@@ -322,7 +322,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
       # `bru run --reporter-junit` EXITS non-zero if the target directory does
       # not exist — even when every assertion passes (mirrors OSE-1191). Make it
@@ -353,7 +353,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
       # Property-based fuzzing (fast-check) over the untrusted input boundaries:
       # CSV parser, pagination cursors, catalog query-param sanitizers.
@@ -376,7 +376,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
       - run: npm run test:performance
 
@@ -436,7 +436,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
 
       # Preflight: refuse to deploy if security wiring is missing from
@@ -510,7 +510,7 @@ jobs:
       - name: Stage @ocr/ui package
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
-          OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
 
       - name: Preflight — security wiring present
