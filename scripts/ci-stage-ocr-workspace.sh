@@ -13,7 +13,7 @@
 # The pin must also be a MERGED hub commit (reachable from hub main): `git
 # fetch <sha>` serves unmerged branch and PR commits too (OSE-1394).
 #
-# AUTH (OW-150): the org secret OCR_PROPAGATE_TOKEN is passed ONLY to the
+# AUTH (OW-150): the org secret OCR_HUB_READ is passed ONLY to the
 # staging step (step-scoped env, never workflow-level) and used as a transient
 # `-c http.extraheader=...` — never embedded in the remote URL, so it is never
 # written to $WS_CACHE/.git/config. Same posture as ourSharedEvents'
@@ -43,8 +43,8 @@ REF="$(tr -d '[:space:]' < "$REF_FILE")"
 echo "[stage] @ocr/ui pinned to ourCommunityRituals@$REF"
 
 AUTH_ARGS=()
-if [ -n "${OCR_PROPAGATE_TOKEN:-}" ]; then
-  AUTH_HEADER="AUTHORIZATION: basic $(printf '%s' "x-access-token:${OCR_PROPAGATE_TOKEN}" | base64 | tr -d '\n')"
+if [ -n "${OCR_HUB_READ:-}" ]; then
+  AUTH_HEADER="AUTHORIZATION: basic $(printf '%s' "x-access-token:${OCR_HUB_READ}" | base64 | tr -d '\n')"
   AUTH_ARGS=(-c "http.extraheader=${AUTH_HEADER}")
 fi
 
@@ -64,8 +64,8 @@ elif git -C "$WS_CACHE" cat-file -e "${REF}^{commit}" 2>/dev/null && \
      git -C "$WS_CACHE" -c advice.detachedHead=false checkout -q --force --detach "$REF"; then
   echo "::warning title=hub fetch failed — using cached pinned commit::fetch of $REF failed, but the local cache already holds that exact commit, so it was used."
 else
-  if [ -z "${OCR_PROPAGATE_TOKEN:-}" ]; then
-    CAUSE="OCR_PROPAGATE_TOKEN is not available in this run context (e.g. dependabot or a step without the step-scoped env), so the fetch from the private hub was unauthenticated"
+  if [ -z "${OCR_HUB_READ:-}" ]; then
+    CAUSE="OCR_HUB_READ is not available in this run context (e.g. dependabot or a step without the step-scoped env), so the fetch from the private hub was unauthenticated"
   else
     CAUSE="the token is present but the fetch still failed (revoked/expired token, network error, or the pinned commit does not exist on the hub)"
   fi

@@ -7,7 +7,7 @@
  *
  *   1. Every workflow job that runs `npm ci` stages the pinned hub first
  *      (mobile-workability.yml once did not, OW-151).
- *   2. OCR_PROPAGATE_TOKEN (a write-capable org token) is never set at
+ *   2. OCR_HUB_READ (a read-only token, still kept step-scoped) is never set at
  *      workflow or job level and never embedded in a clone URL; it appears
  *      only as step-scoped env on a staging step (OW-150).
  *   3. The blocking design check runs from the staged hub, not continue-on-error.
@@ -56,9 +56,9 @@ function looseTokenUses(text: string): string[] {
   const lines = text.split('\n');
   const bad: string[] = [];
   lines.forEach((line, i) => {
-    if (!line.includes('secrets.OCR_PROPAGATE_TOKEN')) return;
+    if (!line.includes('secrets.OCR_HUB_READ')) return;
     const scoped =
-      /^\s{10,}OCR_PROPAGATE_TOKEN: \$\{\{ secrets\.OCR_PROPAGATE_TOKEN \}\}\s*$/.test(line) &&
+      /^\s{10,}OCR_HUB_READ: \$\{\{ secrets\.OCR_HUB_READ \}\}\s*$/.test(line) &&
       /^\s+env:\s*$/.test(lines[i - 1] ?? '') &&
       (lines[i - 2] ?? '').includes(`run: ${STAGE}`);
     if (!scoped) bad.push(`line ${i + 1}: ${line.trim()}`);
@@ -82,11 +82,11 @@ describe('ADR-008 wiring lock', () => {
     });
 
     it('flags a workflow-level or URL-embedded token, accepts step-scoped env', () => {
-      expect(looseTokenUses('env:\n  OCR_PROPAGATE_TOKEN: ${{ secrets.OCR_PROPAGATE_TOKEN }}\n')).toHaveLength(1);
+      expect(looseTokenUses('env:\n  OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}\n')).toHaveLength(1);
       expect(
-        looseTokenUses('env:\n  R: https://x-access-token:${{ secrets.OCR_PROPAGATE_TOKEN }}@github.com/x.git\n'),
+        looseTokenUses('env:\n  R: https://x-access-token:${{ secrets.OCR_HUB_READ }}@github.com/x.git\n'),
       ).toHaveLength(1);
-      const ok = `      - name: Stage\n        run: ${STAGE}\n        env:\n          OCR_PROPAGATE_TOKEN: \${{ secrets.OCR_PROPAGATE_TOKEN }}\n`;
+      const ok = `      - name: Stage\n        run: ${STAGE}\n        env:\n          OCR_HUB_READ: \${{ secrets.OCR_HUB_READ }}\n`;
       expect(looseTokenUses(ok)).toEqual([]);
     });
   });
@@ -101,11 +101,11 @@ describe('ADR-008 wiring lock', () => {
     expect(Object.keys(jobs(workflows.find((w) => w.file === 'ci.yml')!.text)).length).toBeGreaterThanOrEqual(8);
   });
 
-  it('OCR_PROPAGATE_TOKEN hub access is only step-scoped on staging steps (OW-150)', () => {
+  it('OCR_HUB_READ hub access is only step-scoped on staging steps (OW-150)', () => {
     for (const f of HUB_WORKFLOWS) {
       const { text } = workflows.find((w) => w.file === f)!;
       expect(looseTokenUses(text), f).toEqual([]);
-      expect(text, f).not.toMatch(/x-access-token:\$\{\{\s*secrets\.OCR_PROPAGATE_TOKEN/);
+      expect(text, f).not.toMatch(/x-access-token:\$\{\{\s*secrets\.OCR_HUB_READ/);
     }
   });
 
