@@ -4,7 +4,7 @@
 # <runner-work>/ourWKRP/ourWKRP, so `../packages/ui` resolves one level
 # up to <runner-work>/ourWKRP/packages/ui — the destination populated
 # below. (Runner-agnostic: self-hosted pool retired 2026-09-02, OSE-1194;
-# CI now runs on GitHub-hosted ubuntu-latest.)
+# CI now runs on GitHub-hosted ubuntu-24.04.)
 #
 # PINNED, never floating (ADR-008). The hub commit comes from .ocr-hub-ref at
 # the repo root — one full 40-char SHA of ourCommunityRituals. The same WKRP
