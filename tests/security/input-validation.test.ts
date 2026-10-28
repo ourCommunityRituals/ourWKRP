@@ -30,8 +30,8 @@ describe('Input Validation', () => {
       expect(handlerContent).toContain('gen3');
     });
 
-    it('strips HTML tags from name', () => {
-      expect(handlerContent).toContain('replace(/<[^>]*>/g');
+    it('rejects names with angle brackets or control characters', () => {
+      expect(handlerContent).toContain('/[<>\\u0000-\\u001F\\u007F]/.test(');
     });
   });
 
