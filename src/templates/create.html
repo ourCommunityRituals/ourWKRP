@@ -326,7 +326,7 @@
         }) : tracks;
 
         document.getElementById('playlist-track-list').innerHTML = filtered.map(function(t, i) {
-          return '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);" data-track-id="' + t.id + '">' +
+          return '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);" data-track-id="' + escapeHtml(t.id) + '">' +
             '<div style="font-size:0.7rem;color:var(--text-muted);min-width:20px;text-align:center;">' + (t.position + 1) + '</div>' +
             '<div style="flex:1;min-width:0;">' +
               '<div style="font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.name) + '</div>' +
@@ -334,7 +334,7 @@
                 (t.genre ? ' <span style="color:var(--accent);">' + escapeHtml(t.genre) + '</span>' : '') +
               '</div>' +
             '</div>' +
-            '<button data-action="remove" data-id="' + t.id + '" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:8px;min-height:44px;min-width:44px;" data-testid="remove-track-btn" title="Remove">&times;</button>' +
+            '<button data-action="remove" data-id="' + escapeHtml(t.id) + '" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:8px;min-height:44px;min-width:44px;" data-testid="remove-track-btn" title="Remove">&times;</button>' +
           '</div>';
         }).join('');
 
@@ -445,11 +445,13 @@
         return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
       }
 
+      // textContent encodes & < >; the quotes are added because the output
+      // also goes inside double-quoted attributes.
       function escapeHtml(str) {
         if (!str) return '';
         var div = document.createElement('div');
         div.textContent = str;
-        return div.innerHTML;
+        return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       }
     })();
   </script>
