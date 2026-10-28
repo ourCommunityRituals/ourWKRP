@@ -420,8 +420,13 @@ export function qrSvg(text: string, pixelSize = 260, label = 'Scan to attribute'
     });
   });
   const safeLabel = label.replace(/[^A-Za-z0-9 .,-]/g, '');
+  // No xmlns attribute: this SVG is only ever placed inline in an HTML page,
+  // where the HTML parser puts <svg> in the SVG namespace by itself. (Served as
+  // a standalone .svg file or a data: image it would need one.) Leaving it out
+  // also keeps this file free of any plain-http web address, which the Level 0
+  // security gate forbids in production source.
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dim} ${dim}" ` +
+    `<svg viewBox="0 0 ${dim} ${dim}" ` +
     `width="${pixelSize}" height="${pixelSize}" shape-rendering="crispEdges" ` +
     `role="img" aria-label="${safeLabel}" data-testid="qr-code">` +
     `<rect width="100%" height="100%" fill="white"/>` +
