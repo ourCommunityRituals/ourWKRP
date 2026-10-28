@@ -14,7 +14,7 @@
     <div class="venue-name" id="venue-name" data-testid="venue-name"></div>
 
     <div class="qr-frame" id="qr-frame" data-testid="qr-frame">
-      <div class="qr-placeholder" id="qr-placeholder">Loading...</div>
+      <!--QR_CODE-->
     </div>
 
     <div class="poster-cta">Hear something that hits?</div>
@@ -37,23 +37,13 @@
       if (djId) djId = djId.split('/')[0];
       if (!djId) return;
 
-      var eventId = new URLSearchParams(window.location.search).get('event');
       var sponsorName = new URLSearchParams(window.location.search).get('sponsor');
 
       init();
 
       async function init() {
-        // Build QR URL
-        var liveUrl = window.location.origin + '/dj/' + djId;
-        if (eventId) liveUrl += '?event=' + encodeURIComponent(eventId);
-
-        // Generate QR code using a simple API (no dependencies)
-        var qrImg = document.createElement('img');
-        qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=' + encodeURIComponent(liveUrl);
-        qrImg.alt = 'Scan to attribute';
-        qrImg.onload = function() {
-          document.getElementById('qr-placeholder').replaceWith(qrImg);
-        };
+        // The QR is rendered into the page by the server (src/lib/qr.ts), so
+        // the live-set URL never goes to an outside QR service.
 
         // Sponsor slot
         if (sponsorName) {
