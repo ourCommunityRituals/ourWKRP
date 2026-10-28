@@ -144,7 +144,7 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
     // template having to reverse a slug into an id.
     html = html.replace(
       '<body>',
-      `<body data-contributor-id="${escapeHtmlAttr(profile.id)}">`,
+      () => `<body data-contributor-id="${escapeHtmlAttr(profile.id)}">`,
     );
   } else if (path === '/catalog') {
     html = injectCatalogMeta(html, brand, env, url);
@@ -251,7 +251,11 @@ function injectBrandStyles(html: string, brand: BrandRow): string {
   const accent = safeCssColor(brand.accent_color) ?? DEFAULT_BRAND.accent_color;
   const name = cssStringSafe(brand.name);
   const styleBlock = `<style>:root{--brand-primary:${primary};--brand-accent:${accent};--brand-name:"${name}";}</style>`;
-  return html.replace('</head>', `${styleBlock}</head>`);
+  // Function replacers here and at every splice below: stored text such as a
+  // brand or display name may contain "$&", "$`", "$'" or "$$", which a string
+  // replacement would expand (copying page text into the head) instead of
+  // inserting literally.
+  return html.replace('</head>', () => `${styleBlock}</head>`);
 }
 
 /**
@@ -361,7 +365,7 @@ function injectProfileMeta(
     imageUrl: resolveImageUrl(brand.logo_url, base),
   });
 
-  return html.replace('</head>', `${block}</head>`);
+  return html.replace('</head>', () => `${block}</head>`);
 }
 
 /**
@@ -379,5 +383,5 @@ function injectCatalogMeta(html: string, brand: BrandRow, env: Env, url: URL): s
     imageUrl: resolveImageUrl(brand.logo_url, base),
   });
 
-  return html.replace('</head>', `${block}</head>`);
+  return html.replace('</head>', () => `${block}</head>`);
 }

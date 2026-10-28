@@ -219,7 +219,7 @@
       function renderSearchResults(tracks) {
         var el = document.getElementById('set-search-results');
         el.innerHTML = tracks.map(function(t) {
-          return '<div class="search-result" data-id="' + t.id + '"><div class="item-info"><div class="item-name">' + esc(t.name) + '</div><div class="item-sub">' + esc(t.artist) + '</div></div><div class="item-action"><button class="attr-btn add-btn" data-testid="add-to-set-btn">Add</button></div></div>';
+          return '<div class="search-result" data-id="' + esc(t.id) + '"><div class="item-info"><div class="item-name">' + esc(t.name) + '</div><div class="item-sub">' + esc(t.artist) + '</div></div><div class="item-action"><button class="attr-btn add-btn" data-testid="add-to-set-btn">Add</button></div></div>';
         }).join('');
         el.querySelectorAll('.add-btn').forEach(function(btn) {
           btn.addEventListener('click', function() { addTrackToSet(btn.closest('.search-result').dataset.id, btn); });
@@ -267,7 +267,8 @@
       }
 
       function floored(n) { return typeof n === 'number' ? String(n) : 'Fewer than 5'; }
-      function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+      // textContent encodes & < >; the quotes are added because the output also goes inside a double-quoted data-id attribute.
+      function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
     })();
   </script>
 </body>
