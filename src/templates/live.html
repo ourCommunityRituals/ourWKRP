@@ -46,7 +46,11 @@
       if (djId) djId = djId.split('/')[0];
       if (!djId) return;
 
-      var eventId = new URLSearchParams(window.location.search).get('event');
+      // An event id is sent only when it has OSE's shape (the server's rule,
+      // src/lib/ids.ts), so a mangled link drops the event, not the save.
+      var EVENT_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+      var rawEventId = new URLSearchParams(window.location.search).get('event');
+      var eventId = (rawEventId !== null && EVENT_ID_RE.test(rawEventId)) ? rawEventId : null;
       var attributed = {};
       var isLoggedIn = false;
 
@@ -143,15 +147,13 @@
         btn.disabled = true;
         btn.textContent = '...';
         try {
+          var payload = { dj_id: djId, track_id: trackId };
+          if (eventId) payload.event_id = eventId;
           var res = await fetch('/api/attributions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
-            body: JSON.stringify({
-              dj_id: djId,
-              track_id: trackId,
-              event_id: eventId,
-            }),
+            body: JSON.stringify(payload),
           });
           var data = await res.json();
           if (data.ok) {

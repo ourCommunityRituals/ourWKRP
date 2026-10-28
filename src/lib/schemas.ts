@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { SLUG_RE, SLUG_MAX_LENGTH, SLUG_MIN_LENGTH, isReservedSlug } from './slug';
+import { SAFE_ID_RE } from './ids';
 
 // --- Shared primitives ---
 
@@ -124,11 +125,16 @@ export const facetBodySchema = z.object({
   depth: facetDepthSchema,
 });
 
+// OSE event id (lib/ids.ts). Stored next to named listener and DJ ids and shown
+// later in per-event aggregates and the music seam, so a value that is present
+// must have the shape; null and omitted stay allowed.
+export const eventIdSchema = z.string().regex(SAFE_ID_RE, 'Invalid event id');
+
 // --- DJ Sets ---
 
 export const startSetBodySchema = z.object({
   venue_name: z.string().max(200).trim().nullable().optional(),
-  event_id: z.string().max(200).nullable().optional(),
+  event_id: eventIdSchema.nullable().optional(),
 });
 
 export const addSetTrackBodySchema = z.object({
@@ -140,7 +146,7 @@ export const addSetTrackBodySchema = z.object({
 export const createAttributionBodySchema = z.object({
   dj_id: z.string().min(1, 'dj_id is required'),
   track_id: z.string().min(1, 'track_id is required'),
-  event_id: z.string().nullable().optional(),
+  event_id: eventIdSchema.nullable().optional(),
 });
 
 // --- Catalog Query ---
