@@ -22,6 +22,7 @@ import { escapeHtmlAttr, cssStringSafe, safeCssColor } from '../lib/html';
 import { SLUG_RE } from '../lib/slug';
 import { UUID_RE } from '../lib/route-path';
 import { log } from '../lib/logger';
+import { qrSvg } from '../lib/qr';
 
 // HTML templates imported as text via wrangler.toml [[rules]]
 import connectHtml from '../templates/connect.html';
@@ -74,6 +75,7 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
   // Set only for the two profile surfaces, and only when the contributor
   // actually resolves — an unknown contributor serves the plain shell.
   let profile: ProfileMetaRow | null = null;
+  let isPoster = false;
 
   if (path === '/') {
     html = connectHtml;
@@ -89,6 +91,7 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
     html = importHtml;
   } else if (path.startsWith('/dj/') && path.endsWith('/poster')) {
     html = qrPosterHtml;
+    isPoster = true;
   } else if (path.startsWith('/dj/')) {
     html = liveHtml;
   } else if (path.startsWith('/contributor/')) {
@@ -145,11 +148,45 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
     );
   } else if (path === '/catalog') {
     html = injectCatalogMeta(html, brand, env, url);
+  } else if (isPoster) {
+    html = injectPosterQr(html, url);
   }
 
   return new Response(html, {
     headers: { ...HTML_HEADERS, 'Content-Security-Policy': buildPageCsp(nonce) },
   });
+}
+
+/** Where qr-poster.html takes the server-rendered QR. */
+const QR_SLOT = '<!--QR_CODE-->';
+
+/**
+ * Letters, digits, underscore, hyphen; 1-128 chars. Applied to both the DJ id
+ * (path) and the event id (query) before either goes into the QR, so nothing
+ * that could alter the URL's meaning — or the page — is ever encoded.
+ */
+const QR_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * Render the poster's QR in the Worker (privacy: the live-set URL used to be
+ * sent to a third-party QR image service on every view).
+ *
+ * Encodes exactly what the page used to: origin + '/dj/' + djId, plus
+ * '?event=' + eventId when the query carries a valid one. An invalid event id
+ * is ignored (the DJ URL alone is encoded); an invalid DJ id gets no QR. The
+ * SVG carries only numbers and fixed strings, never the ids themselves.
+ */
+function injectPosterQr(html: string, url: URL): string {
+  const djId = url.pathname.slice('/dj/'.length, -'/poster'.length);
+  if (!QR_ID_RE.test(djId)) {
+    return html.replace(QR_SLOT, () => '<div class="qr-placeholder">QR unavailable</div>');
+  }
+  let liveUrl = `${url.origin}/dj/${djId}`;
+  const eventId = url.searchParams.get('event');
+  if (eventId !== null && QR_ID_RE.test(eventId)) liveUrl += `?event=${eventId}`;
+  // A function replacer, so a "$" in the output could never be read as a
+  // replacement pattern ($&, $1, $$).
+  return html.replace(QR_SLOT, () => qrSvg(liveUrl));
 }
 
 /** One query: the contributor row behind /contributor/:uuid. */
