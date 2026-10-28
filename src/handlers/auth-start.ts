@@ -55,9 +55,12 @@ export async function handleAuthStart(request: Request, env: Env): Promise<Respo
     );
   }
 
-  // Sanitize name — strip HTML/script tags
-  const sanitizedName = name.replace(/<[^>]*>/g, '').trim();
-  if (!sanitizedName) {
+  // Reject, don't sanitize: names containing angle brackets or control
+  // characters (U+0000-U+001F, U+007F) are refused outright. A one-pass tag
+  // strip could be defeated by nested tags (CodeQL incomplete sanitization).
+  const sanitizedName = name.trim();
+  // eslint-disable-next-line no-control-regex
+  if (!sanitizedName || /[<>\u0000-\u001F\u007F]/.test(sanitizedName)) {
     return Response.json(
       { ok: false, error: 'Name contains invalid characters' },
       { status: 400 },
