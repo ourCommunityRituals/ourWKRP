@@ -21,6 +21,7 @@ import { buildPageCsp } from '../lib/security-headers';
 import { escapeHtmlAttr, cssStringSafe, safeCssColor } from '../lib/html';
 import { SLUG_RE } from '../lib/slug';
 import { UUID_RE } from '../lib/route-path';
+import { SAFE_ID_RE } from '../lib/ids';
 import { log } from '../lib/logger';
 import { qrSvg } from '../lib/qr';
 
@@ -161,11 +162,12 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
 const QR_SLOT = '<!--QR_CODE-->';
 
 /**
- * Letters, digits, underscore, hyphen; 1-128 chars. Applied to both the DJ id
- * (path) and the event id (query) before either goes into the QR, so nothing
- * that could alter the URL's meaning — or the page — is ever encoded.
+ * Letters, digits, underscore, hyphen; 1-128 chars (lib/ids.ts, the same rule
+ * the API holds a stored event id to). Applied to both the DJ id (path) and the
+ * event id (query) before either goes into the QR, so nothing that could alter
+ * the URL's meaning — or the page — is ever encoded.
  */
-const QR_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+const QR_ID_RE = SAFE_ID_RE;
 
 /**
  * Render the poster's QR in the Worker (privacy: the live-set URL used to be
