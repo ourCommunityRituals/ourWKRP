@@ -14,10 +14,9 @@
  * Per the standard this audit is informational on PR and blocking on the
  * nightly schedule (see .github/workflows/mobile-workability.yml).
  */
-import { test, expect } from '@playwright/test';
-
-// OCR baseline viewport — overrides the device projects' viewports.
-test.use({ viewport: { width: 375, height: 812 } });
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { test as base, expect, type APIRequestContext } from '@playwright/test';
 
 interface Surface {
   name: string;
@@ -116,29 +115,68 @@ function auditContracts(ctaTestids: string[]): string[] {
   return issues;
 }
 
-async function registerDj(page: import('@playwright/test').Page): Promise<string> {
+async function registerDj(request: APIRequestContext): Promise<AuditDj> {
   // Self-service register only mints unprivileged roles (F1). Register as a
   // contributor, then grant `dj` via the admin endpoint (the real grant path)
   // using the local-only token from wrangler.e2e.toml.
-  const res = await page.request.post('/auth/register', {
+  const res = await request.post('/auth/register', {
     data: { name: 'Audit DJ', role: 'contributor', generation: 'founder' },
   });
   expect(res.status(), 'DJ registration for audit setup').toBe(201);
   const body = (await res.json()) as { contributor: { id: string } };
-  const grant = await page.request.post('/admin/roles/grant', {
+  const grant = await request.post('/admin/roles/grant', {
     headers: { Authorization: 'Bearer e2e-admin-token' },
     data: { contributorId: body.contributor.id, role: 'dj' },
   });
   expect(grant.status(), 'admin grant of dj role').toBe(200);
-  return body.contributor.id;
+  return { id: body.contributor.id, cookies: (await request.storageState()).cookies };
 }
 
+type SessionCookies = Awaited<ReturnType<APIRequestContext['storageState']>>['cookies'];
+interface AuditDj {
+  id: string;
+  cookies: SessionCookies;
+}
+
+// One DJ per run, shared by every surface, both projects, retries and restarted
+// workers. /auth/* is rate limited (20/min per client, src/lib/rate-limit.ts)
+// and a local run is a single client, so registering per test exhausted the
+// bucket and the later surfaces failed setup with 429 instead of being audited.
+// The identity is cached in the run's output dir, which Playwright empties at
+// the start of every run, so a run never reuses a DJ from a previous seed.
+const test = base.extend<object, { auditDj: AuditDj }>({
+  auditDj: [
+    async ({ playwright }, use, workerInfo) => {
+      const cacheFile = path.join(workerInfo.project.outputDir, '.mobile-workability-dj.json');
+      let dj: AuditDj;
+      if (fs.existsSync(cacheFile)) {
+        dj = JSON.parse(fs.readFileSync(cacheFile, 'utf8')) as AuditDj;
+      } else {
+        const request = await playwright.request.newContext({ baseURL: workerInfo.project.use.baseURL });
+        try {
+          dj = await registerDj(request);
+        } finally {
+          await request.dispose();
+        }
+        fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+        fs.writeFileSync(cacheFile, JSON.stringify(dj));
+      }
+      await use(dj);
+    },
+    { scope: 'worker' },
+  ],
+});
+
+// OCR baseline viewport — overrides the device projects' viewports.
+test.use({ viewport: { width: 375, height: 812 } });
+
 for (const surface of SURFACES) {
-  test(`${surface.name} — mobile workability (375x812)`, async ({ page }) => {
+  test(`${surface.name} — mobile workability (375x812)`, async ({ page, auditDj }) => {
     // A DJ identity is needed for gated pages and to fill :id in profile/DJ URLs.
     let djId = '';
     if (surface.auth || surface.path.includes(':id')) {
-      djId = await registerDj(page);
+      await page.context().addCookies(auditDj.cookies);
+      djId = auditDj.id;
     }
     const path = surface.path.replace(':id', djId);
 
