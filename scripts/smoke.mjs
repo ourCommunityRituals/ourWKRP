@@ -30,13 +30,27 @@ if (!BASE) {
   process.exit(2);
 }
 
+// fetch() rejects with a bare "fetch failed" and keeps the real reason on err.cause.
+// With a coded cause no response arrived, so the check never saw the control. Any
+// other cause (a dropped body, a redirect loop) means the server answered: that
+// stays a failed check, and keeps its reason.
+const describeFailure = (err) => {
+  const message = err instanceof Error ? err.message : String(err);
+  const cause = err instanceof Error ? err.cause : undefined;
+  if (!cause) return { connection: null, msg: message };
+  const reason = [cause.code, cause.message].filter(Boolean).join(': ') || String(cause);
+  return message === 'fetch failed' && cause.code
+    ? { connection: reason, msg: `could not connect: ${reason}` }
+    : { connection: null, msg: `${message}: ${reason}` };
+};
+
 const results = [];
 const check = async (name, fn) => {
   try {
     await fn();
     results.push({ name, ok: true });
   } catch (err) {
-    results.push({ name, ok: false, msg: err instanceof Error ? err.message : String(err) });
+    results.push({ name, ok: false, ...describeFailure(err) });
   }
 };
 const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
@@ -86,14 +100,24 @@ await check('rate limiter returns 429 under burst', async () => {
   assert(saw429, 'no 429 after 30 requests to /auth/start — rate limit not enforced');
 });
 
-let failed = 0;
-for (const r of results) {
-  if (r.ok) {
-    console.log(`✓ ${r.name}`);
-  } else {
-    failed++;
-    console.error(`✗ ${r.name}\n    ${r.msg}`);
+// Set the code and let the process end: process.exit() while fetch's handles are
+// closing crashes Node on Windows with an unrelated exit code.
+if (results.every((r) => r.connection)) {
+  // One outage, not five failed controls: no check reached the Worker.
+  console.error(`✗ could not connect to ${BASE}, so no control was tested`);
+  for (const cause of new Set(results.map((r) => r.connection))) console.error(`    ${cause}`);
+  console.log(`\n0/${results.length} control checks ran against ${BASE}`);
+  process.exitCode = 1;
+} else {
+  let failed = 0;
+  for (const r of results) {
+    if (r.ok) {
+      console.log(`✓ ${r.name}`);
+    } else {
+      failed++;
+      console.error(`✗ ${r.name}\n    ${r.msg}`);
+    }
   }
+  console.log(`\n${results.length - failed}/${results.length} control checks passed against ${BASE}`);
+  process.exitCode = failed ? 1 : 0;
 }
-console.log(`\n${results.length - failed}/${results.length} control checks passed against ${BASE}`);
-process.exit(failed ? 1 : 0);
