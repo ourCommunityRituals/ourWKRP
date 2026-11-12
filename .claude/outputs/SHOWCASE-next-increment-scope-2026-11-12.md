@@ -10,6 +10,14 @@ Her own station-by-station mapping is kept outside the repository with her creat
 
 > [The creator] will be able to have a 5W page with links to digital qr codes for each category page and then can schedule events to hold workshops, teaching, digital pop ups, links to online store, schools, and all time products, etc.
 
+Two additions, later the same day:
+
+> This is how her followers can interact with more and find her in each bucket as they have their own advertising / marketing ad vehicle for those she wants to work with.
+
+> Next is the customizability of the page itself to what ever display desired.
+
+Sections 5 and 6 cover them.
+
 ## The short answer
 
 Almost everything this needs already exists in OurSharedEvents (OSE). The next increment is mostly ourWKRP (OW) **reading** OSE, not new OSE features.
@@ -19,6 +27,8 @@ Almost everything this needs already exists in OurSharedEvents (OSE). The next i
 - **Scheduling:** an OSE event is the home. OSE already has create, the 5W fields, the event-type catalog, repeat (a draft copy on a new date), a per-event `.ics` file and a public list by brand.
   The real gap is **who may create**. OSE admin is founder-only (owner, 2026-10-07). A creator or organizer of her own brand waits on the tenant-boundary chain (OSE-1446 and the tickets after it).
 - **Store, schools, products:** these are not events. They become typed `https` links in the creator file, shown per station. They are not tracked, unless the owner chooses otherwise (question 4).
+- **Each station as a partner vehicle:** this is OSE's sponsor model as it stands. A sponsor backs events and appears only with two-sided consent. Sponsors that back a whole station group under one OSE **campaign**. The station page shows what OSE's public sponsor bundle already returns, and no sponsor list is kept in OW.
+- **Customizing the page:** the look stays on the locked `@ocr/ui` tokens. A brand's colours come only as a `[data-brand]` block from the white-label pipeline. Layout and display start as a **fixed menu of safe options** in the creator file, each passing the accessibility gates. Self-serve editing comes later.
 
 ## What exists today (evidence)
 
@@ -113,6 +123,61 @@ What is missing, and where each piece should go:
   When a product goes to an event (a pop-up table), the event's own MORE or TICKETS code points at the store page, and that click is counted in the event's report. See question 4.
 - **Sponsor rule:** her own store or school is not a sponsor. A third-party brand on her page is a sponsor, and it appears only through OSE's consent flow (sponsor accepted and organizer accepted), never as a plain link in the creator file.
 
+## 5. Each station as a partner and ad vehicle
+
+The owner's point: followers find her in each bucket, and each bucket is an advertising vehicle for the partners she chooses. That is OSE's sponsor model, applied per station. **No new sponsor model is needed.**
+
+What OSE already gives, and the rules that come with it:
+
+- **Two-sided consent.** A sponsor shows only when it accepted and the organizer accepted (`SPONSOR_ON_SHOW_SQL`, `lib/sponsor-card.ts`). The event must also have sponsors switched on (`useSponsors` in its settings; it is off by default).
+  A sponsor asks to back an event (`POST /api/v2/sponsor/requests`), and the organizer approves or declines it (`POST /api/v2/admin/sponsor-requests/:id/respond`).
+- **Placement.** On a page that shows an event title, the sponsor strip sits below the title and date and above the content.
+- **Sponsors are not a filter.** A visitor can never search or sort by sponsor.
+- **Reports.** Sponsors see floored counts only, never people. A partner's report is its slice of the event's SharedReport.
+- **Campaign is one concept.** A partner that backs a whole station is a campaign (`campaigns`, migration 0039, already linked from sponsor placements) across that station's events. It is not a separate "station sponsor" object.
+- **Entitlements.** How many sponsor and code slots an event carries is a tier entitlement (`lib/poster-codes.ts` limits).
+- **Assets.** Bulk sponsor asset onboarding is OSM's job; OSE renders.
+
+What the station page does:
+
+- For each linked event, it reads the **public** sponsor bundle (`GET /api/v2/events/:id/sponsor-bundle?surface=public`). It shows the consented sponsors in the strip, below the event's title and date.
+  A static page has no OSE surface of its own. Using `public` keeps it to exactly what the event page already shows.
+- A station with a campaign shows that campaign's partner once, at the top of the station, under the same consent rule. OW reads it; it never stores or picks it.
+- A partner's link is the event's own SPONSOR code (`/s/`), so a click is counted in the event's report like any other code.
+- The page does **not** fire OSE's impression or click beacons in the first version (question 9).
+- The creator chooses the partners she works with. In OSE terms, she or her organizer is the side that accepts.
+  Until she has her own brand access (S6), the owner accepts on her behalf, on local or staging, the same as for her events.
+
+Born-red checks: a sponsor with only one side's consent never appears; the strip is never above the title; no sponsor appears on a station with no linked event; a sponsor name never appears in any filter, search or sort control.
+
+## 6. Customizing the page
+
+"To whatever display desired" is read here as two separate layers, each with its own path.
+
+**Colours and brand look (paint).**
+
+- The `@ocr/ui` tokens are locked. The page holds no colour value of its own, as today: `theme.css` is generated from the pinned `@ocr/ui`, and `.ocr-design-check.json` is the ratchet.
+- A creator's own colours come only as a Tier-3 `[data-brand="<slug>"]` block. `@ocr/ui` already has the hook (`brandBlocks()` in `css.ts`).
+  That block is produced by the white-label pipeline: an intake form (in FORMS_DB, destroyed after processing), then a processor, then the OSM batch API (run by OCR staff only), then OA deploys it. It is **never hand-edited**.
+- A brand block must pass contrast checks in both themes before it ships. The checker for brand sets does not exist yet; that is pipeline work outside this plan.
+- Until a brand block exists, the page uses the OW brand, as today.
+
+**Layout and display (structure).** Automatic first, self-serve later, starting as a fixed menu in the creator file:
+
+| Option | Choices | Default |
+|---|---|---|
+| `layout` | `dial` (today's tuner) · `list` (stations in a column) · `grid` (station cards) | `dial` |
+| `stationOrder` | The creator's order, or by the next event | The creator's order |
+| `sections` | Show or hide: values, scatter ("where the work lives"), reports, schedule, sources | All shown; sources can never be hidden while `sources` is non-empty |
+| `display` | `page` (phone to desktop) · `tv` (large type, no interaction, auto-advancing stations) | `page` |
+
+Rules for every option:
+
+- One `<h1>` per page, 44 px touch targets, input text at least 16 px, no sideways scroll at 375 px, and an axe pass in both themes.
+- The e2e suite runs **every option**, not only the default (pairwise, not every combination).
+- The `tv` display obeys OSE's rule that a display shows no counts: it shows events, codes and consented sponsors, and no report.
+- An unknown option fails the build. It never falls back silently.
+
 ## Invariants check
 
 | Invariant | How this plan keeps it |
@@ -120,7 +185,9 @@ What is missing, and where each piece should go:
 | Never who, only how many | The only name shown is the creator's (an opted-in presenter) and `who_host`. Codes and links carry no visitor id. Reports stay OSE SharedReports. |
 | Under-5 floor | Every count on a page comes from a SharedReport, which floors it. The page prints no count of its own. The existing `floorText` check stays. |
 | Place, not person | Places are her public channels and event venues. An event's area is OSE's H3 cell. No visitor location is read or shown. |
-| Sponsors need two-sided consent | Sponsors come only through OSE's consent flow, never from the creator file. |
+| Sponsors need two-sided consent | Sponsors come only through OSE's consent flow and the public sponsor bundle, never from the creator file. The strip sits below the title and date. A sponsor is never a filter. |
+| Display shows no counts | The `tv` display option shows no report and no count. |
+| Design system | Colours come only from `@ocr/ui` tokens and a pipeline-made `[data-brand]` block. One `<h1>`, 44 px targets and contrast are checked for every layout option. |
 | No cookies on public surfaces | A static page sets none. `/q` sets only the anonymous `ose_anon` token, as today. |
 | Production closed | Everything here runs on local or staging. Nothing plans or sets `PRODUCTION_LIVE`. |
 | No new tracking path | Only `/q` and `/s`, issued by OSE. |
@@ -139,9 +206,19 @@ The sizes are relative. Every story has the full pyramid in `showcase/TESTING.md
 | S6 | **A creator schedules her own events.** A brand per creator and her membership. | OSE | The tenant-boundary chain (OSE-1446 …), owner | L, not now |
 | S7 | **Serve the page from OW staging, private.** Behind an access gate, with the showcase CSP check live. | OW | S2; `stg.ourwkrp.com` TLS fixed (owner action) | M |
 | S8 | *(Optional)* A brand calendar feed (`.ics` of a brand's public events). | OSE | none | S |
+| S9 | **Partners per station.** Read each linked event's public sponsor bundle and show the strip below the title and date. A station campaign's partner shows once, at the top of the station. The partner link is the event's SPONSOR `/s/` code. Born-red checks are in section 5. | OW (uses OSE as is) | S3, S4 | M |
+| S10 | **Layout and display menu.** `layout`, `stationOrder`, `sections` and `display` in the creator contract. Each option is rendered and run through the e2e and accessibility set; an unknown option fails the build. | OW | S2 | M |
+| S11 | **TV display option.** Auto-advancing stations, large type, no counts, codes and consented sponsors only. | OW | S10, S4 | S |
+| S12 | **A creator's own colours.** The page takes a pipeline-made `[data-brand]` block from the pinned `@ocr/ui`. It waits on the white-label pipeline (intake, processor, OSM, OA) and on a contrast checker for brand sets. OW only consumes the block. | OW; the pipeline is OSM and OA | The white-label pipeline | S here; L for the pipeline, not now |
 
-The recommended order is S1, then S2 and S3 in parallel, then S4, then S5. S6 and S7 wait on their prerequisites, and S8 only if the owner wants it.
-S1 to S5 need no OSE code change.
+The recommended order:
+1. S1.
+2. S2 and S3 in parallel.
+3. S4, then S5.
+4. S9 and S10 in parallel, then S11.
+
+S6, S7 and S12 wait on their prerequisites, and S8 comes only if the owner wants it.
+S1 to S5 and S9 to S11 need no OSE code change.
 
 ## Questions for the owner
 
@@ -152,3 +229,7 @@ S1 to S5 need no OSE code change.
 5. **Plan tier for the showcase brand:** free (3 codes per event, counting the event page) or mid (5)? This decides how many "go next" codes a station event can carry.
 6. **The brand calendar feed (S8):** wanted now, later, or not at all?
 7. **Where the page is shown:** stay a privately shared static page (today), or serve it from OW staging behind a gate (S7)? S7 waits on the staging TLS fix either way.
+8. **A partner for a whole station:** an OSE campaign across that station's events (recommended, since campaign is one concept)? Or only per-event sponsors at first?
+9. **Partner reporting from the showcase page:** first version without impression and click beacons, so only the SPONSOR `/s/` click is counted (recommended)? Or should the page fire OSE's impression beacons? Those are counted per event and are new traffic from an OW page.
+10. **The layout menu:** are `dial`, `list` and `grid`, plus a `tv` display, the right first set? Is anything missing that "whatever display desired" meant, for example an embed for her own site?
+11. **A creator's own colours:** wait for the white-label pipeline (recommended)? Or stay on the OW brand for creator #1 until then?
