@@ -3,6 +3,8 @@
 Written 2026-11-12, for the owner to approve before any build. It follows the container in
 ourCommunityRituals/ourWKRP#106 (`showcase/`) and changes nothing in it.
 
+**Status:** the owner answered every question on 2026-11-12 (see the end). The stories are ready to approve. Nothing is built.
+
 This repository is public, so this plan names no real creator. "Creator #1" is the first, private instance.
 Her own station-by-station mapping is kept outside the repository with her creator file.
 
@@ -386,7 +388,7 @@ The recommended order:
 S6, S7 and S12 wait on their prerequisites.
 S1 to S5, S10 and S11 need no OSE code change. S13, S8, S14 and S15 are the near-term OSE changes.
 
-## Questions for the owner
+## Questions for the owner (all decided, 2026-11-12)
 
 1. **Who creates the creator's events, for now?** *Decided, owner 2026-11-12: the owner, on staging, until the tenant chain lands. S6 stays later.* See "Her events on staging" below.
 2. **Station pages.** *Decided, owner 2026-11-12: one page per category (station), with the creator page as the dial.* S2 builds it.
@@ -407,5 +409,5 @@ S1 to S5, S10 and S11 need no OSE code change. S13, S8, S14 and S15 are the near
 8. **A partner for a whole station.** *Decided, owner 2026-11-12: an OSE campaign across that station's events.* S14 makes campaigns usable.
 9. **Partner reporting from the showcase page.** *Decided, owner 2026-11-12: clicks only for now.* No impression or click beacons; only the SPONSOR `/s/` click is counted.
 10. **The layout menu.** *Decided, owner 2026-11-12: `dial`, `list` and `grid` layouts, plus `page` and `tv` displays, as the first set.* No embed for now.
-11. **A creator's own colours:** wait for the white-label pipeline (recommended)? Or stay on the OW brand for creator #1 until then?
+11. **A creator's own colours.** *Decided, owner 2026-11-12: wait for the white-label pipeline.* Creator #1 stays on the OW brand until then, and S12 waits.
 12. **Her name on open staging, before she agrees.** *Decided, owner 2026-11-12: neutral titles first, then rename when she says yes.* See "Her events on staging".
