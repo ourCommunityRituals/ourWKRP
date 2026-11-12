@@ -153,7 +153,8 @@ The proposal, as story S13:
   - `in_person`: needs a place. The event gets its H3 cell and shows on the map, as today.
   - `online`: no place. It has no cell, so it is off the map and opens by link (owner ruling, OSE-1643 q4). Its `/q` and `/s` codes still count, as they do for any event.
     **Link only for now (owner, 2026-11-12):** it is also left out of `/events`, the landing page and the sitemap.
-    Today those lists do not check for a place, so an active `root` event with no location would show. S13 adds that rule, with a born-red check.
+    Today those lists do not check for a place: `listEvents` filters on published, brand, active and `listed_from` (the publish grace) only. So an active `root` event with no location would show. S13 adds that rule, with a born-red check.
+    `place_kind` (migration 0106: a business or an address) describes the spot for the zoomed map and stays as it is. The mode is a separate field.
     The brand API (`GET /api/v2/events?brand=`), which OW reads, still returns it.
   - `both`: a place and an online side. It is on the map by its place.
 
