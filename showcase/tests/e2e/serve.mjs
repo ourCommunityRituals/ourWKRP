@@ -10,6 +10,12 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.jpg': 'image/jpeg', '.png
 
 createServer(async (req, res) => {
   const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+  // Playwright starts this server before globalSetup builds the page, so its
+  // readiness probe asks this route, not index.html.
+  if (path === '/__health') {
+    res.writeHead(200).end('ok');
+    return;
+  }
   const file = normalize(join(root, path === '/' ? 'index.html' : path));
   if (!file.startsWith(root)) {
     res.writeHead(403).end();

@@ -28,7 +28,7 @@ export default defineConfig({
   ),
   webServer: {
     command: `node tests/e2e/serve.mjs .e2e/site ${PORT}`,
-    url: `http://127.0.0.1:${PORT}/index.html`,
+    url: `http://127.0.0.1:${PORT}/__health`,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,
   },
