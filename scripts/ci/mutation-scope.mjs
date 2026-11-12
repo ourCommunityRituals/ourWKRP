@@ -20,7 +20,8 @@
  * file. A required check that passes without looking is the failure this file
  * exists to avoid.
  *
- * To add a mutate target, add it to stryker.conf.mjs, its floor to
+ * To add a mutate target, add it to stryker.conf.mjs (or
+ * stryker.schemas.conf.mjs), its floor to
  * mutation-floors.json, and here its source and the specs that import it.
  * tests/unit/ci/mutation-gate.test.ts fails when a mutated or floored file, or
  * a spec in the mutation project that imports a mutated file, is missing from
@@ -43,6 +44,7 @@ const SELF = 'scripts/ci/mutation-scope.mjs';
 const FLOOR_SCRIPT = 'scripts/ci/mutation-file-floor.mjs';
 const FLOORS_FILE = 'mutation-floors.json';
 const STRYKER_CONFIG = 'stryker.conf.mjs';
+const SCHEMAS_STRYKER_CONFIG = 'stryker.schemas.conf.mjs';
 
 /** Exact repository-relative paths. A change to any of them needs a mutation run. */
 export const MUTATION_PATHS = Object.freeze([
@@ -71,6 +73,7 @@ export const MUTATION_PATHS = Object.freeze([
   // (checked against the import graph by tests/unit/ci/mutation-gate.test.ts).
   'tests/fuzz/cursor.fuzz.test.ts',
   'tests/fuzz/route-path.fuzz.test.ts',
+  'tests/integration/session-lifecycle.test.ts',
   'tests/security/ccr-invariants.test.ts',
   'tests/security/cors-policy.test.ts',
   'tests/security/cross-product-boundary.invariant.spec.ts',
@@ -97,6 +100,7 @@ export const MUTATION_PATHS = Object.freeze([
   // What the run is built from: the Stryker config, the Vitest projects, the
   // mutation-only setup, the dependencies.
   STRYKER_CONFIG,
+  SCHEMAS_STRYKER_CONFIG,
   'vitest.config.ts',
   'vitest.mutation.config.ts',
   'tests/support/mutation-setup.ts',
@@ -232,38 +236,43 @@ const PATTERN = /[*?{}[\]!]/;
 /**
  * What the list lacks, one line each; empty when it covers everything.
  *
- * @param {{strykerConfig: any, floors: Record<string, number>, specs: Array<{path: string, source: string}>}} inputs
- *   the default export of stryker.conf.mjs, the floors of mutation-floors.json,
- *   and the spec files of the mutation project with their text.
+ * @param {{strykerConfigs: Record<string, any>, floors: Record<string, number>, specs: Array<{path: string, source: string}>}} inputs
+ *   the default exports of the Stryker configs, keyed by their paths (each
+ *   pass: stryker.conf.mjs and stryker.schemas.conf.mjs), the floors of
+ *   mutation-floors.json, and the spec files of the mutation project with
+ *   their text. A config left out reads as one with no mutate targets.
  */
-export function uncoveredMutationInputs({ strykerConfig, floors, specs } = {}, paths = MUTATION_PATHS) {
+export function uncoveredMutationInputs({ strykerConfigs, floors, specs } = {}, paths = MUTATION_PATHS) {
   const listed = new Set(paths);
   const findings = [];
   const need = (path, why) => {
     if (!listed.has(path)) findings.push(`${path} (${why}) is not in MUTATION_PATHS of ${SELF}`);
   };
-  const mutate = Array.isArray(strykerConfig?.mutate) ? strykerConfig.mutate : [];
-  if (!mutate.length) findings.push(`${STRYKER_CONFIG} has no mutate targets that could be read`);
   const targets = new Set();
-  for (const entry of mutate) {
-    const file = String(entry).replace(/:\d+(:\d+)?-\d+(:\d+)?$/, '');
-    if (PATTERN.test(file)) {
-      findings.push(`${STRYKER_CONFIG} mutates the pattern "${entry}"; this check only knows files`);
-      continue;
+  for (const configPath of [STRYKER_CONFIG, SCHEMAS_STRYKER_CONFIG]) {
+    const config = strykerConfigs?.[configPath];
+    const mutate = Array.isArray(config?.mutate) ? config.mutate : [];
+    if (!mutate.length) findings.push(`${configPath} has no mutate targets that could be read`);
+    for (const entry of mutate) {
+      const file = String(entry).replace(/:\d+(:\d+)?-\d+(:\d+)?$/, '');
+      if (PATTERN.test(file)) {
+        findings.push(`${configPath} mutates the pattern "${entry}"; this check only knows files`);
+        continue;
+      }
+      targets.add(file);
+      need(file, `a mutate target in ${configPath}`);
     }
-    targets.add(file);
-    need(file, `a mutate target in ${STRYKER_CONFIG}`);
+    const vitestConfig = config?.vitest?.configFile;
+    if (vitestConfig) need(vitestConfig, `the Vitest config of ${configPath}`);
+    else findings.push(`${configPath} names no Vitest config`);
+    need(configPath, 'a Stryker config');
   }
-  const vitestConfig = strykerConfig?.vitest?.configFile;
-  if (vitestConfig) need(vitestConfig, `the Vitest config of ${STRYKER_CONFIG}`);
-  else findings.push(`${STRYKER_CONFIG} names no Vitest config`);
   for (const file of Object.keys(floors || {})) need(file, `a floor in ${FLOORS_FILE}`);
   for (const { path, source } of specs || []) {
     const hit = relativeImports(path, source).find((p) => targets.has(p));
     if (hit) need(normalize(path), `a spec that imports ${hit}`);
   }
   for (const [file, why] of [
-    [STRYKER_CONFIG, 'the Stryker config'],
     [FLOORS_FILE, 'the floors'],
     [FLOOR_SCRIPT, 'the per-file floor'],
     [WORKFLOW, 'the workflow'],

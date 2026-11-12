@@ -19,13 +19,15 @@
 //                      CSP and escaping between stored data and the page
 //   validate, schemas, ids, route-path, cursor
 //                      the shapes untrusted input must take
+//                      (schemas.ts in its own pass, stryker.schemas.conf.mjs)
 //   privacy, erasure   what is published, and the right to erasure
 //   crypto             the hashing and tokens the above rely on
 //
 // Each file has its own floor in mutation-floors.json, checked by
 // scripts/ci/mutation-file-floor.mjs, because the `break` below is global and
-// one file at 100% can carry another well under the bar. Add a target here and
-// its floor there; tests/unit/ci/mutation-gate.test.ts fails when they differ.
+// one file at 100% can carry another well under the bar. Add a target here (or
+// in stryker.schemas.conf.mjs) and its floor there; tests/unit/ci/mutation-gate.test.ts
+// fails when they differ.
 //
 // Run: `npm run test:mutation`. CI: .github/workflows/mutation-testing.yml.
 
@@ -48,7 +50,6 @@ export default {
     'src/lib/security-headers.ts',
     'src/lib/html.ts',
     'src/lib/validate.ts',
-    'src/lib/schemas.ts',
     'src/lib/ids.ts',
     'src/lib/route-path.ts',
     'src/lib/cursor.ts',
@@ -65,7 +66,8 @@ export default {
   reporters: ['html', 'clear-text', 'progress', 'json'],
   htmlReporter: { fileName: 'reports/mutation/index.html' },
   jsonReporter: { fileName: 'reports/mutation/mutation.json' },
-  // The global bar. The per-file floors are the real gate (see above); this
-  // only stops a run that is far off. Set at the first measured run.
-  thresholds: { high: 95, low: 80, break: 80 },
+  // No global `break`: the per-file floors in mutation-floors.json are the
+  // gate (scripts/ci/mutation-file-floor.mjs). A global bar on top would only
+  // fail a pass for files that each meet their own floor.
+  thresholds: { high: 95, low: 80, break: null },
 };

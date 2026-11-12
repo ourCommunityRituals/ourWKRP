@@ -3,23 +3,29 @@
 # Modelled on OSE's (ourSharedEvents .github/workflows/mutation-testing.yml,
 # job `mutation`). The other gates catch a test that is skipped; they cannot see
 # one that is hollow. Stryker plants one small fault at a time in OW's security
-# and privacy guards (stryker.conf.mjs) and reruns the tests that cover it. A
-# mutant that survives is a fault the suite would let ship.
+# and privacy guards and reruns the tests that cover it. A mutant that survives
+# is a fault the suite would let ship.
 #
-# It fails when:
-#   - a pull request lowers or drops a floor in mutation-floors.json (compared
-#     with the base branch's copy; OSE keeps its floors in code with no check);
-#   - Stryker's global score is under its `break` (stryker.conf.mjs);
-#   - any one guard file scores under its own floor, or was not mutated at all
-#     (scripts/ci/mutation-file-floor.mjs).
+# Three jobs:
+#   Mutation scope        decides whether this change needs a run
+#                         (scripts/ci/mutation-scope.mjs, fail closed), and on a
+#                         pull request checks that no floor in
+#                         mutation-floors.json was lowered or dropped against the
+#                         base branch's copy (OSE keeps its floors in code with
+#                         no such check).
+#   Mutation pass (main)  Stryker on the guards in stryker.conf.mjs.
+#   Mutation pass (schemas)
+#                         Stryker on src/lib/schemas.ts (stryker.schemas.conf.mjs
+#                         says why it is a pass of its own), in parallel.
+#   Mutation              the gate: every guard file at or above its own floor
+#                         (scripts/ci/mutation-file-floor.mjs), from both
+#                         reports. This is the check to require on `main`.
 #
 # WHEN IT RUNS. Every pull request and every push to main, with no `paths:`
-# filter, so the check always reports and can be made required on `main` (the
-# owner's setting). Whether a change needs the Stryker run is decided inside the
-# job by scripts/ci/mutation-scope.mjs, which fails closed: it skips the run only
-# when it read the changed files and none is on its list. Nightly and on manual
-# dispatch it always runs, which catches a test that reaches a guard only
-# through another module.
+# filter, so `Mutation` always reports. A change that touches nothing on the
+# scope list passes in seconds and says so. Nightly and on manual dispatch it
+# always runs, which also catches a test that reaches a guard only through
+# another module.
 #
 # Never merges, never pushes, needs no secret but the read-only hub token that
 # every job installing @ocr/ui uses (step-scoped, OW-150).
@@ -48,13 +54,12 @@ defaults:
     shell: bash
 
 jobs:
-  mutation:
-    name: Mutation
+  scope:
+    name: Mutation scope
     runs-on: ubuntu-24.04
-    # TIMEOUT_SET_AT_FIRST_RUN
-    timeout-minutes: 30
-    # No job-level `if:` and no `needs:`: this check must report on every pull
-    # request so it can be required.
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -63,10 +68,9 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      # FAIL CLOSED: every step below runs unless this step said `run=false`,
-      # and it says that only when it read the changed files and none is on the
-      # list. If this step prints nothing the steps still run; if it fails, the
-      # job is red.
+      # FAIL CLOSED: it says `run=false` only when it read the changed files
+      # and none is on the list. If it prints nothing, the passes still run; if
+      # it fails, this job is red and so is `Mutation`.
       - name: Does this change need a mutation run?
         id: scope
         env:
@@ -90,34 +94,97 @@ jobs:
             echo "The base branch has no mutation-floors.json yet: nothing to ratchet against." | tee -a "$GITHUB_STEP_SUMMARY"
           fi
 
+  pass:
+    name: Mutation pass (${{ matrix.pass }})
+    needs: scope
+    # Skipped only on an explicit `run=false`; `Mutation` below then passes.
+    if: needs.scope.outputs.run != 'false'
+    runs-on: ubuntu-24.04
+    # Locally each pass takes 1 to 2 minutes; the first CI run of the single
+    # pass that still held the Miniflare specs and schemas.ts hit 30 minutes.
+    # 20 leaves room for a slow runner; a pass that needs more has a cause to
+    # find, not a limit to raise.
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pass: main
+            script: test:mutation
+            report: reports/mutation/
+          - pass: schemas
+            script: test:mutation:schemas
+            report: reports/mutation-schemas/
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
       - uses: actions/setup-node@v6
-        if: steps.scope.outputs.run != 'false'
         with:
           # StrykerJS 10 needs Node 22 or later.
           node-version: '22'
 
       - name: Stage @ocr/ui package
-        if: steps.scope.outputs.run != 'false'
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
           OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
 
       - run: npm ci
-        if: steps.scope.outputs.run != 'false'
 
-      - name: Run Stryker
-        if: steps.scope.outputs.run != 'false'
-        run: npm run test:mutation
+      - name: Run Stryker (${{ matrix.pass }})
+        run: npm run ${{ matrix.script }}
 
-      - name: Per-file mutation floor
-        if: steps.scope.outputs.run != 'false'
-        run: npm run test:mutation:floor
-
-      - name: Upload mutation report
-        if: always() && steps.scope.outputs.run != 'false'
+      - name: Upload the report
+        if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: mutation-report-${{ github.run_number }}
-          path: reports/mutation/
+          name: mutation-report-${{ matrix.pass }}
+          path: ${{ matrix.report }}
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error
+
+  mutation:
+    name: Mutation
+    needs: [scope, pass]
+    # No `if: always()` would let a failed pass skip this job, and a skipped
+    # required check counts as passed. It always runs and decides itself.
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: The scope job and both passes finished as they should
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          RUN: ${{ needs.scope.outputs.run }}
+          PASS_RESULT: ${{ needs.pass.result }}
+        run: |
+          echo "scope: $SCOPE_RESULT (run=$RUN); passes: $PASS_RESULT"
+          if [ "$SCOPE_RESULT" != success ]; then
+            echo "::error::Mutation scope did not succeed ($SCOPE_RESULT)."; exit 1
+          fi
+          if [ "$RUN" = false ]; then
+            echo "Mutation run not needed for this change; see the Mutation scope job." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$PASS_RESULT" != success ]; then
+            echo "::error::A mutation pass did not succeed ($PASS_RESULT)."; exit 1
+          fi
+
+      - uses: actions/checkout@v6
+        if: needs.scope.outputs.run != 'false'
+        with:
+          persist-credentials: false
+
+      - name: Download both reports
+        if: needs.scope.outputs.run != 'false'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mutation-report-*
+          path: reports-in
+
+      # Every guard file at or above its own floor; a file missing from both
+      # reports, or in both, fails too.
+      - name: Per-file mutation floor
+        if: needs.scope.outputs.run != 'false'
+        run: node scripts/ci/mutation-file-floor.mjs reports-in/mutation-report-main/mutation.json reports-in/mutation-report-schemas/mutation.json

@@ -15,7 +15,9 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
-import { checkFloors, checkRatchet, fileScore, readFloors } from '../../../scripts/ci/mutation-file-floor.mjs';
+import { defineConfig, mergeConfig } from 'vitest/config';
+import baseProject from '../../../vitest.config';
+import { checkFloors, checkRatchet, fileScore, mergeReports, readFloors } from '../../../scripts/ci/mutation-file-floor.mjs';
 import {
   MUTATION_PATHS,
   decideMutationRun,
@@ -24,7 +26,8 @@ import {
   uncoveredMutationInputs,
 } from '../../../scripts/ci/mutation-scope.mjs';
 import strykerConfig from '../../../stryker.conf.mjs';
-import { MUTATION_TEST_DIRS } from '../../../vitest.mutation.config';
+import schemasConfig from '../../../stryker.schemas.conf.mjs';
+import mainProject, { MUTATION_EXCLUDED_SPECS, MUTATION_TEST_DIRS } from '../../../vitest.mutation.config';
 import { originalSourcePath } from '../../support/stryker-sandbox';
 
 const ROOT = path.resolve(__dirname, '../../..');
@@ -123,15 +126,74 @@ describe('readFloors', () => {
   });
 });
 
-describe('the committed floors and the Stryker config agree', () => {
-  it('every mutated file has a floor and every floor is a mutated file', () => {
-    expect(Object.keys(readFloors(floorsDoc)).sort()).toEqual([...strykerConfig.mutate].sort());
+describe('mergeReports (one file, one pass)', () => {
+  it('joins the files of several reports', () => {
+    const { report: r, failures } = mergeReports([report({ 'src/lib/a.ts': [] }), report({ 'src/lib/b.ts': [] })]);
+    expect(Object.keys(r.files).sort()).toEqual(['src/lib/a.ts', 'src/lib/b.ts']);
+    expect(failures).toEqual([]);
   });
-  it('the Stryker run uses the mutation project and writes the JSON report the floor reads', () => {
-    expect(strykerConfig.vitest.configFile).toBe('vitest.mutation.config.ts');
-    expect(strykerConfig.coverageAnalysis).toBe('perTest');
-    expect(strykerConfig.jsonReporter.fileName).toBe('reports/mutation/mutation.json');
-    expect(JSON.parse(read('package.json')).scripts['test:mutation:floor']).toContain('reports/mutation/mutation.json');
+  it('BORN RED: a file in two reports fails, Windows path or not', () => {
+    const twice = mergeReports([report({ 'src/lib/a.ts': [] }), { files: { 'src\\lib\\a.ts': { mutants: [] } } }]);
+    expect(twice.failures).toEqual(['src/lib/a.ts: in more than one mutation report']);
+  });
+});
+
+const strykerConfigs = { 'stryker.conf.mjs': strykerConfig, 'stryker.schemas.conf.mjs': schemasConfig };
+const allTargets = [...strykerConfig.mutate, ...schemasConfig.mutate];
+
+describe('the committed floors and the Stryker passes agree', () => {
+  it('every mutated file has a floor and every floor is a mutated file', () => {
+    expect(Object.keys(readFloors(floorsDoc)).sort()).toEqual([...allTargets].sort());
+  });
+  it('no file is mutated by both passes', () => {
+    expect(strykerConfig.mutate.filter((f: string) => schemasConfig.mutate.includes(f))).toEqual([]);
+  });
+  it('both passes run the mutation project and write the JSON reports the floor reads', () => {
+    const floorScript = JSON.parse(read('package.json')).scripts['test:mutation:floor'];
+    for (const [config, report] of [
+      [strykerConfig, 'reports/mutation/mutation.json'],
+      [schemasConfig, 'reports/mutation-schemas/mutation.json'],
+    ]) {
+      expect(config.vitest.configFile).toBe('vitest.mutation.config.ts');
+      expect(config.coverageAnalysis).toBe('perTest');
+      expect(config.jsonReporter.fileName).toBe(report);
+      expect(floorScript).toContain(report);
+    }
+  });
+});
+
+describe('the mutation project runs exactly the specs it says', () => {
+  // Vite's mergeConfig concatenates arrays: the first version merged an
+  // `include` and so kept the default `tests/**` glob, running the
+  // performance specs per mutant.
+  it('includes its layers and nothing else, less the listed specs', () => {
+    expect(mainProject.test?.include).toEqual(
+      MUTATION_TEST_DIRS.flatMap((d) => [`${d}/**/*.test.ts`, `${d}/**/*.invariant.spec.ts`]),
+    );
+    expect(MUTATION_TEST_DIRS).not.toContain('tests/performance');
+    expect(mainProject.test?.setupFiles).toEqual(['tests/support/mutation-setup.ts']);
+    for (const spec of MUTATION_EXCLUDED_SPECS) expect(mainProject.test?.exclude).toContain(spec);
+  });
+  // A spec that starts Miniflare errors now and then under Stryker's reruns,
+  // and an errored mutant moves the score (vitest.mutation.config.ts says how).
+  it('no spec in the mutation project starts a local Miniflare', () => {
+    // Built from parts, so this file's own text does not match it.
+    const mf = ['Mini', 'flare'].join('');
+    const startsOne = new RegExp(`new ${mf}\\b|from ['"]${mf.toLowerCase()}['"]`);
+    const starters = mutationProjectSpecs()
+      .filter(({ source }) => startsOne.test(source))
+      .map(({ path: p }) => p);
+    expect(starters.length).toBeGreaterThan(0);
+    expect(starters.filter((p) => !MUTATION_EXCLUDED_SPECS.includes(p))).toEqual([]);
+  });
+
+  it('every excluded spec exists, so an exclusion cannot go stale silently', () => {
+    expect(MUTATION_EXCLUDED_SPECS.filter((p: string) => !mutationProjectSpecs().some((s) => s.path === p))).toEqual([]);
+  });
+  it('BORN RED: a project built with mergeConfig keeps the default glob, and the check above would see it', () => {
+    const merged = mergeConfig(baseProject, defineConfig({ test: { include: ['tests/unit/**/*.test.ts'] } }));
+    expect(merged.test?.include).toContain('tests/**/*.test.ts');
+    expect(merged.test?.include).not.toEqual(['tests/unit/**/*.test.ts']);
   });
 });
 
@@ -211,11 +273,11 @@ describe('the mutation path list covers the gate', () => {
 
   it('reads a real mutation project (a green run is not an empty run)', () => {
     expect(specs.length).toBeGreaterThan(50);
-    expect(strykerConfig.mutate.length).toBeGreaterThan(10);
+    expect(allTargets.length).toBeGreaterThan(10);
   });
 
   it('every mutated file, floored file and spec importing a mutated file is listed', () => {
-    expect(uncoveredMutationInputs({ strykerConfig, floors, specs })).toEqual([]);
+    expect(uncoveredMutationInputs({ strykerConfigs, floors, specs })).toEqual([]);
   });
 
   it('every listed file exists', () => {
@@ -244,24 +306,24 @@ describe('the mutation path list covers the gate', () => {
 
   it('BORN RED: a mutated source left off the list is found', () => {
     const paths = (MUTATION_PATHS as string[]).filter((p) => p !== 'src/lib/cors.ts');
-    expect(uncoveredMutationInputs({ strykerConfig, floors, specs }, paths).join('\n')).toContain(
+    expect(uncoveredMutationInputs({ strykerConfigs, floors, specs }, paths).join('\n')).toContain(
       'src/lib/cors.ts (a mutate target in stryker.conf.mjs)',
     );
   });
 
   it('BORN RED: a spec importing a mutated source left off the list is found', () => {
     const paths = (MUTATION_PATHS as string[]).filter((p) => p !== 'tests/unit/session.test.ts');
-    expect(uncoveredMutationInputs({ strykerConfig, floors, specs }, paths).join('\n')).toContain(
+    expect(uncoveredMutationInputs({ strykerConfigs, floors, specs }, paths).join('\n')).toContain(
       'tests/unit/session.test.ts (a spec that imports src/lib/session.ts)',
     );
   });
 
   it('BORN RED: an unreadable config, a glob target and a floor off the list are found', () => {
-    expect(uncoveredMutationInputs({ strykerConfig: {}, floors: {}, specs: [] }).join('\n')).toContain('no mutate targets');
+    expect(uncoveredMutationInputs({ strykerConfigs: {}, floors: {}, specs: [] }).join('\n')).toContain('no mutate targets');
     expect(
-      uncoveredMutationInputs({ strykerConfig: { ...strykerConfig, mutate: ['src/**/*.ts'] }, floors: {}, specs: [] }).join('\n'),
+      uncoveredMutationInputs({ strykerConfigs: { ...strykerConfigs, 'stryker.conf.mjs': { ...strykerConfig, mutate: ['src/**/*.ts'] } }, floors: {}, specs: [] }).join('\n'),
     ).toContain('mutates the pattern');
-    expect(uncoveredMutationInputs({ strykerConfig, floors: { 'src/lib/nope.ts': 90 }, specs: [] }).join('\n')).toContain(
+    expect(uncoveredMutationInputs({ strykerConfigs, floors: { 'src/lib/nope.ts': 90 }, specs: [] }).join('\n')).toContain(
       'src/lib/nope.ts (a floor in mutation-floors.json)',
     );
   });
@@ -283,14 +345,18 @@ describe('originalSourcePath (structural specs read src/ as committed)', () => {
 });
 
 describe('the workflow wiring', () => {
-  type Step = { name?: string; id?: string; run?: string; if?: string; uses?: string };
-  const wf = yaml.load(read('.github/workflows/mutation-testing.yml')) as {
-    on: Record<string, unknown>;
-    jobs: Record<string, { if?: string; needs?: unknown; steps: Step[]; 'timeout-minutes'?: number }>;
+  type Step = { name?: string; id?: string; run?: string; if?: string; uses?: string; with?: Record<string, unknown> };
+  type Job = {
+    name?: string;
+    if?: string;
+    needs?: string | string[];
+    steps: Step[];
+    outputs?: Record<string, string>;
+    strategy?: { matrix: { include: Array<Record<string, string>> } };
+    'timeout-minutes'?: number;
   };
-  const job = wf.jobs.mutation;
-  const steps = job.steps;
-  const at = (pred: (s: Step) => boolean) => steps.findIndex(pred);
+  const wf = yaml.load(read('.github/workflows/mutation-testing.yml')) as { on: Record<string, unknown>; jobs: Record<string, Job> };
+  const { scope, pass, mutation } = wf.jobs;
 
   it('starts on every pull request and push to main, nightly and on dispatch', () => {
     expect(Object.keys(wf.on).sort()).toEqual(['pull_request', 'push', 'schedule', 'workflow_dispatch']);
@@ -298,30 +364,44 @@ describe('the workflow wiring', () => {
     expect(wf.on.push).not.toHaveProperty('paths');
   });
 
-  it('the job always reports: no job-level if and no needs', () => {
-    expect(job.if).toBeUndefined();
-    expect(job.needs).toBeUndefined();
-    expect(job['timeout-minutes']).toBeGreaterThan(0);
+  it('every job has a time limit', () => {
+    for (const job of Object.values(wf.jobs)) expect(job['timeout-minutes']).toBeGreaterThan(0);
   });
 
-  it('decides scope first, ratchets on pull requests, then Stryker, then the floor', () => {
-    const scope = at((s) => s.id === 'scope');
-    const ratchet = at((s) => !!s.run?.includes('mutation-file-floor.mjs --ratchet'));
-    const stryker = at((s) => s.run === 'npm run test:mutation');
-    const floor = at((s) => s.run === 'npm run test:mutation:floor');
-    expect(steps[scope].run).toBe('node scripts/ci/mutation-scope.mjs');
-    expect(scope).toBeLessThan(ratchet);
-    expect(steps[ratchet].if).toBe("github.event_name == 'pull_request'");
-    expect(ratchet).toBeLessThan(stryker);
-    expect(stryker).toBeLessThan(floor);
+  it('the scope job always runs, decides scope, then ratchets on pull requests', () => {
+    expect(scope.if).toBeUndefined();
+    expect(scope.needs).toBeUndefined();
+    const decide = scope.steps.findIndex((s) => s.id === 'scope');
+    const ratchet = scope.steps.findIndex((s) => !!s.run?.includes('mutation-file-floor.mjs --ratchet'));
+    expect(scope.steps[decide].run).toBe('node scripts/ci/mutation-scope.mjs');
+    expect(scope.outputs?.run).toBe('${{ steps.scope.outputs.run }}');
+    expect(decide).toBeLessThan(ratchet);
+    expect(scope.steps[ratchet].if).toBe("github.event_name == 'pull_request'");
   });
 
-  it('every step after the scope step skips only on run=false (fail closed)', () => {
-    const scope = at((s) => s.id === 'scope');
-    for (const s of steps.slice(scope + 1)) {
-      if (s.run?.includes('--ratchet')) continue;
-      expect(s.if, s.name ?? s.run ?? s.uses).toContain("steps.scope.outputs.run != 'false'");
-      expect(s.if).not.toContain("== 'true'");
+  it('the passes skip only on run=false (fail closed) and run both Stryker configs', () => {
+    expect(pass.needs).toBe('scope');
+    expect(pass.if).toBe("needs.scope.outputs.run != 'false'");
+    const scripts = JSON.parse(read('package.json')).scripts;
+    const legs = pass.strategy!.matrix.include;
+    expect(legs.map((l) => l.pass).sort()).toEqual(['main', 'schemas']);
+    expect(scripts[legs.find((l) => l.pass === 'main')!.script]).toBe('stryker run');
+    expect(scripts[legs.find((l) => l.pass === 'schemas')!.script]).toBe('stryker run stryker.schemas.conf.mjs');
+    expect(pass.steps.some((s) => s.run === 'npm run ${{ matrix.script }}')).toBe(true);
+  });
+
+  it('the Mutation gate always runs, fails on a failed scope or pass, and floors both reports', () => {
+    expect(mutation.name).toBe('Mutation');
+    expect(mutation.if).toBe('always()');
+    expect(mutation.needs).toEqual(['scope', 'pass']);
+    const guard = mutation.steps[0].run ?? '';
+    expect(guard).toContain('"$SCOPE_RESULT" != success');
+    expect(guard).toContain('"$PASS_RESULT" != success');
+    const floor = mutation.steps.find((s) => s.run?.includes('mutation-file-floor.mjs'));
+    expect(floor?.run).toContain('mutation-report-main/mutation.json');
+    expect(floor?.run).toContain('mutation-report-schemas/mutation.json');
+    for (const s of mutation.steps.slice(1)) {
+      expect(s.if, s.name ?? s.uses).toBe("needs.scope.outputs.run != 'false'");
     }
   });
 });

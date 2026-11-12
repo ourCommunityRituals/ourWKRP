@@ -19,7 +19,7 @@
  * Ignored, CompileError and RuntimeError mutants are not valid and do not count.
  *
  * Usage:
- *   node scripts/ci/mutation-file-floor.mjs <mutation.json> [--floors mutation-floors.json]
+ *   node scripts/ci/mutation-file-floor.mjs <mutation.json>... [--floors mutation-floors.json]
  *   node scripts/ci/mutation-file-floor.mjs --ratchet <base mutation-floors.json> [--floors mutation-floors.json]
  */
 import { readFileSync } from 'node:fs';
@@ -103,6 +103,25 @@ export function checkRatchet(floors, baseFloors) {
   return failures;
 }
 
+/**
+ * One report from several Stryker passes (stryker.conf.mjs and
+ * stryker.schemas.conf.mjs each write their own). A file belongs to one pass:
+ * a path in two reports is a failure, not a merge, so two passes can never
+ * average one file's score. (As in OSE.)
+ */
+export function mergeReports(reports) {
+  const files = {};
+  const failures = [];
+  for (const report of reports) {
+    for (const [path, file] of Object.entries(report?.files ?? {})) {
+      const key = path.replace(/\\/g, '/');
+      if (key in files) failures.push(`${key}: in more than one mutation report`);
+      else files[key] = file;
+    }
+  }
+  return { report: { files }, failures };
+}
+
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
@@ -130,12 +149,12 @@ function main(argv) {
     return 0;
   }
 
-  const [reportPath] = args;
-  if (!reportPath || args.length !== 1) {
-    console.error('usage: mutation-file-floor.mjs <mutation.json> [--floors <file>] | --ratchet <base floors file>');
+  if (!args.length) {
+    console.error('usage: mutation-file-floor.mjs <mutation.json>... [--floors <file>] | --ratchet <base floors file>');
     return 2;
   }
-  const failures = checkFloors(readJson(reportPath), floors);
+  const merged = mergeReports(args.map(readJson));
+  const failures = [...merged.failures, ...checkFloors(merged.report, floors)];
   if (failures.length) {
     console.error('Per-file mutation floor failed:\n' + failures.join('\n'));
     return 1;
