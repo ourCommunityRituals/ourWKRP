@@ -120,7 +120,7 @@ What is missing, and where each piece should go:
 
 Confirmed by the owner, 2026-11-12: the station's frequency (Teach 89.1, Sound 97.3, and so on) is what places an event or a campaign, and each frequency has its own purpose and schedule. Each frequency makes **all** of its events and campaigns available, not one demo event each.
 
-- **Every event and every campaign has one frequency**, chosen when it is made, just as online or in person is. An event also has an intent: one-off, programme or trial (see "Three kinds of event" below).
+- **Every event and every campaign has one frequency**, chosen when it is made, just as online or in person is. An event also has an intent: one-off, pop-up, programme or trial (see "Four kinds of event" below).
   OW keeps the link, because OSE knows brands and events but not stations: `events: [{ frequency, oseEventId }]` and `campaigns: [{ frequency, oseCampaignId }]` in the creator file now, and an OW table later (the same shape as `dj_sets.event_id`).
   An OW creation flow (later, with S6) asks for the frequency and writes the OSE record and the OW link together.
 - **The frequency decides where it shows.**
@@ -175,30 +175,41 @@ A frequency is more than a category label. Like a radio station, it has **a reas
   - a slot's mode must equal the mode of each event attached to it;
   - "On air" text is built only from slot fields, never free text that could carry a name.
 
-**Three kinds of event (owner, 2026-11-12).**
+**Four kinds of event (owner, 2026-11-12).**
 
 > this is what separates a one off, temperal event vs a purposeful event vs a let see and try and it may be more fluid.
+
+The owner then added **pop-up** as a kind of its own.
 
 Every event on a frequency has an **intent**, chosen when it is made, alongside its frequency and its mode:
 
 | Intent | What it is | How the page reads it | Where it lives |
 |---|---|---|---|
-| `one-off` | A single, temporal moment: one date, not part of a programme. A launch, a guest talk, a pop-up at someone else's event. | "One time only", with its date. No "next". | The OSE event; the OW link carries `intent`. No series. |
+| `one-off` | A single, temporal moment that stands alone: one date, not part of a programme. A launch, a guest talk. | "One time only", with its date. No "next". | The OSE event; the OW link carries `intent`. No series. |
+| `pop-up` | A short window that appears and goes. It is often inside someone else's event or space, or it is a digital pop-up online (a live shop session, a limited drop). It is often short notice, and often commerce or merch. | "Pop-up", with its window: date plus start and end time, and the host's place when in person. Never under "On air". | The OSE event, with a start and an end time, and the place the host gives. The OW link carries `intent`. No series. |
 | `programme` | Purposeful: an occurrence of a frequency's scheduled slot. | Under "On air", as the slot's next date. | The OSE event, attached to the slot's declared series (S15). |
 | `trial` | "Let's see and try": fluid, maybe repeated, not yet committed. Its timing and form may change from one try to the next. | "Trying this out", with its date. Never under "On air" and never promised as recurring. | The OSE event; the OW link carries `intent`. No series yet. |
 
 - **A trial can become a programme.** When the creator decides it works, the owner declares a series from it (S15), adds the slot to the frequency's programme, and the trial's past occurrences join the series.
   The series trend then starts from the first try, so the partner and the creator see how it grew. A trial that stops is simply not repeated; nothing is deleted.
 - **OSE's detector fits this:** three or more tries at the same venue, day and hour already produce a *suggested* series (`pending`). That is a prompt to promote, never a promotion on its own; the owner confirms.
+- **Pop-ups in more detail:**
+  - A pop-up can be online, in person or both (S13). An in-person pop-up at a host's event takes the host venue as its place: place, not person. It names the host only as the host chooses to be named on their own public event.
+  - A pop-up that recurs on a fixed slot, like a monthly table, is a programme slot whose kind is `pop-up`. The intent `pop-up` is for the ones that are not scheduled.
+  - The catalog kind `pop-up` (Wear) suggests this intent when an event is made. It never decides.
+  - Its "go next" codes are usually the store: the event's MORE or TICKETS `/s/` code points at the shop. That is the one way a product click is counted (decision 4).
+  - **A short-notice pop-up reaches the page only on a rebuild,** because the page is a privately shared file built from OSE (decision 7). Its own OSE event page and codes work as soon as it is active.
 - **Campaigns follow the intent.** A partner can back:
   - a programme, for a season or its window;
   - a one-off, as a single event's sponsor (today's per-event placement);
-  - a trial, as a pilot partner.
+  - a trial, as a pilot partner;
+  - a pop-up, as its partner for that window (for example a collaborating artist's piece on the table).
   
   The page says which. A trial partner sees the same floored counts, and trials often read "Fewer than 5". That is the floor working, not a fault.
 - **Checks (born red):**
   - an event without an intent fails the build;
-  - a `trial` or `one-off` never appears under "On air" or with a "next" date;
+  - a `trial`, `one-off` or `pop-up` never appears under "On air" or with a "next" date;
+  - a `pop-up` without both a start and an end time fails the build;
   - a `programme` event must sit on a declared series and match a slot;
   - promoting a trial never changes its past occurrences' dates or counts.
 
@@ -350,8 +361,8 @@ The sizes are relative. Every story has the full pyramid in `showcase/TESTING.md
 
 | # | Story | Product | Needs | Size |
 |---|---|---|---|---|
-| S1 | **Creator contract v2.** `places` as typed https objects with `station` and `kind`; a `why` per station; `events: [{ frequency, oseEventId, intent }]` with intent `one-off`, `programme` or `trial`, and `campaigns: [{ frequency, oseCampaignId }]`, many per frequency. A `programme` of slots per frequency (cadence, day, time, mode, kind, purpose). The why is required on any frequency with events. (Owner, 2026-11-12: frequency decides, purposeful and scheduled, three kinds of event.) The schema and the fixture creator change, and old files still validate. | OW | #106 merged | M |
-| S2 | **Station pages with 5W(+H).** One page per station plus the creator page. The tuner becomes navigation; one `<h1>` each; places under "Where". "On air" shows the programme, and events read as "One time only", "Trying this out" or as a programme date. E2E at 375, 768 and 1280 px, in both themes. | OW | S1 | M |
+| S1 | **Creator contract v2.** `places` as typed https objects with `station` and `kind`; a `why` per station; `events: [{ frequency, oseEventId, intent }]` with intent `one-off`, `pop-up`, `programme` or `trial`, and `campaigns: [{ frequency, oseCampaignId }]`, many per frequency. A `programme` of slots per frequency (cadence, day, time, mode, kind, purpose). The why is required on any frequency with events. (Owner, 2026-11-12: frequency decides, purposeful and scheduled, four kinds of event.) The schema and the fixture creator change, and old files still validate. | OW | #106 merged | M |
+| S2 | **Station pages with 5W(+H).** One page per station plus the creator page. The tuner becomes navigation; one `<h1>` each; places under "Where". "On air" shows the programme, and events read as "One time only", "Pop-up", "Trying this out" or as a programme date. E2E at 375, 768 and 1280 px, in both themes. | OW | S1 | M |
 | S3 | **Read events from OSE at build time.** `GET /api/v2/events?brand=` and `/api/v2/events/:id` fill When, Where and How. A missing or non-public event drops off the page and fails nothing. Integration against the pinned local OSE (`.ose-ref`). | OW | S1 | M |
 | S4 | **Digital codes per station.** The seed creates one showcase placement per station event. The build reads the public poster bundle for that placement and shows the `/q` code plus the event's `/s` codes, as QR and link. Born-red checks are in section 2. | OW (uses OSE as is) | S2, S3 | M |
 | S5 | **Retire the copied schedule.** Rows that are linked OSE events come from OSE; any others stay labelled as copied. | OW | S3 | S |
