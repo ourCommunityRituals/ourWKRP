@@ -113,6 +113,24 @@ What is missing, and where each piece should go:
 | Online or in person, chosen at creation (owner, 2026-11-12) | A required choice on every event, kept on the OSE event. See below. | OSE (S13) |
 | One calendar for all her events | Optional: a brand-level `.ics` feed in OSE. Per-event `.ics` exists today. | OSE (optional) |
 
+### Her events on staging (owner decision, 2026-11-12)
+
+The owner creates creator #1's events, on staging, through OSE admin, until she can have her own access (S6). What follows from that:
+
+- **Her own brand, never `root`.** The `/events` list and the landing page read the `root` brand only (`dp.listEvents('root')` in `handlers/pages.ts`).
+  On her own brand, her events leave the stock seed's pinned per-zip totals alone (`stock/totals.json`), and those totals are what the staging tests expect. OW reads her events with `GET /api/v2/events?brand=<her brand>`.
+- **Staging is open.** Its owner chose no login gate, so robots are told not to crawl but anyone with a link can still open a page. Every page says "Testing purposes only."
+  Her active events are therefore reachable by link and through the public brand list, even though `/events` does not show them. That conflicts with "creator #1 is private" (question 12).
+- **The page still uses demo visitors until she says yes.** SharedReports on the showcase page come from a local run labelled demo, as today.
+  Staging events give the page real codes, 5W text and sponsor wiring. They give no real visitors, because nobody is invited to scan.
+- **The admin steps** for each event:
+  1. Create it, with its 5W fields and its online or in-person mode once S13 lands.
+  2. Set its poster codes.
+  3. Add one showcase placement per station page.
+  4. Make it active.
+  
+  The OW seed script stays local-only. It never writes to staging, because its local-only check is part of the security layer in `showcase/TESTING.md`.
+
 ### Online or in person (owner decision, 2026-11-12)
 
 OW's natural space covers both sides: a moment can happen online or in person. The station layout already has both sides (its `online` and `live` copy). When an event is created, the creator says which kind it is.
@@ -250,7 +268,7 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE ch
 
 ## Questions for the owner
 
-1. **Who creates the creator's events, for now?** (a) You, on her brand, on local or staging, until the tenant chain lands (recommended). (b) Pull S6 forward, which puts the tenant-boundary chain first.
+1. **Who creates the creator's events, for now?** *Decided, owner 2026-11-12: the owner, on staging, until the tenant chain lands. S6 stays later.* See "Her events on staging" below.
 2. **Station pages:** separate pages per station (recommended, so a code can point at one), or keep one page with tabs?
 3. **Online or in person.** *Decided, owner 2026-11-12: every event says which it is, at creation, and **both** is a third choice.* Still open:
    - (b) Does the event stay one OSE record, which a later OW creation flow writes (recommended)? Or should OW keep events of its own?
@@ -263,3 +281,7 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE ch
 9. **Partner reporting from the showcase page:** first version without impression and click beacons, so only the SPONSOR `/s/` click is counted (recommended)? Or should the page fire OSE's impression beacons? Those are counted per event and are new traffic from an OW page.
 10. **The layout menu:** are `dial`, `list` and `grid`, plus a `tv` display, the right first set? Is anything missing that "whatever display desired" meant, for example an embed for her own site?
 11. **A creator's own colours:** wait for the white-label pipeline (recommended)? Or stay on the OW brand for creator #1 until then?
+12. **Her name on open staging, before she agrees.** Staging is open, so her active events can be found by link and through the brand list. Choose one:
+    - (a) Neutral titles and no name until she says yes, then rename (recommended). OSE keeps each event's id, codes and placements through a rename.
+    - (b) Her real titles now, relying on the "Testing purposes only" line and the page's not-affiliated disclaimer.
+    - (c) Keep her events in draft on staging. But a draft has no public poster bundle, so the page would get no codes (S4).
