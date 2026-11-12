@@ -15,6 +15,11 @@ test('exactly one <h1>', async ({ page }) => {
   await expect(page.locator('h1')).toHaveCount(1);
 });
 
+test('only the tuned station panel shows on load', async ({ page }) => {
+  await expect(page.locator('[role="tabpanel"]:visible')).toHaveCount(1);
+  await expect(page.locator('#panel-teach')).toBeVisible();
+});
+
 test('nothing scrolls sideways', async ({ page }) => {
   const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(over).toBeLessThanOrEqual(0);
@@ -54,6 +59,9 @@ test('the tuner tunes by arrow keys, Home and End', async ({ page }) => {
   await page.keyboard.press('ArrowRight');
   await expect(tabs.nth(1)).toBeFocused();
   await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+  // Exactly one station panel shows, the selected one.
+  await expect(page.locator('[role="tabpanel"]:visible')).toHaveCount(1);
+  await expect(page.locator('#panel-wear')).toBeVisible();
   await page.keyboard.press('End');
   await expect(tabs.nth(count - 1)).toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('Home');

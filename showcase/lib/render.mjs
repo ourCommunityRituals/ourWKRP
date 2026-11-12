@@ -99,6 +99,7 @@ a:hover { color: var(--accent-hover); }
 .ch[aria-selected="true"] .f { color: var(--on-accent); }
 @media (max-width: 720px) { .channels { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .panel { margin-top: 24px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(20px, 3vw, 40px); }
+.panel[hidden] { display: none; }
 .panel .shot-slot { grid-column: 1 / -1; }
 @media (max-width: 820px) { .panel { grid-template-columns: minmax(0, 1fr); } }
 .shot-head { max-width: 760px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -261,7 +262,7 @@ footer .note { margin-top: 18px; }
         <p>${esc(c.values.body)}</p>
         <p class="demo-note"><b>These are real OurSharedEvents report pages.</b> Each event was created and scanned through the product's own poster codes on a private local run${seededOn ? ` on ${esc(seededOn)}` : ''}. Events are dated in the recent past so each report is complete, and the visitors are simulated, so the numbers show what a report looks like, not real attendance. Where an hour had fewer than five visitors, the report withheld it, which is why some totals are lower than the scans sent.</p>
       </div>
-      <div class="table-scroll">
+      <div class="table-scroll" tabindex="0" role="region" aria-label="People per station">
         <table>
           <thead><tr><th scope="col">Station</th><th scope="col">Event</th><th scope="col">Where the codes hung</th><th scope="col" style="text-align:right">People</th></tr></thead>
           <tbody>${stations.map(totalRow).join('')}</tbody>
@@ -288,7 +289,7 @@ footer .note { margin-top: 18px; }
     <span class="eyebrow">On the air this season</span>
     <h2 id="now-title" style="margin-top:12px">Ready-made first broadcasts.</h2>
     <p style="margin-top:16px">${esc(c.schedule.intro)} Dates and prices as listed on ${esc(c.schedule.source)}, read ${esc(fmtDate(c.readOn))}.</p>
-    <div class="table-scroll">
+    <div class="table-scroll" tabindex="0" role="region" aria-label="This season's events">
       <table>
         <thead><tr><th scope="col">Date</th><th scope="col">Event</th><th scope="col">Price</th><th scope="col">Natural pairing</th></tr></thead>
         <tbody>${c.schedule.rows.map(([d, t, p, n]) => `<tr><td class="d">${esc(fmtDate(d))}</td><td>${esc(t)}</td><td class="mono">${esc(p)}</td><td>${esc(n)}</td></tr>`).join('')}</tbody>
