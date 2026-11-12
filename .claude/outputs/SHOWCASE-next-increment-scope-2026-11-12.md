@@ -122,7 +122,7 @@ Today OSE has no such field. Online and virtual appear nowhere in the event sche
 The proposal, as story S13:
 
 - **One event record, in OSE.** OW never creates a second, OW-only event. An OW creation flow (later, with S6) writes the OSE event through OSE's API, so the decision is made where the event is made.
-- **A new field, `attendance_mode`,** required on create, with three values:
+- **A new field, `attendance_mode`,** required on create, with three values (owner, 2026-11-12: `both` is allowed):
   - `in_person`: needs a place. The event gets its H3 cell and shows on the map, as today.
   - `online`: no place. It has no cell, so it is off the map and opens by link (owner ruling, OSE-1643 q4). Its `/q` and `/s` codes still count, as they do for any event.
   - `both`: a place and an online side. It is on the map by its place.
@@ -252,8 +252,7 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE ch
 
 1. **Who creates the creator's events, for now?** (a) You, on her brand, on local or staging, until the tenant chain lands (recommended). (b) Pull S6 forward, which puts the tenant-boundary chain first.
 2. **Station pages:** separate pages per station (recommended, so a code can point at one), or keep one page with tabs?
-3. **Online or in person.** *Decided, owner 2026-11-12: every event says which it is, at creation.* Still open:
-   - (a) Is **both** a third choice (recommended: her classes, clips and game nights mix the two)? Or must an event be one or the other?
+3. **Online or in person.** *Decided, owner 2026-11-12: every event says which it is, at creation, and **both** is a third choice.* Still open:
    - (b) Does the event stay one OSE record, which a later OW creation flow writes (recommended)? Or should OW keep events of its own?
    - (c) Should online events also appear in OSE's `/events` list? Being off the map, they open by link only today.
 4. **Evergreen links (store, school, products):** plain and untracked (recommended)? Or should they be counted? Counting needs a decision on where, because `/s/` codes belong to an event today.
