@@ -1,7 +1,7 @@
 /**
  * The mutation gate's own tests: the per-file floor and its ratchet
  * (scripts/ci/mutation-file-floor.mjs), the scope decision
- * (scripts/ci/mutation-paths.mjs), the sandbox read redirect
+ * (scripts/ci/mutation-scope.mjs), the sandbox read redirect
  * (tests/support/stryker-sandbox.ts) and the workflow's wiring.
  *
  * Born red: each check is fed a fault it must catch (a mutant that survived, a
@@ -11,6 +11,7 @@
  * pass. Both halves run on every pull request.
  */
 import { describe, it, expect } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
@@ -21,7 +22,7 @@ import {
   readChangedFiles,
   relativeImports,
   uncoveredMutationInputs,
-} from '../../../scripts/ci/mutation-paths.mjs';
+} from '../../../scripts/ci/mutation-scope.mjs';
 import strykerConfig from '../../../stryker.conf.mjs';
 import { MUTATION_TEST_DIRS } from '../../../vitest.mutation.config';
 import { originalSourcePath } from '../../support/stryker-sandbox';
@@ -229,6 +230,18 @@ describe('the mutation path list covers the gate', () => {
     expect(missing).toEqual([]);
   });
 
+  // A file can exist on disk and still not be committed: on a Windows
+  // checkout the .gitignore secret pattern `*PAT*` matched this rule's first
+  // name, mutation-paths.mjs, and `git add -A` skipped it.
+  it('every listed file is tracked by git, so it is in every checkout', () => {
+    const tracked = new Set(
+      execFileSync('git', ['ls-files', '-z', '--', ...(MUTATION_PATHS as string[])], { cwd: ROOT, encoding: 'utf8' })
+        .split('\0')
+        .filter(Boolean),
+    );
+    expect((MUTATION_PATHS as string[]).filter((p) => !tracked.has(p))).toEqual([]);
+  });
+
   it('BORN RED: a mutated source left off the list is found', () => {
     const paths = (MUTATION_PATHS as string[]).filter((p) => p !== 'src/lib/cors.ts');
     expect(uncoveredMutationInputs({ strykerConfig, floors, specs }, paths).join('\n')).toContain(
@@ -296,7 +309,7 @@ describe('the workflow wiring', () => {
     const ratchet = at((s) => !!s.run?.includes('mutation-file-floor.mjs --ratchet'));
     const stryker = at((s) => s.run === 'npm run test:mutation');
     const floor = at((s) => s.run === 'npm run test:mutation:floor');
-    expect(steps[scope].run).toBe('node scripts/ci/mutation-paths.mjs');
+    expect(steps[scope].run).toBe('node scripts/ci/mutation-scope.mjs');
     expect(scope).toBeLessThan(ratchet);
     expect(steps[ratchet].if).toBe("github.event_name == 'pull_request'");
     expect(ratchet).toBeLessThan(stryker);

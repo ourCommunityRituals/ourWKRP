@@ -16,7 +16,7 @@
 # WHEN IT RUNS. Every pull request and every push to main, with no `paths:`
 # filter, so the check always reports and can be made required on `main` (the
 # owner's setting). Whether a change needs the Stryker run is decided inside the
-# job by scripts/ci/mutation-paths.mjs, which fails closed: it skips the run only
+# job by scripts/ci/mutation-scope.mjs, which fails closed: it skips the run only
 # when it read the changed files and none is on its list. Nightly and on manual
 # dispatch it always runs, which catches a test that reaches a guard only
 # through another module.
@@ -72,7 +72,7 @@ jobs:
         env:
           MUTATION_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           MUTATION_BEFORE_SHA: ${{ github.event.before }}
-        run: node scripts/ci/mutation-paths.mjs
+        run: node scripts/ci/mutation-scope.mjs
 
       # A pull request may raise a floor or add one, never lower or drop one.
       # The base branch's copy is the reference, so the pull request cannot
