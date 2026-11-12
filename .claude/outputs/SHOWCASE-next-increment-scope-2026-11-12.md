@@ -325,7 +325,7 @@ Born-red checks: a sponsor with only one side's consent never appears; the strip
 - A brand block must pass contrast checks in both themes before it ships. The checker for brand sets does not exist yet; that is pipeline work outside this plan.
 - Until a brand block exists, the page uses the OW brand, as today.
 
-**Layout and display (structure).** Automatic first, self-serve later, starting as a fixed menu in the creator file:
+**Layout and display (structure).** Automatic first, self-serve later, starting as a fixed menu in the creator file. The first set is confirmed (owner, 2026-11-12): dial, list and grid layouts, plus page and TV displays. An embed is not in it.
 
 | Option | Choices | Default |
 |---|---|---|
@@ -406,6 +406,6 @@ S1 to S5, S10 and S11 need no OSE code change. S13, S8, S14 and S15 are the near
    - The page reads OSE only at build time, so a shared copy shows the events, codes and sponsors as of its build. To show newer events, rebuild and share again.
 8. **A partner for a whole station.** *Decided, owner 2026-11-12: an OSE campaign across that station's events.* S14 makes campaigns usable.
 9. **Partner reporting from the showcase page.** *Decided, owner 2026-11-12: clicks only for now.* No impression or click beacons; only the SPONSOR `/s/` click is counted.
-10. **The layout menu:** are `dial`, `list` and `grid`, plus a `tv` display, the right first set? Is anything missing that "whatever display desired" meant, for example an embed for her own site?
+10. **The layout menu.** *Decided, owner 2026-11-12: `dial`, `list` and `grid` layouts, plus `page` and `tv` displays, as the first set.* No embed for now.
 11. **A creator's own colours:** wait for the white-label pipeline (recommended)? Or stay on the OW brand for creator #1 until then?
 12. **Her name on open staging, before she agrees.** *Decided, owner 2026-11-12: neutral titles first, then rename when she says yes.* See "Her events on staging".
