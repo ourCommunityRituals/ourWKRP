@@ -147,12 +147,12 @@ td.num.w { color: var(--text-muted); }
 .event .label { font-family: var(--font-mono); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-right: 6px; }
 .codes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); gap: 16px; margin-top: 16px; }
 .code { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.qr { display: block; width: 100%; max-width: 200px; height: auto; border-radius: 6px; }
+.qr { display: block; width: 900px; max-width: none; height: auto; border-radius: 6px; }
 .qr-paper { fill: var(--ocr-light-050); }
 .qr-ink { fill: var(--ocr-ink-black); }
 .code figcaption { font-size: var(--step--1); min-width: 0; }
 .code .word { display: block; font-family: var(--font-mono); letter-spacing: 0.12em; color: var(--text-muted); }
-.code a { display: inline-flex; align-items: center; min-height: 44px; font-family: var(--font-mono); overflow-wrap: anywhere; word-break: break-all; }
+.code a { display: inline-flex; align-items: center; min-height: 20px; font-family: var(--font-mono); overflow-wrap: anywhere; word-break: break-all; }
 .empty { padding: 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); margin-top: 16px; }
 .copied-note { margin-top: 12px; font-size: 0.9375rem; color: var(--text-muted); }
 footer { border-top: 1px solid var(--border); padding-block: 36px 56px; font-size: 0.875rem; color: var(--text-muted); }
@@ -401,7 +401,7 @@ ${footer(c, built)}
   // A station link from before station pages (#teach) opens that station's page.
   var CH = ${JSON.stringify(stationData).replace(/</g, '\\u003c')};
   var h = (location.hash || "").slice(1);
-  for (var i = 0; i < CH.length; i++) if (CH[i].id === h) { location.replace(CH[i].id + "/index.html"); return; }
+  for (var i = 0; i < CH.length; i++) if (CH[i].id === h) { location.replace("#"); return; }
 })();
 </script>
 `;
