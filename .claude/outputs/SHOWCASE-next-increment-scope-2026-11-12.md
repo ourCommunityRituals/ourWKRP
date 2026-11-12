@@ -66,7 +66,8 @@ Two levels, each answering the same five questions plus How:
 
 What changes in the layout:
 
-- Each station becomes **its own page**: `out/<slug>/<station>/index.html`, with the tuner kept as navigation between them. One `<h1>` on each page; the creator page keeps its own `<h1>`.
+- Each station becomes **its own page** (owner, 2026-11-12): `out/<slug>/<station>/index.html`, with the tuner kept as navigation between them.
+  Today's `#teach` links keep working: the creator page sends a station hash on to that station's page. One `<h1>` on each page; the creator page keeps its own `<h1>`.
   Its own page is what a QR code or a link in bio can point at. A `#teach` tab cannot be printed as a destination that a scan then counts.
 - Event-level 5W (When, Where, How) comes **from OSE**. Station-level 5W (Who, What, Why) comes from the creator file. Nothing is kept in both places.
 - The copied `schedule` table retires once its rows are real OSE events. Until then it stays, labelled as copied from her site.
@@ -277,7 +278,7 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE ch
 ## Questions for the owner
 
 1. **Who creates the creator's events, for now?** *Decided, owner 2026-11-12: the owner, on staging, until the tenant chain lands. S6 stays later.* See "Her events on staging" below.
-2. **Station pages:** separate pages per station (recommended, so a code can point at one), or keep one page with tabs?
+2. **Station pages.** *Decided, owner 2026-11-12: one page per category (station), with the creator page as the dial.* S2 builds it.
 3. **Online or in person.** *Decided, owner 2026-11-12: every event says which it is, at creation, and **both** is a third choice.* Still open:
    - (b) Does the event stay one OSE record, which a later OW creation flow writes (recommended)? Or should OW keep events of its own?
    - (c) Should online events also appear in OSE's `/events` list? Being off the map, they open by link only today.
