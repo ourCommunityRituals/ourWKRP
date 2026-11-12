@@ -36,6 +36,10 @@ __pycache__/
 .history/
 .vscode/
 
+# Mutation testing (stryker.conf.mjs): reports and the sandbox.
+reports/
+.stryker-tmp/
+
 # Creator showcase (showcase/): real creator files are private, the work folder
 # holds signed report links, the env file holds a throwaway local key, and the
 # built pages and captures are published only by hand.
