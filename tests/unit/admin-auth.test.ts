@@ -16,10 +16,7 @@ const req = (headers: Record<string, string> = {}) =>
 
 describe('admin token gate', () => {
   it('fails closed when the secret is unset (no token can ever pass)', () => {
-    // BORN-RED PLANT (reverted in the next commit): the assertion is gone, so
-    // the test is green and hollow, and `return false` on an unset secret
-    // (src/lib/admin-auth.ts) could become `return true`. Mutation must go red.
-    expect(typeof verifyAdminToken(req({ Authorization: `Bearer ${SECRET}` }), envWith(undefined))).toBe('boolean');
+    expect(verifyAdminToken(req({ Authorization: `Bearer ${SECRET}` }), envWith(undefined))).toBe(false);
   });
 
   it('rejects a request with no token', () => {
