@@ -24,6 +24,13 @@
 #       - Performance tests            → vitest run tests/performance
 #
 #   Gate: All checks must pass → Deploy staging (automatic, on push to main)
+#       - All Checks Passed            → if: always(); fails unless every job it
+#                                        needs is `success` (a skip is not a pass)
+#       - Gate-execution reconciler    → every job expected for this trigger ran
+#                                        (advisory), plus the pipeline board
+#
+#   Zero-test guards: E2E runs through scripts/pw-guarded.sh and the Bruno step
+#   fails on a JUnit report with 0 test cases. A runner that ran nothing is red.
 #
 #   Deploy is itself VERIFIED end-to-end, not a bare `wrangler deploy`:
 #       preflight (wiring) → D1 migrations → deploy → smoke (controls live)
@@ -37,12 +44,22 @@
 name: CI
 
 on:
+  # main only. Branches get CI through their pull request; a `claude/**` push
+  # trigger here made every agent PR branch run the whole pipeline twice.
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
   pull_request:
     branches: [main]
   # Production deploy is manual-only — triggered here. See the deploy-production job.
   workflow_dispatch:
+
+# Keyed by EVENT (ported from OSE-937), so a push-to-main run and any other
+# trigger on main never share a group. cancel-in-progress only on pull_request:
+# a new PR push supersedes its own stale run, but a merge's deploy run is never
+# cancelled out from under it.
+concurrency:
+  group: ow-ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # bash is the default shell on ubuntu-24.04; kept explicit so every `run:`
 # step's bash syntax (grep negation, pipes, POSIX conditionals) is unambiguous.
@@ -299,8 +316,14 @@ jobs:
           SMOKE_APP: wkrp
           PW_LABEL: 'Tier-1 page smoke (wkrp)'
         run: bash scripts/pw-guarded.sh tests/e2e/smoke/tier1.spec.ts --project="Mobile Safari"
-      # playwright.config.ts boots `wrangler dev` itself via its webServer block.
-      - run: npm run test:e2e
+      # The Playwright half of `npm run test:e2e` (the D1 seed is the step above),
+      # through the same zero-test guard as the smoke: discovery is counted first
+      # and 0 tests is a failure, not a green step. playwright.config.ts boots
+      # `wrangler dev` itself via its webServer block.
+      - name: E2E journeys (test:e2e)
+        env:
+          PW_LABEL: 'E2E journeys (tests/e2e)'
+        run: bash scripts/pw-guarded.sh tests/e2e
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v7
@@ -332,6 +355,10 @@ jobs:
       # test:bruno seeds the local D1, boots `wrangler dev`, then runs `bru run`
       # against the bruno/wkrp-api contract collection (ex-Newman, OW: Newman → Bruno).
       - run: npm run test:bruno
+      # Zero-case guard: a Bruno run that executed no requests must not pass on
+      # its exit code. Fails on a missing report, a non-JUnit file, or 0 cases.
+      - name: Bruno ran at least one case
+        run: node scripts/ci/junit-case-count.mjs .test-results/bru-api-junit.xml 'Bruno API contract'
       - name: Upload Bruno report
         if: always()
         uses: actions/upload-artifact@v7
@@ -384,10 +411,16 @@ jobs:
   # Gate: ALL checks must pass before deploy
   # ============================================
 
+  # With plain `needs:`, one failed job made this job SKIPPED, and GitHub counts a
+  # skipped required check as passing. So it always runs and decides for itself:
+  # every job below must be `success`; failed, cancelled, skipped or missing is
+  # red. The list must name every gate job in this file
+  # (tests/unit/ci/gate-execution.test.ts checks).
   all-checks:
     name: All Checks Passed
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    if: always()
     needs:
       - security
       - lint-and-typecheck
@@ -401,7 +434,61 @@ jobs:
       - fuzz-tests
       - performance-tests
     steps:
-      - run: echo "All CI checks passed"
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Every needed job succeeded
+        env:
+          RESULTS_JSON: ${{ toJSON(needs) }}
+        run: node scripts/ci/require-all-success.mjs
+
+  # Gate-execution reconciler (ported from OSE-1255): every job EXPECTED for this
+  # trigger must have executed. A job skipped, cancelled or absent with no failure
+  # upstream of it is the false-green hole, and this fails on it. A job that ran
+  # and failed is its own red signal. Advisory for now, as in OSE: it goes red but
+  # is not a required check until the owner makes it one. Also writes the pipeline
+  # board (one row per job, with the reason any job did not run).
+  gate-execution:
+    name: Gate-execution reconciler
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - security
+      - lint-and-typecheck
+      - secret-scanning
+      - unit-tests
+      - integration-tests
+      - contract-tests
+      - security-tests
+      - e2e-tests
+      - bruno-tests
+      - fuzz-tests
+      - performance-tests
+      - all-checks
+      - deploy-staging
+      - deploy-production
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Reconciler self-test
+        run: node scripts/ci/assert-gate-execution.mjs --self-test
+      - name: Pipeline board
+        if: always()
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          RESULTS_JSON: ${{ toJSON(needs) }}
+        run: node scripts/ci/render-pipeline-board.mjs >> "$GITHUB_STEP_SUMMARY"
+      - name: Reconcile gate execution
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          RESULTS_JSON: ${{ toJSON(needs) }}
+        run: node scripts/ci/assert-gate-execution.mjs
 
   # ============================================
   # Deploy jobs — Doppler injects secrets at runtime

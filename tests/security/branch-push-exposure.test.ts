@@ -6,8 +6,8 @@
  * that trigger can see. A job that uses a credential must therefore not be triggered by a push to
  * any branch except main.
  *
- * `ci.yml` here runs on pushes to `claude/**` (that is how agent branches get CI), so the rule
- * matters in this repository. Safe by default: every secret is protected unless it is on the short
+ * `mobile-workability.yml` here runs on pushes to `claude/**` (`ci.yml` did too, until its pull
+ * request runs were judged enough), so the rule matters in this repository. Safe by default: every secret is protected unless it is on the short
  * list below, so a new secret is covered the moment it appears.
  *
  * Two jobs are allowed to hold a secret on a workflow with a branch-push trigger, `deploy-staging`
@@ -16,6 +16,10 @@
  * environments themselves hold the Doppler tokens as environment secrets and deploy from main only
  * (deployment branch policy `main`, read through the GitHub API on 2026-10-26). A unit test cannot
  * see that setting, which is why the job must also say so itself.
+ *
+ * Since `ci.yml` dropped its `claude/**` push trigger, no job relies on the exemption, and the
+ * exact list below is empty. It stays the rule for the two deploy jobs if a branch push returns,
+ * but bringing one back now fails here first, on purpose.
  *
  * The same rule lives in ourSharedEvents as scripts/ci/branch-push-secret-exposure.mjs, mutation-
  * tested with StrykerJS. This is a copy, not a shared module: if the two diverge, that is a finding.
@@ -196,7 +200,7 @@ describe('the real workflows', () => {
     ).toEqual([]);
   });
 
-  it('exactly the two known deploy jobs rely on the environment exemption', () => {
-    expect(all.flatMap((r) => r.bound).sort()).toEqual(['ci.yml:deploy-production', 'ci.yml:deploy-staging']);
+  it('no job relies on the environment exemption (no workflow with a secret runs on a branch push)', () => {
+    expect(all.flatMap((r) => r.bound).sort()).toEqual([]);
   });
 });
