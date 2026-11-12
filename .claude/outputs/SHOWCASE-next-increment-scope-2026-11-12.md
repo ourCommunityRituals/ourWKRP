@@ -307,7 +307,7 @@ What the station page does:
 - A frequency with a campaign shows that campaign's partner once, at the top of its station page. The campaign's frequency comes from the creator file's `campaigns` link (section 3, "Frequency decides").
   The partner shows only if the public sponsor bundle of at least one upcoming station event lists it under that campaign, which means both sides consented on that placement. OW never stores the sponsor or picks it.
 - A partner's link is the event's own SPONSOR code (`/s/`), so a click is counted in the event's report like any other code.
-- The page does **not** fire OSE's impression or click beacons in the first version (question 9).
+- The page does **not** fire OSE's impression or click beacons (owner, 2026-11-12: clicks only for now). A partner's count from the showcase is the click on the event's SPONSOR `/s/` code, floored like any other count. A born-red check fails the build if the page contains a request to `/impression` or `/click`.
 - The creator chooses the partners she works with. In OSE terms, she or her organizer is the side that accepts.
   Until she has her own brand access (S6), the owner accepts on her behalf, on local or staging, the same as for her events.
 
@@ -405,7 +405,7 @@ S1 to S5, S10 and S11 need no OSE code change. S13, S8, S14 and S15 are the near
    - The build's output folder `out/<slug>/` is what gets shared. It is now several pages (S2), so it is shared as a folder or a zip, or as one private artifact with its station pages as supporting files.
    - The page reads OSE only at build time, so a shared copy shows the events, codes and sponsors as of its build. To show newer events, rebuild and share again.
 8. **A partner for a whole station.** *Decided, owner 2026-11-12: an OSE campaign across that station's events.* S14 makes campaigns usable.
-9. **Partner reporting from the showcase page:** first version without impression and click beacons, so only the SPONSOR `/s/` click is counted (recommended)? Or should the page fire OSE's impression beacons? Those are counted per event and are new traffic from an OW page.
+9. **Partner reporting from the showcase page.** *Decided, owner 2026-11-12: clicks only for now.* No impression or click beacons; only the SPONSOR `/s/` click is counted.
 10. **The layout menu:** are `dial`, `list` and `grid`, plus a `tv` display, the right first set? Is anything missing that "whatever display desired" meant, for example an embed for her own site?
 11. **A creator's own colours:** wait for the white-label pipeline (recommended)? Or stay on the OW brand for creator #1 until then?
 12. **Her name on open staging, before she agrees.** *Decided, owner 2026-11-12: neutral titles first, then rename when she says yes.* See "Her events on staging".
