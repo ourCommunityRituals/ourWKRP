@@ -264,7 +264,7 @@ The sizes are relative. Every story has the full pyramid in `showcase/TESTING.md
 | S5 | **Retire the copied schedule.** Rows that are linked OSE events come from OSE; any others stay labelled as copied. | OW | S3 | S |
 | S6 | **A creator schedules her own events.** A brand per creator and her membership. | OSE | The tenant-boundary chain (OSE-1446 …), owner | L, not now |
 | S7 | **Serve the page from OW staging, private.** Behind an access gate, with the showcase CSP check live. | OW | S2; `stg.ourwkrp.com` TLS fixed (owner action) | M |
-| S8 | *(Optional)* A brand calendar feed (`.ics` of a brand's public events). | OSE | none | S |
+| S8 | *(Later, owner 2026-11-12)* A brand calendar feed (`.ics` of a brand's public events). | OSE | none | S |
 | S9 | **Partners per station.** Read each linked event's public sponsor bundle and show the strip below the title and date. A station campaign's partner shows once, at the top of the station. The partner link is the event's SPONSOR `/s/` code. Born-red checks are in section 5. | OW (uses OSE as is) | S3, S4 | M |
 | S10 | **Layout and display menu.** `layout`, `stationOrder`, `sections` and `display` in the creator contract. Each option is rendered and run through the e2e and accessibility set; an unknown option fails the build. | OW | S2 | M |
 | S11 | **TV display option.** Auto-advancing stations, large type, no counts, codes and consented sponsors only. | OW | S10, S4 | S |
@@ -277,7 +277,7 @@ The recommended order:
 3. S4, then S5.
 4. S9 and S10 in parallel, then S11.
 
-S6, S7 and S12 wait on their prerequisites, and S8 comes only if the owner wants it.
+S6, S7 and S12 wait on their prerequisites, and S8 is later (owner, 2026-11-12).
 S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE change.
 
 ## Questions for the owner
@@ -294,7 +294,7 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE ch
    - **Bruno's tier test sets Free and then restores** the tier it read before (`POST Restore Tier Preset`), so Mid survives a T2 run. While T2 runs, though, the tier is briefly Free.
      A poster-codes save with 4 or 5 codes during that window is refused. Save them outside a staging CI run.
    - A per-brand tier would remove both caveats. That is OSE work outside this plan, and not proposed here.
-6. **The brand calendar feed (S8):** wanted now, later, or not at all?
+6. **The brand calendar feed (S8).** *Decided, owner 2026-11-12: later.* S8 is not in this increment. Each event's own `.ics` file stays available.
 7. **Where the page is shown:** stay a privately shared static page (today), or serve it from OW staging behind a gate (S7)? S7 waits on the staging TLS fix either way.
 8. **A partner for a whole station:** an OSE campaign across that station's events (recommended, since campaign is one concept)? Or only per-event sponsors at first?
 9. **Partner reporting from the showcase page:** first version without impression and click beacons, so only the SPONSOR `/s/` click is counted (recommended)? Or should the page fire OSE's impression beacons? Those are counted per event and are new traffic from an OW page.
