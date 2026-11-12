@@ -109,10 +109,33 @@ What is missing, and where each piece should go:
 
 | Gap | Proposal | Product |
 |---|---|---|
-| Which station an event belongs to | OW keeps the link: a list of `{ station, oseEventId }` in the creator file now, an OW table later (the same shape as `dj_sets.event_id`). OSE stays unaware of stations. | OW |
+| Which frequency an event or campaign is on | The frequency decides (owner, 2026-11-12). See "Frequency decides" below. | OW |
 | The creator scheduling her own events | A brand per creator, and her admin membership on it (`admin_brand_memberships`). This is **blocked on the tenant-boundary chain** (OSE-1446 and the tickets after it), since admin is founder-only. Until then the owner creates her events on her brand, on local or staging. | OSE (owner decision) |
 | Online or in person, chosen at creation (owner, 2026-11-12) | A required choice on every event, kept on the OSE event. See below. | OSE (S13) |
 | One calendar for all her events | A brand-level `.ics` feed in OSE, in this increment (owner, 2026-11-12). Per-event `.ics` exists today. See S8. | OSE (S8) |
+
+### Frequency decides (owner decision, 2026-11-12)
+
+> Events and campaigns should be available and should be dictated on frequency
+
+Read here as: the station's frequency (Teach 89.1, Sound 97.3, and so on) is what places an event or a campaign. Each frequency makes **all** of its events and campaigns available, not one demo event each.
+
+- **Every event and every campaign has one frequency**, chosen when it is made, just as online or in person is.
+  OW keeps the link, because OSE knows brands and events but not stations: `events: [{ frequency, oseEventId }]` and `campaigns: [{ frequency, oseCampaignId }]` in the creator file now, and an OW table later (the same shape as `dj_sets.event_id`).
+  An OW creation flow (later, with S6) asks for the frequency and writes the OSE record and the OW link together.
+- **The frequency decides where it shows.**
+  - Its station page lists every upcoming event on that frequency, soonest first, with each event's codes and consented partners.
+  - It shows every active campaign on that frequency at the top of the page.
+  - The tuner, the TV view (S11) and the creator page's "When" are all read from the same links. Nothing is placed by hand.
+- **Lead (the operator's view) is the whole dial.** It shows every frequency's events. A campaign set on Lead is a whole-creator campaign: a sponsor backing the season, not one station.
+- **One frequency per event.** An event that serves two stations (a class that is also streamed) picks the one it belongs to. Lead still shows it.
+  The catalog's `eventKinds` only suggests a frequency when an event is made, the same way an event type suggests poster codes. It never decides.
+- **A frequency with nothing on it** still shows its station copy, places and links, and says that nothing is scheduled. It shows no codes and no partner.
+- **Checks (born red):**
+  - an event or campaign linked to an unknown frequency fails the build;
+  - an event is never shown on a frequency it is not linked to (Lead excepted);
+  - a past event never shows a code;
+  - a campaign whose events are all past is not shown.
 
 ### Her events on staging (owner decision, 2026-11-12)
 
@@ -203,7 +226,7 @@ What the station page does:
 
 - For each linked event, it reads the **public** sponsor bundle (`GET /api/v2/events/:id/sponsor-bundle?surface=public`). It shows the consented sponsors in the strip, below the event's title and date.
   A static page has no OSE surface of its own. Using `public` keeps it to exactly what the event page already shows.
-- A station with a campaign shows that campaign's partner once, at the top of the station. The station's entry in the creator file names the campaign id; it is OW's link, like `oseEventId`.
+- A frequency with a campaign shows that campaign's partner once, at the top of its station page. The campaign's frequency comes from the creator file's `campaigns` link (section 3, "Frequency decides").
   The partner shows only if the public sponsor bundle of at least one upcoming station event lists it under that campaign, which means both sides consented on that placement. OW never stores the sponsor or picks it.
 - A partner's link is the event's own SPONSOR code (`/s/`), so a click is counted in the event's report like any other code.
 - The page does **not** fire OSE's impression or click beacons in the first version (question 9).
@@ -260,7 +283,7 @@ The sizes are relative. Every story has the full pyramid in `showcase/TESTING.md
 
 | # | Story | Product | Needs | Size |
 |---|---|---|---|---|
-| S1 | **Creator contract v2.** `places` as typed https objects with `station` and `kind`; a `why` per station; `events: [{ station, oseEventId }]`. The schema and the fixture creator change, and old files still validate. | OW | #106 merged | S |
+| S1 | **Creator contract v2.** `places` as typed https objects with `station` and `kind`; a `why` per station; `events: [{ frequency, oseEventId }]` and `campaigns: [{ frequency, oseCampaignId }]`, many per frequency (owner, 2026-11-12: frequency decides). The schema and the fixture creator change, and old files still validate. | OW | #106 merged | S |
 | S2 | **Station pages with 5W(+H).** One page per station plus the creator page. The tuner becomes navigation; one `<h1>` each; places under "Where". E2E at 375, 768 and 1280 px, in both themes. | OW | S1 | M |
 | S3 | **Read events from OSE at build time.** `GET /api/v2/events?brand=` and `/api/v2/events/:id` fill When, Where and How. A missing or non-public event drops off the page and fails nothing. Integration against the pinned local OSE (`.ose-ref`). | OW | S1 | M |
 | S4 | **Digital codes per station.** The seed creates one showcase placement per station event. The build reads the public poster bundle for that placement and shows the `/q` code plus the event's `/s` codes, as QR and link. Born-red checks are in section 2. | OW (uses OSE as is) | S2, S3 | M |
