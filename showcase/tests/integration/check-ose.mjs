@@ -14,7 +14,7 @@ import { SHOWCASE, readJson } from '../../lib/build.mjs';
 import { FORM_KINDS } from '../../lib/codes.mjs';
 import { planDate } from '../../lib/plan.mjs';
 
-const FORM_TARGET = /\/forms?\/|[?&]type=(register|checkin|survey|email)/i;
+const FORM_TARGET = /\/forms?\//i;
 
 /**
  * @param {object} plan         fixtures/sample-ose-events.json
@@ -55,7 +55,9 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now) {
     const r = resolved.find((x) => x.url === url);
     if (!r) out.push(`${url}: not resolved`);
     else if (r.status !== 302) out.push(`${url}: answered ${r.status}, want a 302`);
-    else if (!r.location || FORM_TARGET.test(r.location)) out.push(`${url}: leads to ${r.location ?? 'nowhere'}, not to the event or its link`);
+    // A /q scan lands on the event page; OSE adds ?type=register&deployment=…
+    // there as the page's call-to-action hint. Only a form PATH is a form.
+    else if (!r.location || FORM_TARGET.test(new URL(r.location).pathname)) out.push(`${url}: leads to ${r.location ?? 'nowhere'}, not to the event or its link`);
   }
   return out;
 }
