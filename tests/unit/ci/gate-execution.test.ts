@@ -198,6 +198,10 @@ describe('Bruno zero-case guard', () => {
   });
   it('BORN RED: a case inside a comment does not count', () => {
     expect(countTestcases('<testsuites><!-- <testcase name="x"/> --></testsuites>')).toBe(0);
+    expect(countTestcases('<testsuites><!-- a --><testcase/><!-- <testcase/> --></testsuites>')).toBe(1);
+  });
+  it('BORN RED: an unterminated comment hides everything after it', () => {
+    expect(countTestcases('<testsuites><!-- <testcase name="x"/></testsuites>')).toBe(0);
   });
   it('BORN RED: text that is not JUnit is unknown (-1), never a count', () => {
     expect(countTestcases('')).toBe(-1);

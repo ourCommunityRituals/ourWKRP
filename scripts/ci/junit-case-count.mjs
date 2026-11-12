@@ -19,9 +19,25 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 /** Number of `<testcase>` elements, or -1 when the text is not a JUnit document. */
 export function countTestcases(xml) {
   if (typeof xml !== 'string' || !/<testsuites?[\s>/]/.test(xml)) return -1;
-  // Comments can hold markup; drop them before counting.
-  const body = xml.replace(/<!--[\s\S]*?-->/g, '');
-  return (body.match(/<testcase[\s>/]/g) || []).length;
+  return (outsideComments(xml).match(/<testcase[\s>/]/g) || []).length;
+}
+
+/**
+ * The text outside XML comments, which can hold markup. A scan, not a regex
+ * replace: an unterminated `<!--` hides everything after it, so nothing
+ * commented out can come back and be counted.
+ */
+function outsideComments(xml) {
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const open = xml.indexOf('<!--', i);
+    if (open === -1) return out + xml.slice(i);
+    out += xml.slice(i, open);
+    const close = xml.indexOf('-->', open + 4);
+    if (close === -1) return out;
+    i = close + 3;
+  }
 }
 
 /** The guard's verdict for a file: null when it passes, else the error message. */
