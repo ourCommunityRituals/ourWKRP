@@ -193,7 +193,9 @@ What OSE already gives, and the rules that come with it:
 - **Placement.** On a page that shows an event title, the sponsor strip sits below the title and date and above the content.
 - **Sponsors are not a filter.** A visitor can never search or sort by sponsor.
 - **Reports.** Sponsors see floored counts only, never people. A partner's report is its slice of the event's SharedReport.
-- **Campaign is one concept.** A partner that backs a whole station is a campaign (`campaigns`, migration 0039, already linked from sponsor placements) across that station's events. It is not a separate "station sponsor" object.
+- **Campaign is one concept (owner, 2026-11-12: a station partner is a campaign).** A partner that backs a whole station is an OSE campaign across that station's events. It is not a separate "station sponsor" object.
+  What exists: the `campaigns` table (migration 0039: brand-scoped, with a title and a status) and `sponsor_placement.campaign_id` (0067). The SharedReport's `campaign_summary` section is shown at Mid depth (`lib/report-depth.ts`), and the showcase brand is on Mid.
+  What does not exist (checked 2026-11-12): no route creates a campaign (nothing in the worker inserts into `campaigns`), and the public sponsor bundle does not say which campaign a placement belongs to. S14 adds both.
 - **Entitlements.** How many sponsor and code slots an event carries is a tier entitlement (`lib/poster-codes.ts` limits).
 - **Assets.** Bulk sponsor asset onboarding is OSM's job; OSE renders.
 
@@ -201,7 +203,8 @@ What the station page does:
 
 - For each linked event, it reads the **public** sponsor bundle (`GET /api/v2/events/:id/sponsor-bundle?surface=public`). It shows the consented sponsors in the strip, below the event's title and date.
   A static page has no OSE surface of its own. Using `public` keeps it to exactly what the event page already shows.
-- A station with a campaign shows that campaign's partner once, at the top of the station, under the same consent rule. OW reads it; it never stores or picks it.
+- A station with a campaign shows that campaign's partner once, at the top of the station. The station's entry in the creator file names the campaign id; it is OW's link, like `oseEventId`.
+  The partner shows only if the public sponsor bundle of at least one upcoming station event lists it under that campaign, which means both sides consented on that placement. OW never stores the sponsor or picks it.
 - A partner's link is the event's own SPONSOR code (`/s/`), so a click is counted in the event's report like any other code.
 - The page does **not** fire OSE's impression or click beacons in the first version (question 9).
 - The creator chooses the partners she works with. In OSE terms, she or her organizer is the side that accepts.
@@ -265,7 +268,8 @@ The sizes are relative. Every story has the full pyramid in `showcase/TESTING.md
 | S6 | **A creator schedules her own events.** A brand per creator and her membership. | OSE | The tenant-boundary chain (OSE-1446 …), owner | L, not now |
 | S7 | *(Later, owner 2026-11-12: a private file for now.)* **Serve the page from OW staging, private.** Behind an access gate, with the showcase CSP check live. | OW | S2; `stg.ourwkrp.com` TLS fixed (owner action) | M |
 | S8 | **A brand calendar feed** (owner, 2026-11-12: in this increment). `GET /brands/:brand/calendar.ics` lists the brand's public events, so followers can subscribe once.<br>It reuses the per-event `.ics` writer (`handlers/calendar.ts`). It reads the same published, active and listed rows as the brand API, through the public projection only. It is rate-limited like other public reads and returns 404 for an unknown or invalid brand.<br>It includes online events, since a subscription is reached by link, and each entry carries the mode label once S13 lands. An entry's link is the event page, never a meeting link. Nothing about attendees is in it. On staging the neutral-title rule applies.<br>The creator page lists it under "Where" as a `calendar` place. Both test layers apply, with born-red checks for brand isolation (another brand's event never appears), drafts left out, and no field outside the public projection. | OSE | none (S13 for the mode label) | S |
-| S9 | **Partners per station.** Read each linked event's public sponsor bundle and show the strip below the title and date. A station campaign's partner shows once, at the top of the station. The partner link is the event's SPONSOR `/s/` code. Born-red checks are in section 5. | OW (uses OSE as is) | S3, S4 | M |
+| S9 | **Partners per station.** Read each linked event's public sponsor bundle and show the strip below the title and date. A station campaign's partner shows once, at the top of the station. The partner link is the event's SPONSOR `/s/` code. Born-red checks are in section 5. | OW | S3, S4; S14 for the campaign partner | M |
+| S14 | **Campaigns an organizer can use.**<br>An admin route creates and lists campaigns on a brand: brand-scoped through `guardAdminObjectScope`, audited, with a title and a status only. A placement can then be attached to a campaign.<br>The public sponsor bundle gains each consented placement's campaign (`id` and `title` only) as a sibling field, so the public event projection is unchanged.<br>Born-red checks: another brand's campaign can never be attached or seen; a campaign never appears for a placement without both sides' consent; a campaign title is never a filter or search key. | OSE | none | M |
 | S10 | **Layout and display menu.** `layout`, `stationOrder`, `sections` and `display` in the creator contract. Each option is rendered and run through the e2e and accessibility set; an unknown option fails the build. | OW | S2 | M |
 | S11 | **TV display option.** Auto-advancing stations, large type, no counts, codes and consented sponsors only. | OW | S10, S4 | S |
 | S13 | **Online or in person on every event.** A required `attendance_mode` field (`in_person` · `online` · `both`). The section 3 rules apply: existing rows become `in_person`; a place is needed for `in_person` and `both`; `online` events are left out of `/events`, the landing page and the sitemap; no meeting link is stored or published. Both test layers, the contract snapshot bump, and a born-red check per rule. | OSE | none | M |
@@ -275,10 +279,10 @@ The recommended order:
 1. S1 in OW and S13 in OSE, in parallel.
 2. S2 and S3 in parallel, and S8 in OSE after S13. S3 shows the mode once S13 is merged.
 3. S4, then S5.
-4. S9 and S10 in parallel, then S11.
+4. S9 and S10 in parallel, then S11. S14 runs in OSE any time before S9 needs its campaign partner.
 
 S6, S7 and S12 wait on their prerequisites.
-S1 to S5 and S9 to S11 need no OSE code change. S13 and S8 are the near-term OSE changes.
+S1 to S5, S10 and S11 need no OSE code change. S13, S8 and S14 are the near-term OSE changes.
 
 ## Questions for the owner
 
@@ -298,7 +302,7 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 and S8 are the near-term OSE
 7. **Where the page is shown.** *Decided, owner 2026-11-12: a privately shared static file for now.* S7 is later.
    - The build's output folder `out/<slug>/` is what gets shared. It is now several pages (S2), so it is shared as a folder or a zip, or as one private artifact with its station pages as supporting files.
    - The page reads OSE only at build time, so a shared copy shows the events, codes and sponsors as of its build. To show newer events, rebuild and share again.
-8. **A partner for a whole station:** an OSE campaign across that station's events (recommended, since campaign is one concept)? Or only per-event sponsors at first?
+8. **A partner for a whole station.** *Decided, owner 2026-11-12: an OSE campaign across that station's events.* S14 makes campaigns usable.
 9. **Partner reporting from the showcase page:** first version without impression and click beacons, so only the SPONSOR `/s/` click is counted (recommended)? Or should the page fire OSE's impression beacons? Those are counted per event and are new traffic from an OW page.
 10. **The layout menu:** are `dial`, `list` and `grid`, plus a `tv` display, the right first set? Is anything missing that "whatever display desired" meant, for example an embed for her own site?
 11. **A creator's own colours:** wait for the white-label pipeline (recommended)? Or stay on the OW brand for creator #1 until then?
