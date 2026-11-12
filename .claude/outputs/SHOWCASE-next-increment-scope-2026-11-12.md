@@ -148,7 +148,7 @@ Today OSE has no such field. Online and virtual appear nowhere in the event sche
 
 The proposal, as story S13:
 
-- **One event record, in OSE.** OW never creates a second, OW-only event. An OW creation flow (later, with S6) writes the OSE event through OSE's API, so the decision is made where the event is made.
+- **One event record, in OSE (owner, 2026-11-12).** OW never creates a second, OW-only event. OW's own rows refer to it by the OSE event id, as `dj_sets.event_id` already does. An OW creation flow (later, with S6) writes the OSE event through OSE's API, so the decision is made where the event is made.
 - **A new field, `attendance_mode`,** required on create, with three values (owner, 2026-11-12: `both` is allowed):
   - `in_person`: needs a place. The event gets its H3 cell and shows on the map, as today.
   - `online`: no place. It has no cell, so it is off the map and opens by link (owner ruling, OSE-1643 q4). Its `/q` and `/s` codes still count, as they do for any event.
@@ -284,7 +284,7 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE ch
 1. **Who creates the creator's events, for now?** *Decided, owner 2026-11-12: the owner, on staging, until the tenant chain lands. S6 stays later.* See "Her events on staging" below.
 2. **Station pages.** *Decided, owner 2026-11-12: one page per category (station), with the creator page as the dial.* S2 builds it.
 3. **Online or in person.** *Decided, owner 2026-11-12: every event says which it is, at creation, and **both** is a third choice.* Still open:
-   - (b) Does the event stay one OSE record, which a later OW creation flow writes (recommended)? Or should OW keep events of its own?
+   - (b) *Decided, owner 2026-11-12: an OW event is one OSE record. OW writes it through OSE's API and never keeps events of its own.*
    - (c) *Decided, owner 2026-11-12: online events are link only for now.* See S13.
 4. **Evergreen links (store, school, products):** plain and untracked (recommended)? Or should they be counted? Counting needs a decision on where, because `/s/` codes belong to an event today.
 5. **Plan tier for the showcase brand:** free (3 codes per event, counting the event page) or mid (5)? This decides how many "go next" codes a station event can carry.
