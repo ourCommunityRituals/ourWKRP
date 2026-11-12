@@ -47,6 +47,12 @@ describe('creator showcase: security', () => {
   it('stops the build when OSE text names the creator, a venture or one of her links', async () => {
     expect(await C.neutralNameProblems(m)).toEqual([]);
   });
+  it('checks the creator file before reading OSE: a bad file makes no read', async () => {
+    expect(await C.fileFirstProblems(m)).toEqual([]);
+  });
+  it('stops the build when an upcoming event loses its codes (failed bundle, unknown placement)', async () => {
+    expect(await C.lostCodeProblems(m)).toEqual([]);
+  });
   it('drops a linked event that is missing, not public or on another brand', async () => {
     expect(await C.dropProblems(m)).toEqual([]);
   });

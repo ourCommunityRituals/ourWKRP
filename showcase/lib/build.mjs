@@ -48,7 +48,13 @@ export function publishProblems(label, text) {
  */
 export function codeProblems(label, html, origin) {
   const out = [];
-  for (const [, url, inner] of html.matchAll(/<figure class="code" data-code-url="([^"]*)">([\s\S]*?)<\/figure>/g)) {
+  const figures = [...html.matchAll(/<figure class="code" data-code-url="([^"]*)">([\s\S]*?)<\/figure>/g)];
+  // Every QR and every code URL on the page sits in a figure the gate reads:
+  // a code drawn in any other markup is refused, not passed unread.
+  const qrs = (html.match(/<svg class="qr"/g) ?? []).length;
+  const urls = (html.match(/data-code-url=/g) ?? []).length;
+  if (qrs !== figures.length || urls !== figures.length) out.push(`${label}: ${qrs} QR codes and ${urls} code URLs, but ${figures.length} code figures the gate can read`);
+  for (const [, url, inner] of figures) {
     const raw = url.replaceAll('&amp;', '&');
     const bad = origin ? codeUrlProblem(raw, origin) : 'a code on a page built without OSE';
     if (bad) out.push(`${label}: code refused (${bad})`);

@@ -45,9 +45,10 @@ export function planItem(ev, { brand, now }) {
 
 /**
  * A fetch that answers like OSE. `edit(kind, body)` may change a response
- * before it is sent, for tests that plant a fault in what OSE returns.
+ * before it is sent, and `fail(kind, id)` may return a status to answer with
+ * instead, for tests that plant a fault in what OSE returns.
  */
-export function fakeOse({ brand = 'showcase-sample', now = NOW, origin = FAKE_ORIGIN, calls = [], edit = (_k, b) => b, events = plan().events } = {}) {
+export function fakeOse({ brand = 'showcase-sample', now = NOW, origin = FAKE_ORIGIN, calls = [], edit = (_k, b) => b, fail = () => null, events = plan().events } = {}) {
   const items = events.map((ev) => [ev, planItem(ev, { brand, now })]);
   const json = (status, body) => new globalThis.Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   return async (url, init = {}) => {
@@ -65,6 +66,8 @@ export function fakeOse({ brand = 'showcase-sample', now = NOW, origin = FAKE_OR
     if (!hit) return json(404, { ok: false, status: 404, error: 'Event not found' });
     const [ev, item] = hit;
     if (item.status !== 'active') return json(403, { ok: false, status: 403, code: 'NOT_RENDERABLE' });
+    const failed = fail(bundle ? 'bundle' : 'event', id);
+    if (failed) return json(failed, { ok: false, status: failed, error: 'planted failure' });
     if (one) return json(200, edit('event', { ok: true, status: 200, item }));
     const n = num(ev.ref);
     const dep = u.searchParams.get('deployment');

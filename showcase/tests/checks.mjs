@@ -49,8 +49,8 @@ export const seededReports = () => ({
 });
 
 /** What the build reads from (stand-in) OSE for the fixture, through the module under test. */
-export async function sampleOse(m, { creator = sample(), now = NOW, edit, events, calls } = {}) {
-  return m.ose.readOse({ base: FAKE_ORIGIN, creator, fetch: fakeOse({ now, edit, events, calls }), now });
+export async function sampleOse(m, { creator = sample(), now = NOW, edit, fail, events, calls } = {}) {
+  return m.ose.readOse({ base: FAKE_ORIGIN, creator, fetch: fakeOse({ now, edit, fail, events, calls }), now });
 }
 
 /** Render every page of the fixture with its OSE data. */
@@ -305,6 +305,70 @@ export async function neutralNameProblems(m) {
     }
     if (!threw || !/not neutral/.test(threw)) out.push(`the build read ${what} without stopping`);
   }
+  // A short name is still a name, matched as a whole word; and her first name
+  // alone counts. A longer word that only contains it does not stop the build.
+  const short = sample();
+  short.name = 'Kai';
+  const named = [
+    ['her first name alone in a title', sample(), 'Class with Sam'],
+    ['a 3-letter name in a title', short, 'Evening class with Kai'],
+  ];
+  for (const [what, creator, title] of named) {
+    let threw = null;
+    try {
+      await sampleOse(m, { creator, edit: (k, b) => { if (k === 'event') b.item.title = title; return b; } });
+    } catch (e) {
+      threw = e.message;
+    }
+    if (!threw || !/not neutral/.test(threw)) out.push(`the build read ${what} without stopping`);
+  }
+  try {
+    await sampleOse(m, { creator: short, edit: (k, b) => { if (k === 'event') b.item.title = 'Kaiser rolls and samples'; return b; } });
+  } catch (e) {
+    out.push(`a word that only contains her name stopped the build: ${e.message.split('\n')[1] ?? e.message}`);
+  }
+  return out;
+}
+
+/** The creator file is checked before OSE is read: a bad file makes no read at all. */
+export async function fileFirstProblems(m) {
+  const out = [];
+  const cases = [
+    ['a file with events but no oseBrand', (c) => { delete c.oseBrand; }],
+    ['a place link that is not a URL', (c) => { c.places[1].url = 'not a url'; }],
+  ];
+  for (const [what, plant] of cases) {
+    const creator = sample();
+    plant(creator);
+    const calls = [];
+    let threw = null;
+    try {
+      await sampleOse(m, { creator, calls });
+    } catch (e) {
+      threw = e.message;
+    }
+    if (!threw || !/creator file refused/.test(threw)) out.push(`${what} was not refused before reading OSE (${threw?.split('\n')[0] ?? 'it read'})`);
+    if (calls.length) out.push(`${what}: OSE was read ${calls.length} times first`);
+  }
+  return out;
+}
+
+/** An upcoming public event never loses its codes unseen: a failed bundle or an unknown placement stops the build. */
+export async function lostCodeProblems(m) {
+  const out = [];
+  const cases = [
+    ['a poster bundle that answered 503', { fail: (k) => (k === 'bundle' ? 503 : null) }, /poster bundle answered 503/],
+    ['a placement OSE does not know', { edit: (k, b) => { if (k === 'bundle') { b.deploymentId = null; b.links = {}; } return b; } }, /is not an active placement/],
+  ];
+  for (const [what, opts, want] of cases) {
+    let threw = null;
+    try {
+      await sampleOse(m, opts);
+    } catch (e) {
+      threw = e.message;
+    }
+    if (!threw || !want.test(threw)) out.push(`the build read ${what} without stopping`);
+  }
   return out;
 }
 
@@ -387,6 +451,9 @@ export async function codeGateProblems(m) {
     const err = await tryBuild(m, { ose });
     if (err === null || !/publish refused/.test(err)) out.push(`the build published ${what}`);
   }
+  // A code in markup the gate does not read is refused, not passed unread.
+  const odd = `<figure class="code" data-kind="x" data-code-url="https://evil.example/q/qrt_0000000000000001">${m.codes.qrSvg('https://evil.example/q/qrt_0000000000000001')}</figure>`;
+  if (!m.build.codeProblems('planted.html', odd, FAKE_ORIGIN).length) out.push('the gate passed a code in markup it does not read');
   return out;
 }
 
@@ -660,7 +727,34 @@ export async function intentProblems(m) {
   if (!S.stationSchedule(sample().stations[1], noTime, NOW).problems.some((p) => /pop-up needs a start time/.test(p))) out.push('a pop-up with no start time was accepted');
   const inPerson = ose.linked.map((x) => (x.link.oseEventId === 'evt_sample-0001' ? { ...x, event: { ...x.event, attendanceMode: 'in_person' } } : x));
   if (!S.stationSchedule(teach, inPerson, NOW).problems.some((p) => /differs from its slot/.test(p))) out.push("an event whose mode differs from its slot's was accepted");
+  // A past event is not on the page, so a programme that has since moved never stops the build.
+  const moved4 = ose.linked.map((x) => (x.link.oseEventId === 'evt_sample-0004' ? { ...x, event: { ...x.event, startsAt: '2026-11-10T01:00:00Z', startDate: '2026-11-09', endDate: '2026-11-09' } } : x));
+  const pastOff = S.stationSchedule(teach, moved4, NOW).problems;
+  if (pastOff.length) out.push(`a past programme event off today's slots stopped the build: ${pastOff[0]}`);
+  const pastPopup = ose.linked.map((x) => (x.link.intent === 'pop-up' ? { ...x, event: { ...x.event, startsAt: null, startDate: '2026-11-07', endDate: '2026-11-07' } } : x));
+  const pastNoTime = S.stationSchedule(sample().stations[1], pastPopup, NOW).problems;
+  if (pastNoTime.length) out.push(`a past pop-up with no start time stopped the build: ${pastNoTime[0]}`);
   return out;
+}
+
+/** Every programme event carries its slot's purpose as its Why, not only the slot's next one. */
+export async function slotWhyProblems(m) {
+  const html = (await samplePages(m))['teach/index.html'];
+  const n = (html.match(/<span class="label">Why<\/span>the evening room<\/p>/g) ?? []).length;
+  return n === 2 ? [] : [`${n} teach events read the weekly slot's purpose as their Why, want 2`];
+}
+
+/** The creator page's When list runs in the same order as every station page: soonest first. */
+export async function dialOrderProblems(m) {
+  const ose = await sampleOse(m);
+  // A date-only event on the pop-up's Saturday ends that day, so it comes after the pop-up's noon start.
+  const sat = ose.linked.find((x) => x.link.oseEventId === 'evt_sample-0005').event.startDate;
+  const linked = ose.linked.map((x) => (x.link.oseEventId === 'evt_sample-0006' ? { ...x, event: { ...x.event, startsAt: null, startDate: sat, endDate: sat } } : x));
+  const pages = m.render.renderPages({ creator: sample(), catalog: catalog().categories, reports: seededReports(), theme: '', ose: { ...ose, linked }, now: NOW });
+  const titles = (html, re) => [...html.matchAll(re)].map((x) => x[1]);
+  const dial = titles(pages['index.html'].match(/<dt>When<\/dt><dd>([\s\S]*?)<\/dd>/)?.[1] ?? '', /<li>[^<]*?: ([^<]+?) \(<a /g);
+  const lead = titles(pages['lead/index.html'], /<h3 id="ev-\d+">([^<]+)<\/h3>/g).slice(0, 5);
+  return dial.join(' | ') === lead.join(' | ') ? [] : [`the dial lists ${dial.join(' | ')}; the stations list ${lead.join(' | ')}`];
 }
 
 /** "On air" is built from slot fields only: no text read from OSE reaches it. */

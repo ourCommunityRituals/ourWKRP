@@ -50,6 +50,12 @@ describe('creator showcase: unit', () => {
   it('On air carries no OSE text, and every intent reads its own label', async () => {
     expect(await C.onAirTextProblems(m)).toEqual([]);
   });
+  it("every programme event reads its slot's purpose as its Why", async () => {
+    expect(await C.slotWhyProblems(m)).toEqual([]);
+  });
+  it("the creator page's When list runs soonest first, in the stations' order", async () => {
+    expect(await C.dialOrderProblems(m)).toEqual([]);
+  });
   it('a schedule row that is now an OSE event leaves the copied table', async () => {
     expect(await C.retireProblems(m)).toEqual([]);
   });

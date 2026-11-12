@@ -7,7 +7,7 @@
 // from the creator file; event-level When, Where and How come from OSE, read
 // at build time. Nothing is kept in both places.
 import { esc, fmtDate, floorText, mergeStations, safeHttpsUrl, FLOOR } from './showcase.mjs';
-import { INTENT_LABELS, MODE_LABELS, isPast, stationSchedule, todayIn, whenText } from './schedule.mjs';
+import { INTENT_LABELS, MODE_LABELS, isPast, slotOf, soonestFirst, stationSchedule, todayIn, whenText } from './schedule.mjs';
 import { qrSvg } from './codes.mjs';
 
 const isLeadStation = (s) => (s.category ?? s.id) === 'lead';
@@ -283,7 +283,7 @@ function creatorPage({ c, stations, linked, reports, theme, now, built, byId }) 
   const stationData = stations.map((s) => ({ id: s.id, name: s.name }));
   const next = linked
     .filter(({ event }) => !isPast(event, now))
-    .sort((a, b) => String(a.event.startsAt || a.event.startDate).localeCompare(String(b.event.startsAt || b.event.startDate)))
+    .sort(soonestFirst)
     .slice(0, 5);
   // S5: a schedule row that names an OSE event retires: OSE is its source now,
   // and the event shows on its station page while it is public and upcoming.
@@ -407,8 +407,9 @@ ${footer(c, built)}
 `;
 }
 
-function eventCard({ link, event, codes }, i, { s, schedule, isLead, byId }) {
-  const slot = (s.programme ?? []).find((x) => schedule.onAir.some((o) => o.slot === x && o.next?.event === event));
+function eventCard({ link, event, codes }, i, { isLead, byId }) {
+  // Every programme event on a slot carries that slot's purpose, not only the next one.
+  const slot = byId[link.frequency] ? slotOf(byId[link.frequency], link, event) : null;
   const why = event.whyPurpose || slot?.purpose || byId[link.frequency]?.why || null;
   const mode = event.attendanceMode ? MODE_LABELS[event.attendanceMode] : null;
   const where = event.attendanceMode === 'online' ? 'Online' : event.whereAddress || event.venue;
@@ -475,7 +476,7 @@ function stationPage({ c, s, stations, schedule, theme, built, byId }) {
     }
     ${
       schedule.upcoming.length
-        ? `<div class="events">${schedule.upcoming.map((x, i) => eventCard(x, i, { s, schedule, isLead, byId })).join('')}</div>`
+        ? `<div class="events">${schedule.upcoming.map((x, i) => eventCard(x, i, { isLead, byId })).join('')}</div>`
         : `<p class="empty">Nothing is scheduled on this frequency yet.</p>`
     }
   </section>

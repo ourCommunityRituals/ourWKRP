@@ -140,12 +140,12 @@ export function whenText(ev, link) {
 export function stationSchedule(station, linked, now, { isLead = false } = {}) {
   const problems = [];
   const mine = linked.filter(({ link }) => isLead || link.frequency === station.id);
-  const upcoming = mine
-    .filter(({ event }) => !isPast(event, now))
-    .sort((a, b) => sortKey(a.event).localeCompare(sortKey(b.event)));
+  const upcoming = mine.filter(({ event }) => !isPast(event, now)).sort(soonestFirst);
   const slots = isLead ? [] : (station.programme ?? []);
 
-  for (const { link, event } of mine) {
+  // Only what will show is held to the programme: a past event is not on the
+  // page, so a programme that has since moved never stops a later build.
+  for (const { link, event } of upcoming) {
     const where = `${link.frequency}: ${link.oseEventId}`;
     if (link.intent === 'pop-up' && !eventWhen(event)?.time) problems.push(`${where}: a pop-up needs a start time on its OSE event`);
     if (link.intent !== 'programme' || isLead) continue;
@@ -166,3 +166,12 @@ export function stationSchedule(station, linked, now, { isLead = false } = {}) {
 
 // Soonest first: the UTC start when there is one, else the date (end of day).
 const sortKey = (ev) => ev.startsAt || `${ev.startDate ?? '9999-12-31'}T23:59:59Z`;
+
+/** Order linked events soonest first; every list of events on every page uses it. */
+export const soonestFirst = (a, b) => sortKey(a.event).localeCompare(sortKey(b.event));
+
+/** The programme slot a programme event stands on, or null for any other intent. */
+export function slotOf(station, link, event) {
+  if (link.intent !== 'programme') return null;
+  return (station.programme ?? []).find((s) => slotMatches(s, event)) ?? null;
+}
