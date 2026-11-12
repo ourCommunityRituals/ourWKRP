@@ -10,7 +10,12 @@
     { "label": "example.com", "url": "https://example.com/", "usedFor": "placeholder source for the test fixture" }
   ],
   "disclaimer": "A test fixture for the OurWKRP creator showcase. Sam Sample is fictional.",
-  "places": [["A community hall", "workshops"], ["A market stall", "made goods"], ["A video channel", "clips"]],
+  "places": [
+    ["A community hall", "workshops"],
+    { "label": "The market shop", "note": "made goods", "url": "https://example.com/shop?ref=fixture", "station": "wear", "kind": "store" },
+    { "label": "Class handouts", "note": "free notes for every class", "url": "https://example.org/classes", "station": "teach", "kind": "school" },
+    { "label": "A video channel", "note": "clips", "kind": "social" }
+  ],
   "values": {
     "title": "How many, never who.",
     "body": "The showcase reports counts, not identities, and any count below five is withheld and shown in words."
@@ -19,10 +24,12 @@
     "title": "Sponsors on the creator's terms.",
     "body": "A sponsor appears only where both sides said yes, and sees only the counts for what it backed."
   },
+  "oseBrand": "showcase-sample",
+  "privateNames": ["Sample Studio"],
   "stations": [
     {
       "id": "teach", "eyebrow": "Teacher",
-      "title": "Evening workshops", "where": "A community hall",
+      "title": "Evening workshops", "where": "A community hall, and online",
       "intro": "Short practical workshops for neighbours, two evenings a month.",
       "online": "A sign-up page and a few short clips.",
       "live": "The workshop itself, in the hall.",
@@ -30,6 +37,11 @@
       "report": "Attendance per workshop and the source that brought people in. Any count under five reads Fewer than 5.",
       "sponsor": "A local hardware shop credited on the workshop page.",
       "choice": "Which workshops carry a sponsor.",
+      "why": "Practical skills for neighbours, free or pay what you can.",
+      "programme": [
+        { "cadence": "weekly", "day": "thursday", "time": "18:00", "timezone": "America/Chicago", "mode": "online", "kind": "class", "purpose": "the evening room" },
+        { "cadence": "monthly", "week": "first", "day": "saturday", "time": "10:00", "timezone": "America/Chicago", "mode": "in_person", "kind": "workshop", "purpose": "the monthly workshop" }
+      ],
       "event": { "title": "Fix-it evening", "kind": "class", "demo": "medium" }
     },
     {
@@ -42,6 +54,10 @@
       "report": "Which market day moved which goods, as counts.",
       "sponsor": "None yet.",
       "choice": "Which goods go to which market.",
+      "why": "Made goods, sold where people already gather.",
+      "programme": [
+        { "cadence": "monthly", "week": "last", "day": "sunday", "time": "12:00", "timezone": "America/Chicago", "mode": "in_person", "kind": "pop-up", "purpose": "the market table" }
+      ],
       "event": { "title": "Saturday market stall", "kind": "pop-up", "demo": "low" }
     },
     {
@@ -56,5 +72,26 @@
       "choice": "All of it.",
       "event": null
     }
-  ]
+  ],
+  "events": [
+    { "frequency": "teach", "oseEventId": "evt_sample-0001", "intent": "programme", "placement": "pd_sample0001" },
+    { "frequency": "teach", "oseEventId": "evt_sample-0002", "intent": "programme", "placement": "pd_sample0002" },
+    { "frequency": "teach", "oseEventId": "evt_sample-0003", "intent": "trial", "placement": "pd_sample0003" },
+    { "frequency": "teach", "oseEventId": "evt_sample-0004", "intent": "programme", "placement": "pd_sample0004" },
+    { "frequency": "wear", "oseEventId": "evt_sample-0005", "intent": "pop-up", "placement": "pd_sample0005", "until": "15:00" },
+    { "frequency": "wear", "oseEventId": "evt_sample-0006", "intent": "one-off" },
+    { "frequency": "teach", "oseEventId": "evt_sample-0007", "intent": "one-off" },
+    { "frequency": "wear", "oseEventId": "evt_sample-0008", "intent": "one-off" }
+  ],
+  "campaigns": [
+    { "frequency": "wear", "oseCampaignId": "cmp_sample_wear" }
+  ],
+  "schedule": {
+    "intro": "Two dates from the fixture's own pages.",
+    "source": "example.com",
+    "rows": [
+      ["2026-12-05", "Winter repair cafe", "Free", "Teach, with the hardware shop"],
+      ["2026-12-12", "Launch evening", "Free", "Wear", "evt_sample-0006"]
+    ]
+  }
 }

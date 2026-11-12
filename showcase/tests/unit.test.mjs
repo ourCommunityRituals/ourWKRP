@@ -1,4 +1,6 @@
-// Layer 3, unit: the floor, the station merge, dates, pacing and the hour spread.
+// Layer 3, unit: the floor, the station merge, dates, pacing, the hour spread,
+// programme slots, the four intents, the copied schedule's retirement and the
+// page set.
 import { beforeAll, describe, expect, it } from 'vitest';
 import * as C from './checks.mjs';
 import { realModules } from './modules.mjs';
@@ -35,5 +37,37 @@ describe('creator showcase: unit', () => {
     const r = C.seededReports().reports[0];
     expect(Object.keys(m.showcase.publicReport(r)).sort()).toEqual(['distinctScanners', 'images', 'placements', 'station', 'title']);
     expect(m.showcase.publicReport({ ...r, images: { card: '../../etc/passwd', desktop: 'img/x.jpg' } }).images).toBeNull();
+  });
+  it('a slot matches by cadence, day, week of the month and time, in its own timezone; On air reads from slot fields', () => {
+    expect(C.slotProblems(m)).toEqual([]);
+  });
+  it('past, today and a pop-up window read correctly', () => {
+    expect(C.timeProblems(m)).toEqual([]);
+  });
+  it('only a programme event stands under On air; frequency decides; a bad programme stops the build', async () => {
+    expect(await C.intentProblems(m)).toEqual([]);
+  });
+  it('On air carries no OSE text, and every intent reads its own label', async () => {
+    expect(await C.onAirTextProblems(m)).toEqual([]);
+  });
+  it("every programme event reads its slot's purpose as its Why", async () => {
+    expect(await C.slotWhyProblems(m)).toEqual([]);
+  });
+  it("the creator page's When list runs soonest first, in the stations' order", async () => {
+    expect(await C.dialOrderProblems(m)).toEqual([]);
+  });
+  it('a schedule row that is now an OSE event leaves the copied table', async () => {
+    expect(await C.retireProblems(m)).toEqual([]);
+  });
+  it('one page per station plus the creator page, one <h1> each, 5W and How on every page', async () => {
+    expect(await C.pageSetProblems(m)).toEqual([]);
+  });
+  it('the seed plan dates fall on their weekday, and a local time maps to its UTC instant across DST', () => {
+    expect(m.plan.planDate({ weekday: 'thursday', weeks: 1 }, C.NOW, 'America/Chicago')).toBe('2026-11-19');
+    expect(m.plan.planDate({ weekday: 'monday', weeks: 1 }, C.NOW, 'America/Chicago')).toBe('2026-11-23');
+    expect(m.plan.planDate({ weekday: 'thursday', weeks: -1 }, C.NOW, 'America/Chicago')).toBe('2026-11-05');
+    expect(m.plan.planDate({ days: -3 }, C.NOW)).toBe('2026-11-13');
+    expect(m.plan.zonedInstant('2026-11-19', '18:00', 'America/Chicago')).toBe('2026-11-20T00:00:00Z');
+    expect(m.plan.zonedInstant('2026-07-02', '18:00', 'America/Chicago')).toBe('2026-07-02T23:00:00Z');
   });
 });

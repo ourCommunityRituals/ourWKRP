@@ -171,11 +171,16 @@ function addEccAndInterleave(data: readonly number[], ver: number): number[] {
 // --- Symbol construction -----------------------------------------------------
 
 class QrSymbol {
+  readonly version: number;
   readonly size: number;
   readonly modules: boolean[][];
   private readonly isFunction: boolean[][];
 
-  constructor(readonly version: number) {
+  // A plain field, not a constructor parameter property, so Node can load this
+  // file by stripping types alone: the creator showcase build (showcase/lib/codes.mjs)
+  // draws its QR codes with this encoder.
+  constructor(version: number) {
+    this.version = version;
     this.size = version * 4 + 17;
     this.modules = Array.from({ length: this.size }, () => new Array<boolean>(this.size).fill(false));
     this.isFunction = Array.from({ length: this.size }, () => new Array<boolean>(this.size).fill(false));

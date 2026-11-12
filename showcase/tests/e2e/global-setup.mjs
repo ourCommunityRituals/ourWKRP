@@ -1,15 +1,20 @@
-// Build the fictional fixture page into showcase/.e2e/site, with placeholder
-// report images drawn by the browser (so no binary lives in the repo). The
-// page, its links and its layout are the real build's; only the pictures of
-// the reports are stand-ins. The integration job captures real ones.
+// Build the fictional fixture into showcase/.e2e/site: the creator page and one
+// page per station, with placeholder report images drawn by the browser (so no
+// binary lives in the repo) and OSE answered by the stand-in built from the seed
+// plan (tests/fake-ose.mjs). The pages, links, codes and layout are the real
+// build's (build-site.mjs); the integration job runs the same build against a
+// real local worker.
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
-import { buildShowcase, readJson, SHOWCASE } from '../../lib/build.mjs';
 import { seededReports } from '../checks.mjs';
 
+const HERE = dirname(fileURLToPath(import.meta.url));
+
 export default async function globalSetup() {
-  const site = join(SHOWCASE, '.e2e', 'site');
+  const site = join(HERE, '..', '..', '.e2e', 'site');
   rmSync(site, { recursive: true, force: true });
   mkdirSync(join(site, 'img'), { recursive: true });
   const reports = seededReports();
@@ -26,6 +31,5 @@ export default async function globalSetup() {
   } finally {
     await browser.close();
   }
-  const { missing } = buildShowcase({ creator: readJson(join(SHOWCASE, 'fixtures', 'sample-creator.json')), reports, outDir: site });
-  if (missing.length) throw new Error(`e2e setup: missing images ${missing.join(', ')}`);
+  execFileSync(process.execPath, [join(HERE, 'build-site.mjs'), site], { stdio: 'inherit' });
 }

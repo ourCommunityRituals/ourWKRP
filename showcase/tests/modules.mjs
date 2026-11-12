@@ -6,7 +6,7 @@ import { SHOWCASE } from './checks.mjs';
 
 const LIB = join(SHOWCASE, 'lib');
 export const MUTANTS = join(LIB, '.mutants');
-const NAMES = ['showcase', 'render', 'build', 'schema'];
+const NAMES = ['showcase', 'render', 'build', 'schema', 'schedule', 'codes', 'ose', 'plan'];
 
 async function load(dir, bust = '') {
   const out = {};
@@ -29,15 +29,20 @@ export async function mutantModules(name, edits) {
   for (const f of readdirSync(LIB).filter((f) => f.endsWith('.mjs'))) cpSync(join(LIB, f), join(dir, f));
   for (const { file, from, to } of edits) {
     const p = join(dir, file);
-    const src = readFileSync(p, 'utf8');
+    // Line endings as committed (LF), so an edit spanning lines applies on a
+    // Windows checkout too.
+    const src = readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
     const next = src.replace(from, to);
     if (next === src) throw new Error(`mutant ${name}: edit to ${file} did not apply (${String(from)})`);
     writeFileSync(p, next);
   }
-  // build.mjs reads categories.json and theme.css from SHOWCASE; mutants live
-  // two levels down, so give them the same anchor.
+  // build.mjs reads categories.json and theme.css from SHOWCASE, and codes.mjs
+  // imports OW's QR encoder by a relative path; mutants live two levels down,
+  // so give them the same anchors.
   const b = join(dir, 'build.mjs');
   writeFileSync(b, readFileSync(b, 'utf8').replace("join(dirname(fileURLToPath(import.meta.url)), '..')", JSON.stringify(SHOWCASE)));
+  const c = join(dir, 'codes.mjs');
+  writeFileSync(c, readFileSync(c, 'utf8').replace("'../../src/lib/qr.ts'", JSON.stringify(pathToFileURL(join(SHOWCASE, '..', 'src', 'lib', 'qr.ts')).href)));
   return load(dir, `?mutant=${name}`);
 }
 
