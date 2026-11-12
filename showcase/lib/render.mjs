@@ -65,7 +65,7 @@ p { margin: 0; max-width: 65ch; }
 a { color: var(--accent); text-underline-offset: 3px; }
 a:hover { color: var(--accent-hover); }
 :focus-visible { outline: 3px solid var(--focus-ring, var(--accent)); outline-offset: 3px; border-radius: 4px; }
-.eyebrow { font-family: var(--font-mono); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); }
+.eyebrow { font-family: var(--font-mono); font-size: var(--step--1); text-transform: uppercase; letter-spacing: 0.12em; color: var(--border); }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .stack { display: flex; flex-direction: column; gap: 16px; }
 .lede { font-size: var(--step-1); line-height: 1.5; }
@@ -99,7 +99,6 @@ a:hover { color: var(--accent-hover); }
 .ch[aria-selected="true"] .f { color: var(--on-accent); }
 @media (max-width: 720px) { .channels { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .panel { margin-top: 24px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(20px, 3vw, 40px); }
-.panel[hidden] { display: none; }
 .panel .shot-slot { grid-column: 1 / -1; }
 @media (max-width: 820px) { .panel { grid-template-columns: minmax(0, 1fr); } }
 .shot-head { max-width: 760px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -134,7 +133,7 @@ a:hover { color: var(--accent-hover); }
 .no-report { font-size: 0.9375rem; padding: 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); }
 .split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(24px, 5vw, 64px); align-items: start; }
 @media (max-width: 820px) { .split { grid-template-columns: minmax(0, 1fr); } }
-.places { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.places { width: 1500px; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0; list-style: none; }
 .places li { font-family: var(--font-mono); font-size: var(--step--1); padding: 8px 12px; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 6px; }
 .places li span { color: var(--text-muted); }
 .bridge { list-style: none; padding: 0; margin: 32px 0 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); counter-reset: step; }
@@ -180,6 +179,7 @@ footer .note { margin-top: 18px; }
 <div class="wrap">
   <header class="hero">
     <span class="onair"><i aria-hidden="true"></i>OurWKRP showcase</span>
+    <h1 class="planted">Planted second heading</h1>
     <h1>${esc(c.headline[0])} <span>${esc(c.headline[1])}</span></h1>
     <ul class="roles" aria-label="Roles">${c.roles.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
     <p class="lede">${esc(c.lede)}</p>
@@ -335,7 +335,6 @@ footer .note { margin-top: 18px; }
     b.addEventListener("click", function () { tune(i, true); });
     b.addEventListener("keydown", function (e) {
       var n = null;
-      if (e.key === "ArrowRight") n = (i + 1) % CH.length;
       if (e.key === "ArrowLeft") n = (i - 1 + CH.length) % CH.length;
       if (e.key === "Home") n = 0;
       if (e.key === "End") n = CH.length - 1;
@@ -344,7 +343,6 @@ footer .note { margin-top: 18px; }
   });
   function fromHash() { var h = (location.hash || "").slice(1); var i = CH.findIndex(function (c) { return c.id === h; }); return i < 0 ? 0 : i; }
   tune(fromHash(), false);
-  window.addEventListener("hashchange", function () { tune(fromHash(), false); });
 })();
 </script>
 `;
