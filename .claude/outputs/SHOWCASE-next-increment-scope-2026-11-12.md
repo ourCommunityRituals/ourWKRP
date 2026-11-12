@@ -392,7 +392,7 @@ S1 to S5, S10 and S11 need no OSE code change. S13, S8, S14 and S15 are the near
 
 1. **Who creates the creator's events, for now?** *Decided, owner 2026-11-12: the owner, on staging, until the tenant chain lands. S6 stays later.* See "Her events on staging" below.
 2. **Station pages.** *Decided, owner 2026-11-12: one page per category (station), with the creator page as the dial.* S2 builds it.
-3. **Online or in person.** *Decided, owner 2026-11-12: every event says which it is, at creation, and **both** is a third choice.* Still open:
+3. **Online or in person.** *Decided, owner 2026-11-12: every event says which it is, at creation, and **both** is a third choice.* Its parts:
    - (b) *Decided, owner 2026-11-12: an OW event is one OSE record. OW writes it through OSE's API and never keeps events of its own.*
    - (c) *Decided, owner 2026-11-12: online events are link only for now.* See S13.
 4. **Evergreen links (store, school, products).** *Decided, owner 2026-11-12: plain links, not counted.* A product click is counted only through an event's own code (for example a pop-up's MORE code).
