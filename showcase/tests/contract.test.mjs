@@ -42,12 +42,12 @@ describe('creator showcase: contract', () => {
     expect(m.schema.creatorProblems(creator, C.catalog())).toEqual([]);
   });
 
-  it('refuses a non-https source, a missing or future category, an unknown field, a repeated id, no disclaimer', () => {
+  it('takes a version 1 file; refuses bad sources, places, categories, frequencies, intents, programmes and schedule links', () => {
     expect(C.contractProblems(m)).toEqual([]);
   });
 
   it('every committed JSON file in showcase/ parses', () => {
-    const files = [join(C.SHOWCASE, 'categories.json'), ...creatorFiles()];
+    const files = [join(C.SHOWCASE, 'categories.json'), join(C.SHOWCASE, 'fixtures', 'sample-ose-events.json'), ...creatorFiles()];
     for (const f of files) expect(() => JSON.parse(readFileSync(f, 'utf8')), f).not.toThrow();
   });
 

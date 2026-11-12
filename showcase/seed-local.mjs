@@ -3,7 +3,14 @@
 // /q/<token> spread over the event's hours, the nightly roll-up, and a signed
 // SharedReport link per event.
 //
-//   node showcase/seed-local.mjs <creator.json>
+//   node showcase/seed-local.mjs <creator.json> [--plan <ose-events.json>]
+//
+// With --plan (the fixture's fixtures/sample-ose-events.json), it also creates
+// the upcoming OSE events the creator links, on the creator's brand: their 5W
+// text, poster codes and one showcase placement per station event ("Showcase:
+// <Station> page"), and writes showcase/work/<slug>/creator.json, the creator
+// file with the plan's placeholder ids swapped for the real ones. A real
+// creator's events are made by the owner in OSE admin, never by this script.
 //
 // The worker comes from start-local-ose.(ps1|sh), which writes
 // showcase/local-ose.env.json (a throwaway key for that run; never committed).
@@ -15,8 +22,13 @@ import { join, resolve } from 'node:path';
 import { assertLocalBase, createPacer, hourBuckets, scansFor, SHAPES } from './lib/showcase.mjs';
 import { SHOWCASE, readJson, loadCatalog } from './lib/build.mjs';
 import { creatorProblems } from './lib/schema.mjs';
+import { planDate } from './lib/plan.mjs';
 
-const creator = readJson(resolve(process.argv[2] ?? ''));
+const argv = process.argv.slice(2);
+const planFlag = argv.indexOf('--plan');
+const planPath = planFlag >= 0 ? argv[planFlag + 1] : null;
+const creator = readJson(resolve(argv.find((a, i) => !a.startsWith('--') && argv[i - 1] !== '--plan') ?? ''));
+const plan = planPath ? readJson(resolve(planPath)) : null;
 const problems = creatorProblems(creator, loadCatalog());
 if (problems.length) throw new Error(`creator file refused:\n  ${problems.join('\n  ')}`);
 
@@ -58,6 +70,55 @@ const dayOffset = (days) => new Date(Date.now() + days * 86_400_000).toISOString
 const RESET_TABLES = ['event_codes', 'export_manifest', 'report_access_log', 'scan_aggregates', 'scan_cell_aggregates',
   'scan_node_returns', 'scan_placement_events', 'share_opens_daily', 'shortlinks', 'sponsor_displays', 'sponsor_placement',
   'poster_deployments'];
+
+/**
+ * The plan's upcoming events, on the creator's brand (or the plan entry's own,
+ * for the brand-isolation case), then the resolved creator file.
+ */
+async function seedPlan(pickType) {
+  const catalog = loadCatalog().categories;
+  const ids = {};
+  for (const p of plan.events) {
+    const link = (creator.events ?? []).find((e) => e.oseEventId === p.ref);
+    if (!link) throw new Error(`plan: ${p.ref} is not linked in the creator file`);
+    const station = creator.stations.find((s) => s.id === link.frequency);
+    const cat = catalog.find((k) => k.id === (station.category ?? station.id));
+    const day = planDate(p.on, Date.now(), p.timezone);
+    const ev = await api('POST', '/api/v2/admin/events', {
+      title: p.title,
+      brand_id: p.brand ?? creator.oseBrand,
+      start_date: day,
+      end_date: day,
+      timezone: p.timezone,
+      is_published: true,
+      ...(p.where_address ? { location: p.where_address, where_address: p.where_address } : {}),
+      ...Object.fromEntries(['what_short', 'who_host', 'why_purpose', 'how_details'].filter((k) => p[k]).map((k) => [k, p[k]])),
+    });
+    await api('PUT', `/api/v2/admin/events/${ev.id}`, { status: 'ready', start_time: p.time, event_type_id: pickType(cat?.eventKinds[0] ?? 'class') });
+    if (p.codes) await api('PUT', `/api/v2/admin/events/${ev.id}/poster-codes`, { codes: p.codes });
+    if (p.state !== 'draft') await api('PUT', `/api/v2/admin/events/${ev.id}`, { status: 'active' });
+    ids[p.ref] = ev.id;
+    if (p.placementRef) {
+      const pd = await api('POST', `/api/v2/admin/events/${ev.id}/poster-deployments`, {
+        placement_label: `Showcase: ${station.name ?? cat?.name ?? station.id} page`,
+        placement_type: 'community',
+      });
+      if (typeof pd.id !== 'string') throw new Error(`contract: poster-deployments returned no id for ${p.ref}`);
+      ids[p.placementRef] = pd.id;
+    }
+    console.log(`plan ${p.ref}: ${ev.id} on ${p.brand ?? creator.oseBrand}, ${day} ${p.time}${p.state === 'draft' ? ' (draft)' : ''}`);
+  }
+  const swap = (v) => ids[v] ?? v;
+  const resolved = {
+    ...creator,
+    events: (creator.events ?? []).map((e) => ({ ...e, oseEventId: swap(e.oseEventId), ...(e.placement ? { placement: swap(e.placement) } : {}) })),
+    ...(creator.schedule ? { schedule: { ...creator.schedule, rows: creator.schedule.rows.map((r) => (r.length === 5 ? [...r.slice(0, 4), swap(r[4])] : r)) } } : {}),
+  };
+  const dir = join(SHOWCASE, 'work', creator.slug);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'creator.json'), JSON.stringify(resolved, null, 2));
+  console.log(`wrote ${join('showcase', 'work', creator.slug, 'creator.json')} (the creator file with this run's OSE ids)`);
+}
 
 async function main() {
   for (const t of RESET_TABLES) await d1(`DELETE FROM ${t}`);
@@ -133,6 +194,8 @@ async function main() {
     out.push({ station: st.id, eventId: ev.id, title: st.event.title, date: day, scansSent: sent, rowsStored: rows, shape: st.event.demo, placements: placements.map((p) => p.label) });
     console.log(`${st.id}: ${sent}/${total} scans, ${rows} rows`);
   }
+
+  if (plan) await seedPlan(pickType);
 
   // Nightly roll-up (scan_aggregates), as the 03:00 cron would run it.
   const cron = await fetch(`${EXPLORER}/local/scheduled?worker=oursharedevents`, {
