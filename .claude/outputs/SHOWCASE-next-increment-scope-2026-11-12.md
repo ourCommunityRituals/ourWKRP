@@ -120,7 +120,15 @@ The owner creates creator #1's events, on staging, through OSE admin, until she 
 - **Her own brand, never `root`.** The `/events` list and the landing page read the `root` brand only (`dp.listEvents('root')` in `handlers/pages.ts`).
   On her own brand, her events leave the stock seed's pinned per-zip totals alone (`stock/totals.json`), and those totals are what the staging tests expect. OW reads her events with `GET /api/v2/events?brand=<her brand>`.
 - **Staging is open.** Its owner chose no login gate, so robots are told not to crawl but anyone with a link can still open a page. Every page says "Testing purposes only."
-  Her active events are therefore reachable by link and through the public brand list, even though `/events` does not show them. That conflicts with "creator #1 is private" (question 12).
+  Her active events are therefore reachable by link and through the public brand list, even though `/events` does not show them.
+- **Neutral until she says yes (owner, 2026-11-12, question 12).** Nothing OSE serves on staging names her or her ventures:
+  - the event titles, `what_short`, `who_host`, `why_purpose` and `how_details`;
+  - the brand's id and display name;
+  - the placement labels and the targets of the poster codes. A code that would point at her store or school points at a neutral placeholder page instead.
+  
+  For example, "Data class (showcase demo)" and the brand `showcase-creator-1`. Her name, places and links appear only on the privately shared OW page, which carries them from her git-ignored creator file.
+  When she agrees, the owner renames the events, sets `who_host` and repoints the codes. The event ids, the `/q` placements and the `/s` codes stay the same, so printed or shared codes keep working.
+  A born-red check in S3 fails the build if any text read from staging OSE contains a name or a URL from the creator file's real-identity fields.
 - **The page still uses demo visitors until she says yes.** SharedReports on the showcase page come from a local run labelled demo, as today.
   Staging events give the page real codes, 5W text and sponsor wiring. They give no real visitors, because nobody is invited to scan.
 - **The admin steps** for each event:
@@ -281,7 +289,4 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE ch
 9. **Partner reporting from the showcase page:** first version without impression and click beacons, so only the SPONSOR `/s/` click is counted (recommended)? Or should the page fire OSE's impression beacons? Those are counted per event and are new traffic from an OW page.
 10. **The layout menu:** are `dial`, `list` and `grid`, plus a `tv` display, the right first set? Is anything missing that "whatever display desired" meant, for example an embed for her own site?
 11. **A creator's own colours:** wait for the white-label pipeline (recommended)? Or stay on the OW brand for creator #1 until then?
-12. **Her name on open staging, before she agrees.** Staging is open, so her active events can be found by link and through the brand list. Choose one:
-    - (a) Neutral titles and no name until she says yes, then rename (recommended). OSE keeps each event's id, codes and placements through a rename.
-    - (b) Her real titles now, relying on the "Testing purposes only" line and the page's not-affiliated disclaimer.
-    - (c) Keep her events in draft on staging. But a draft has no public poster bundle, so the page would get no codes (S4).
+12. **Her name on open staging, before she agrees.** *Decided, owner 2026-11-12: neutral titles first, then rename when she says yes.* See "Her events on staging".
