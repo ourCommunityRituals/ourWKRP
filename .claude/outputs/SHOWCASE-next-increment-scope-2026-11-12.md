@@ -28,7 +28,7 @@ Almost everything this needs already exists in OurSharedEvents (OSE). The next i
 
 - **5W:** OSE events already carry 5W fields: `what_short`, `who_host`, `why_purpose`, `how_details`, `where_address`, plus the date and time. That is migration `0029_events_5w_and_corridor.sql`. The fields are writable on create and update, and they are in the public projection.
 - **Digital QR codes:** OSE already issues both kinds per event. `/q/<token>` comes from a poster placement and is tracking. `/s/<code>` comes from the poster's codes and is routing. The public `GET /api/v2/events/:id/poster-bundle?deployment=<placement id>` returns both. No new path is needed.
-- **Scheduling:** an OSE event is the home. OSE already has create, the 5W fields, the event-type catalog, repeat (a draft copy on a new date), a per-event `.ics` file and a public list by brand.
+- **Scheduling:** an OSE event is the home. OSE already has create, the 5W fields, the event-type catalog, repeat (a draft copy on a new date), a per-event `.ics` file and a public list by brand. A feed of all a brand's events is new (S8).
   The real gap is **who may create**. OSE admin is founder-only (owner, 2026-10-07). A creator or organizer of her own brand waits on the tenant-boundary chain (OSE-1446 and the tickets after it).
   The second gap is **online or in person**. The owner's decision is that every event says which it is, at creation. OSE has no such field today, so this is the one OSE schema change in the near-term stories (S13).
 - **Store, schools, products:** these are not events. They become typed `https` links in the creator file, shown per station. They are not tracked, unless the owner chooses otherwise (question 4).
@@ -112,7 +112,7 @@ What is missing, and where each piece should go:
 | Which station an event belongs to | OW keeps the link: a list of `{ station, oseEventId }` in the creator file now, an OW table later (the same shape as `dj_sets.event_id`). OSE stays unaware of stations. | OW |
 | The creator scheduling her own events | A brand per creator, and her admin membership on it (`admin_brand_memberships`). This is **blocked on the tenant-boundary chain** (OSE-1446 and the tickets after it), since admin is founder-only. Until then the owner creates her events on her brand, on local or staging. | OSE (owner decision) |
 | Online or in person, chosen at creation (owner, 2026-11-12) | A required choice on every event, kept on the OSE event. See below. | OSE (S13) |
-| One calendar for all her events | Optional: a brand-level `.ics` feed in OSE. Per-event `.ics` exists today. | OSE (optional) |
+| One calendar for all her events | A brand-level `.ics` feed in OSE, in this increment (owner, 2026-11-12). Per-event `.ics` exists today. See S8. | OSE (S8) |
 
 ### Her events on staging (owner decision, 2026-11-12)
 
@@ -264,7 +264,7 @@ The sizes are relative. Every story has the full pyramid in `showcase/TESTING.md
 | S5 | **Retire the copied schedule.** Rows that are linked OSE events come from OSE; any others stay labelled as copied. | OW | S3 | S |
 | S6 | **A creator schedules her own events.** A brand per creator and her membership. | OSE | The tenant-boundary chain (OSE-1446 …), owner | L, not now |
 | S7 | **Serve the page from OW staging, private.** Behind an access gate, with the showcase CSP check live. | OW | S2; `stg.ourwkrp.com` TLS fixed (owner action) | M |
-| S8 | *(Later, owner 2026-11-12)* A brand calendar feed (`.ics` of a brand's public events). | OSE | none | S |
+| S8 | **A brand calendar feed** (owner, 2026-11-12: in this increment). `GET /brands/:brand/calendar.ics` lists the brand's public events, so followers can subscribe once.<br>It reuses the per-event `.ics` writer (`handlers/calendar.ts`). It reads the same published, active and listed rows as the brand API, through the public projection only. It is rate-limited like other public reads and returns 404 for an unknown or invalid brand.<br>It includes online events, since a subscription is reached by link, and each entry carries the mode label once S13 lands. An entry's link is the event page, never a meeting link. Nothing about attendees is in it. On staging the neutral-title rule applies.<br>The creator page lists it under "Where" as a `calendar` place. Both test layers apply, with born-red checks for brand isolation (another brand's event never appears), drafts left out, and no field outside the public projection. | OSE | none (S13 for the mode label) | S |
 | S9 | **Partners per station.** Read each linked event's public sponsor bundle and show the strip below the title and date. A station campaign's partner shows once, at the top of the station. The partner link is the event's SPONSOR `/s/` code. Born-red checks are in section 5. | OW (uses OSE as is) | S3, S4 | M |
 | S10 | **Layout and display menu.** `layout`, `stationOrder`, `sections` and `display` in the creator contract. Each option is rendered and run through the e2e and accessibility set; an unknown option fails the build. | OW | S2 | M |
 | S11 | **TV display option.** Auto-advancing stations, large type, no counts, codes and consented sponsors only. | OW | S10, S4 | S |
@@ -273,12 +273,12 @@ The sizes are relative. Every story has the full pyramid in `showcase/TESTING.md
 
 The recommended order:
 1. S1 in OW and S13 in OSE, in parallel.
-2. S2 and S3 in parallel. S3 shows the mode once S13 is merged.
+2. S2 and S3 in parallel, and S8 in OSE after S13. S3 shows the mode once S13 is merged.
 3. S4, then S5.
 4. S9 and S10 in parallel, then S11.
 
-S6, S7 and S12 wait on their prerequisites, and S8 is later (owner, 2026-11-12).
-S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE change.
+S6, S7 and S12 wait on their prerequisites.
+S1 to S5 and S9 to S11 need no OSE code change. S13 and S8 are the near-term OSE changes.
 
 ## Questions for the owner
 
@@ -294,7 +294,7 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE ch
    - **Bruno's tier test sets Free and then restores** the tier it read before (`POST Restore Tier Preset`), so Mid survives a T2 run. While T2 runs, though, the tier is briefly Free.
      A poster-codes save with 4 or 5 codes during that window is refused. Save them outside a staging CI run.
    - A per-brand tier would remove both caveats. That is OSE work outside this plan, and not proposed here.
-6. **The brand calendar feed (S8).** *Decided, owner 2026-11-12: later.* S8 is not in this increment. Each event's own `.ics` file stays available.
+6. **The brand calendar feed (S8).** *Decided, owner 2026-11-12: yes, in this increment.* It runs after S13.
 7. **Where the page is shown:** stay a privately shared static page (today), or serve it from OW staging behind a gate (S7)? S7 waits on the staging TLS fix either way.
 8. **A partner for a whole station:** an OSE campaign across that station's events (recommended, since campaign is one concept)? Or only per-event sponsors at first?
 9. **Partner reporting from the showcase page:** first version without impression and click beacons, so only the SPONSOR `/s/` click is counted (recommended)? Or should the page fire OSE's impression beacons? Those are counted per event and are new traffic from an OW page.
