@@ -81,7 +81,7 @@ For each upcoming OSE event linked to a station:
 1. **One placement per surface the showcase publishes** (a poster deployment, `placement_type` `community`), for example "Showcase: Teach page".
    Its `/q/<token>` is the station page's main "go to this event" code. A scan or a tap is then one more counted placement in that event's SharedReport, next to the clip link and the door QR.
    This is exactly what the local seed already does with its "Clip link" placement.
-2. **The event's own poster codes** (`/s/<code>`) for where to go next: the event page, plus at most two typed codes on the free plan (TICKETS, REGISTER, SIGN UP, MORE, MUSIC). They route and count clicks, and they never identify anyone.
+2. **The event's own poster codes** (`/s/<code>`) for where to go next: the event page, plus up to four typed codes on Mid (owner, 2026-11-12), for example TICKETS, REGISTER, SIGN UP, MORE, MUSIC or SPONSOR. They route and count clicks, and they never identify anyone.
 3. The OW build reads both from the **public** poster bundle (`?deployment=<placement id>`). It draws each QR from the OSE URL with OW's own QR code, so the URL is the contract, not the picture.
    Every code is shown as a **link too**: on a phone the visitor taps it. The QR is for the other screen (a projector, a TV, a laptop being shown to a room).
 
@@ -288,7 +288,12 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE ch
    - (b) *Decided, owner 2026-11-12: an OW event is one OSE record. OW writes it through OSE's API and never keeps events of its own.*
    - (c) *Decided, owner 2026-11-12: online events are link only for now.* See S13.
 4. **Evergreen links (store, school, products).** *Decided, owner 2026-11-12: plain links, not counted.* A product click is counted only through an event's own code (for example a pop-up's MORE code).
-5. **Plan tier for the showcase brand:** free (3 codes per event, counting the event page) or mid (5)? This decides how many "go next" codes a station event can carry.
+5. **Plan tier for the showcase brand.** *Decided, owner 2026-11-12: Mid, so 5 codes per event, counting the event-page code.* That matches the own-brand decision, because `docs/features/BRANDS.md` puts Free on `root` and Mid on its own brand. Two things to know before the owner applies it on staging:
+   - **The tier on staging is global, not per brand.** `detectCurrentTier` reads the global flag set, so applying Mid (`POST /api/v2/admin/flags/apply-tier`) changes the code allotment and every other Mid feature for every staging brand, `root` included.
+     I found no Bruno or Playwright test for poster codes that expects the Free limit of 3. I did not check every Mid-gated feature against the staging tests, so watch the first T2 to T4 run after applying it.
+   - **Bruno's tier test sets Free and then restores** the tier it read before (`POST Restore Tier Preset`), so Mid survives a T2 run. While T2 runs, though, the tier is briefly Free.
+     A poster-codes save with 4 or 5 codes during that window is refused. Save them outside a staging CI run.
+   - A per-brand tier would remove both caveats. That is OSE work outside this plan, and not proposed here.
 6. **The brand calendar feed (S8):** wanted now, later, or not at all?
 7. **Where the page is shown:** stay a privately shared static page (today), or serve it from OW staging behind a gate (S7)? S7 waits on the staging TLS fix either way.
 8. **A partner for a whole station:** an OSE campaign across that station's events (recommended, since campaign is one concept)? Or only per-event sponsors at first?
