@@ -57,9 +57,7 @@ describe('session-cookie', () => {
 
     it('includes Path=/', () => {
       const cookie = buildSessionCookie('token-123', false);
-      // BORN-RED PLANT (reverted in the next commit): the assertion is gone, so
-      // the test is green and hollow. The mutation gate must go red on it.
-      expect(cookie).toBeTypeOf('string');
+      expect(cookie).toContain('Path=/');
     });
 
     it('includes 30-day Max-Age', () => {
