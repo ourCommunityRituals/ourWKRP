@@ -16,7 +16,11 @@ Two additions, later the same day:
 
 > Next is the customizability of the page itself to what ever display desired.
 
-Sections 5 and 6 cover them.
+Sections 5 and 6 cover them. A third, the owner's decision:
+
+> OW's natural space where it can be online or in reality. When creating an OW event, need to make that distinction
+
+Section 3 covers it ("Online or in person").
 
 ## The short answer
 
@@ -26,6 +30,7 @@ Almost everything this needs already exists in OurSharedEvents (OSE). The next i
 - **Digital QR codes:** OSE already issues both kinds per event. `/q/<token>` comes from a poster placement and is tracking. `/s/<code>` comes from the poster's codes and is routing. The public `GET /api/v2/events/:id/poster-bundle?deployment=<placement id>` returns both. No new path is needed.
 - **Scheduling:** an OSE event is the home. OSE already has create, the 5W fields, the event-type catalog, repeat (a draft copy on a new date), a per-event `.ics` file and a public list by brand.
   The real gap is **who may create**. OSE admin is founder-only (owner, 2026-10-07). A creator or organizer of her own brand waits on the tenant-boundary chain (OSE-1446 and the tickets after it).
+  The second gap is **online or in person**. The owner's decision is that every event says which it is, at creation. OSE has no such field today, so this is the one OSE schema change in the near-term stories (S13).
 - **Store, schools, products:** these are not events. They become typed `https` links in the creator file, shown per station. They are not tracked, unless the owner chooses otherwise (question 4).
 - **Each station as a partner vehicle:** this is OSE's sponsor model as it stands. A sponsor backs events and appears only with two-sided consent. Sponsors that back a whole station group under one OSE **campaign**. The station page shows what OSE's public sponsor bundle already returns, and no sponsor list is kept in OW.
 - **Customizing the page:** the look stays on the locked `@ocr/ui` tokens. A brand's colours come only as a `[data-brand]` block from the white-label pipeline. Layout and display start as a **fixed menu of safe options** in the creator file, each passing the accessibility gates. Self-serve editing comes later.
@@ -55,7 +60,7 @@ Two levels, each answering the same five questions plus How:
 | **Who** | The creator, by the name she publishes under. She is the opted-in presenter. | Her role on this station (the station's eyebrow, for example "Founder and teacher"). |
 | **What** | Her stations, in one line each. | The station's intro and what it covers (catalog `covers`). |
 | **When** | The next few events across every station, read from OSE. | This station's upcoming events, read from OSE. Never typed into the creator file once an event is linked. |
-| **Where** | Online: her places. Live: each event's `where_address`. | The places for this station, plus each event's `where_address`. An event's area on the map is OSE's H3 cell. |
+| **Where** | Online: her places. In person: each event's `where_address`. | The places for this station. Each event is marked **Online**, **In person** or **Both** (section 3). An in-person event shows its `where_address`, and its area on the map is OSE's H3 cell. |
 | **Why** | The values section that exists today ("How many, never who."). | The station's purpose. That is a new field (`why`); today the closest is `choice`. |
 | **How** | How to follow her: links, not accounts. | How to join each event: OSE's `how_details` and the digital codes (section 2). |
 
@@ -105,8 +110,30 @@ What is missing, and where each piece should go:
 |---|---|---|
 | Which station an event belongs to | OW keeps the link: a list of `{ station, oseEventId }` in the creator file now, an OW table later (the same shape as `dj_sets.event_id`). OSE stays unaware of stations. | OW |
 | The creator scheduling her own events | A brand per creator, and her admin membership on it (`admin_brand_memberships`). This is **blocked on the tenant-boundary chain** (OSE-1446 and the tickets after it), since admin is founder-only. Until then the owner creates her events on her brand, on local or staging. | OSE (owner decision) |
-| Online-only events ("digital pop-ups", online classes) | OSE already allows an event with no place (location is optional). Such an event has no H3 cell, so it is off the map and opens by link (owner ruling, OSE-1643 q4). A scan still counts. Proposal: no OSE change; the station page says "Online". | none |
+| Online or in person, chosen at creation (owner, 2026-11-12) | A required choice on every event, kept on the OSE event. See below. | OSE (S13) |
 | One calendar for all her events | Optional: a brand-level `.ics` feed in OSE. Per-event `.ics` exists today. | OSE (optional) |
+
+### Online or in person (owner decision, 2026-11-12)
+
+OW's natural space covers both sides: a moment can happen online or in person. The station layout already has both sides (its `online` and `live` copy). When an event is created, the creator says which kind it is.
+
+Today OSE has no such field. Online and virtual appear nowhere in the event schema or the handlers (checked 2026-11-12). An event without a location is only "no place given", which is not the same as "online".
+
+The proposal, as story S13:
+
+- **One event record, in OSE.** OW never creates a second, OW-only event. An OW creation flow (later, with S6) writes the OSE event through OSE's API, so the decision is made where the event is made.
+- **A new field, `attendance_mode`,** required on create, with three values:
+  - `in_person`: needs a place. The event gets its H3 cell and shows on the map, as today.
+  - `online`: no place. It has no cell, so it is off the map and opens by link (owner ruling, OSE-1643 q4). Its `/q` and `/s` codes still count, as they do for any event.
+  - `both`: a place and an online side. It is on the map by its place.
+
+  The field follows schema.org's attendance modes (offline, online, mixed), so event pages can later carry that structured data.
+- **Existing events** become `in_person` in the migration, because every OSE event so far is a physical one. A dry run on staging confirms that before production.
+- **The join link is never public.** For example, the meeting link for a paid class stays off every public OSE response. Visitors reach it through the event's REGISTER, TICKETS or SIGN UP code (`/s/`), which points at the creator's own page, and that page hands out the link.
+  So OSE stores no meeting URL, and the public projection gains only `attendance_mode`.
+- **Place, not person** holds: an online event has no place at all, never the visitor's. A placement for an online event (for example "Clip link") is a community placement, as in the seed.
+- **What changes in OSE:** the migration, create and update validation (`in_person` and `both` need a location), the public projection allowlist and its contract snapshot, the admin event form, and the event page label ("Online", "In person", "Online and in person").
+- **What changes in OW:** the station page and the TV view show the label, read from OSE (S3). The seed sets the mode for each demo event.
 
 ## 4. Store, schools and products as places and sources
 
@@ -209,22 +236,26 @@ The sizes are relative. Every story has the full pyramid in `showcase/TESTING.md
 | S9 | **Partners per station.** Read each linked event's public sponsor bundle and show the strip below the title and date. A station campaign's partner shows once, at the top of the station. The partner link is the event's SPONSOR `/s/` code. Born-red checks are in section 5. | OW (uses OSE as is) | S3, S4 | M |
 | S10 | **Layout and display menu.** `layout`, `stationOrder`, `sections` and `display` in the creator contract. Each option is rendered and run through the e2e and accessibility set; an unknown option fails the build. | OW | S2 | M |
 | S11 | **TV display option.** Auto-advancing stations, large type, no counts, codes and consented sponsors only. | OW | S10, S4 | S |
+| S13 | **Online or in person on every event.** A required `attendance_mode` field (`in_person` · `online` · `both`). The section 3 rules apply: existing rows become `in_person`; a place is needed for `in_person` and `both`; no meeting link is stored or published. Both test layers, the contract snapshot bump, and a born-red check per rule. | OSE | none | M |
 | S12 | **A creator's own colours.** The page takes a pipeline-made `[data-brand]` block from the pinned `@ocr/ui`. It waits on the white-label pipeline (intake, processor, OSM, OA) and on a contrast checker for brand sets. OW only consumes the block. | OW; the pipeline is OSM and OA | The white-label pipeline | S here; L for the pipeline, not now |
 
 The recommended order:
-1. S1.
-2. S2 and S3 in parallel.
+1. S1 in OW and S13 in OSE, in parallel.
+2. S2 and S3 in parallel. S3 shows the mode once S13 is merged.
 3. S4, then S5.
 4. S9 and S10 in parallel, then S11.
 
 S6, S7 and S12 wait on their prerequisites, and S8 comes only if the owner wants it.
-S1 to S5 and S9 to S11 need no OSE code change.
+S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE change.
 
 ## Questions for the owner
 
 1. **Who creates the creator's events, for now?** (a) You, on her brand, on local or staging, until the tenant chain lands (recommended). (b) Pull S6 forward, which puts the tenant-boundary chain first.
 2. **Station pages:** separate pages per station (recommended, so a code can point at one), or keep one page with tabs?
-3. **Online-only events in OSE:** an event with no place, off the map and opened by link, with scans counted (recommended)? Or keep online moments out of OSE?
+3. **Online or in person.** *Decided, owner 2026-11-12: every event says which it is, at creation.* Still open:
+   - (a) Is **both** a third choice (recommended: her classes, clips and game nights mix the two)? Or must an event be one or the other?
+   - (b) Does the event stay one OSE record, which a later OW creation flow writes (recommended)? Or should OW keep events of its own?
+   - (c) Should online events also appear in OSE's `/events` list? Being off the map, they open by link only today.
 4. **Evergreen links (store, school, products):** plain and untracked (recommended)? Or should they be counted? Counting needs a decision on where, because `/s/` codes belong to an event today.
 5. **Plan tier for the showcase brand:** free (3 codes per event, counting the event page) or mid (5)? This decides how many "go next" codes a station event can carry.
 6. **The brand calendar feed (S8):** wanted now, later, or not at all?
