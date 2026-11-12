@@ -120,7 +120,7 @@ What is missing, and where each piece should go:
 
 Read here as: the station's frequency (Teach 89.1, Sound 97.3, and so on) is what places an event or a campaign. Each frequency makes **all** of its events and campaigns available, not one demo event each.
 
-- **Every event and every campaign has one frequency**, chosen when it is made, just as online or in person is.
+- **Every event and every campaign has one frequency**, chosen when it is made, just as online or in person is. An event also has an intent: one-off, programme or trial (see "Three kinds of event" below).
   OW keeps the link, because OSE knows brands and events but not stations: `events: [{ frequency, oseEventId }]` and `campaigns: [{ frequency, oseCampaignId }]` in the creator file now, and an OW table later (the same shape as `dj_sets.event_id`).
   An OW creation flow (later, with S6) asks for the frequency and writes the OSE record and the OW link together.
 - **The frequency decides where it shows.**
@@ -136,6 +136,73 @@ Read here as: the station's frequency (Teach 89.1, Sound 97.3, and so on) is wha
   - an event is never shown on a frequency it is not linked to (Lead excepted);
   - a past event never shows a code;
   - a campaign whose events are all past is not shown.
+
+### A frequency is purposeful and scheduled (owner, 2026-11-12)
+
+> purposeful, scheduled frequency
+
+A frequency is more than a category label. Like a radio station, it has **a reason to be on air** and **a programme**: when it broadcasts, how often, and in what form. Events are the programme's occurrences, and campaigns back the programme. A follower tuning in should be able to read:
+
+> **Teach · 89.1** · *Why:* free and pay-what-you-can skills for people the industry leaves out.
+> *On air:* Mondays to Thursdays, 5 pm, online (the daily room) · first Saturday of the month, 10 am, in person (workshop).
+> *Next:* … · *Backed by:* … (a consented campaign partner).
+
+(This is an illustration, not creator #1's real copy.)
+
+**Purposeful.**
+
+- Every frequency in use states its **why** (the S1 `why` field, the 5W Why). A frequency with events but no why fails the build: nothing goes on air without a purpose.
+- Each programme slot may add a one-line purpose of its own ("the daily room", "the monthly workshop").
+- An event's Why is its own `why_purpose` when the event has one. Otherwise it is the slot's purpose, and failing that the frequency's.
+- A campaign's place in the programme is its frequency and its window. A partner backs a purpose (a station's programme), not a page.
+
+**Scheduled.**
+
+- Each frequency in the creator file carries a **programme**, a list of slots. Each slot has:
+  - `cadence`: `daily-weekdays` · `weekly` · `biweekly` · `monthly` · `as-announced`;
+  - `day`, `time` and timezone;
+  - `mode`: online, in person or both, the S13 values;
+  - `kind`: a catalog `eventKinds` value.
+- The page shows the programme as "On air", under When, above the list of upcoming events. A slot with no upcoming event says "next date to be announced". It never makes a date up.
+- **The occurrences are OSE events,** one per date, as decided (one OSE record). The owner creates them on staging: one, then copies with **repeat** (`POST /api/v2/admin/events/:id/repeat`, a draft on a new date). Each copy is linked to the frequency in OW.
+  Generating a whole programme's dates in one step is the bulk season intake (an intake form, a processor and an OSM batch), which is later work outside this plan.
+- **OSE already has series, but only by detection.**
+  - What exists: `event_series` (migration 0033: `cadence` weekly, biweekly or monthly, plus `day_of_week` and `hour_of_day`) and `events.series_id` (0034). A confirmed series feeds the SharedReport's trend across occurrences.
+  - What is missing (checked 2026-11-12): series rows are written only by the auto-detector, and only once it finds 3 or more events at the same venue, day and hour. They start as `pending`, and no route lets an organizer confirm one, or declare one up front.
+  - That rules out a new programme, and an online programme has no venue at all. S15 lets an organizer declare a series and attach its events. Its anchor is an event, not a venue, which suits online slots.
+- **Checks (born red):**
+  - an event linked to a frequency whose date and time match none of its slots is never shown as part of the programme; its intent (below) decides how it reads;
+  - a slot's mode must equal the mode of each event attached to it;
+  - "On air" text is built only from slot fields, never free text that could carry a name.
+
+**Three kinds of event (owner, 2026-11-12).**
+
+> this is what separates a one off, temperal event vs a purposeful event vs a let see and try and it may be more fluid.
+
+Every event on a frequency has an **intent**, chosen when it is made, alongside its frequency and its mode:
+
+| Intent | What it is | How the page reads it | Where it lives |
+|---|---|---|---|
+| `one-off` | A single, temporal moment: one date, not part of a programme. A launch, a guest talk, a pop-up at someone else's event. | "One time only", with its date. No "next". | The OSE event; the OW link carries `intent`. No series. |
+| `programme` | Purposeful: an occurrence of a frequency's scheduled slot. | Under "On air", as the slot's next date. | The OSE event, attached to the slot's declared series (S15). |
+| `trial` | "Let's see and try": fluid, maybe repeated, not yet committed. Its timing and form may change from one try to the next. | "Trying this out", with its date. Never under "On air" and never promised as recurring. | The OSE event; the OW link carries `intent`. No series yet. |
+
+- **A trial can become a programme.** When the creator decides it works, the owner declares a series from it (S15), adds the slot to the frequency's programme, and the trial's past occurrences join the series.
+  The series trend then starts from the first try, so the partner and the creator see how it grew. A trial that stops is simply not repeated; nothing is deleted.
+- **OSE's detector fits this:** three or more tries at the same venue, day and hour already produce a *suggested* series (`pending`). That is a prompt to promote, never a promotion on its own; the owner confirms.
+- **Campaigns follow the intent.** A partner can back:
+  - a programme, for a season or its window;
+  - a one-off, as a single event's sponsor (today's per-event placement);
+  - a trial, as a pilot partner.
+  
+  The page says which. A trial partner sees the same floored counts, and trials often read "Fewer than 5". That is the floor working, not a fault.
+- **Checks (born red):**
+  - an event without an intent fails the build;
+  - a `trial` or `one-off` never appears under "On air" or with a "next" date;
+  - a `programme` event must sit on a declared series and match a slot;
+  - promoting a trial never changes its past occurrences' dates or counts.
+
+**How campaigns follow the programme.** A campaign on a frequency backs that frequency's scheduled occurrences inside its window (campaign `status` active, paused or completed). Its partner's report is the floored per-occurrence counts plus the series trend: `campaign_summary` and the headcount trend at Mid depth.
 
 ### Her events on staging (owner decision, 2026-11-12)
 
@@ -283,8 +350,8 @@ The sizes are relative. Every story has the full pyramid in `showcase/TESTING.md
 
 | # | Story | Product | Needs | Size |
 |---|---|---|---|---|
-| S1 | **Creator contract v2.** `places` as typed https objects with `station` and `kind`; a `why` per station; `events: [{ frequency, oseEventId }]` and `campaigns: [{ frequency, oseCampaignId }]`, many per frequency (owner, 2026-11-12: frequency decides). The schema and the fixture creator change, and old files still validate. | OW | #106 merged | S |
-| S2 | **Station pages with 5W(+H).** One page per station plus the creator page. The tuner becomes navigation; one `<h1>` each; places under "Where". E2E at 375, 768 and 1280 px, in both themes. | OW | S1 | M |
+| S1 | **Creator contract v2.** `places` as typed https objects with `station` and `kind`; a `why` per station; `events: [{ frequency, oseEventId, intent }]` with intent `one-off`, `programme` or `trial`, and `campaigns: [{ frequency, oseCampaignId }]`, many per frequency. A `programme` of slots per frequency (cadence, day, time, mode, kind, purpose). The why is required on any frequency with events. (Owner, 2026-11-12: frequency decides, purposeful and scheduled, three kinds of event.) The schema and the fixture creator change, and old files still validate. | OW | #106 merged | M |
+| S2 | **Station pages with 5W(+H).** One page per station plus the creator page. The tuner becomes navigation; one `<h1>` each; places under "Where". "On air" shows the programme, and events read as "One time only", "Trying this out" or as a programme date. E2E at 375, 768 and 1280 px, in both themes. | OW | S1 | M |
 | S3 | **Read events from OSE at build time.** `GET /api/v2/events?brand=` and `/api/v2/events/:id` fill When, Where and How. A missing or non-public event drops off the page and fails nothing. Integration against the pinned local OSE (`.ose-ref`). | OW | S1 | M |
 | S4 | **Digital codes per station.** The seed creates one showcase placement per station event. The build reads the public poster bundle for that placement and shows the `/q` code plus the event's `/s` codes, as QR and link. Born-red checks are in section 2. | OW (uses OSE as is) | S2, S3 | M |
 | S5 | **Retire the copied schedule.** Rows that are linked OSE events come from OSE; any others stay labelled as copied. | OW | S3 | S |
@@ -296,16 +363,17 @@ The sizes are relative. Every story has the full pyramid in `showcase/TESTING.md
 | S10 | **Layout and display menu.** `layout`, `stationOrder`, `sections` and `display` in the creator contract. Each option is rendered and run through the e2e and accessibility set; an unknown option fails the build. | OW | S2 | M |
 | S11 | **TV display option.** Auto-advancing stations, large type, no counts, codes and consented sponsors only. | OW | S10, S4 | S |
 | S13 | **Online or in person on every event.** A required `attendance_mode` field (`in_person` · `online` · `both`). The section 3 rules apply: existing rows become `in_person`; a place is needed for `in_person` and `both`; `online` events are left out of `/events`, the landing page and the sitemap; no meeting link is stored or published. Both test layers, the contract snapshot bump, and a born-red check per rule. | OSE | none | M |
+| S15 | **A series an organizer declares.**<br>An admin route declares a series on a brand up front (name, cadence, day, hour), anchored on an event, not a venue, so online programmes work. It attaches events to the series (`events.series_id`), confirms or rejects a detector suggestion, and promotes a trial: its past events join the series.<br>It is brand-scoped and audited. A declared series is `confirmed` and feeds the SharedReport trend as a detected one does.<br>Born-red checks: another brand's event can never join a series; a series never carries a per-attendee field; promoting changes no past date or count. | OSE | none | M |
 | S12 | **A creator's own colours.** The page takes a pipeline-made `[data-brand]` block from the pinned `@ocr/ui`. It waits on the white-label pipeline (intake, processor, OSM, OA) and on a contrast checker for brand sets. OW only consumes the block. | OW; the pipeline is OSM and OA | The white-label pipeline | S here; L for the pipeline, not now |
 
 The recommended order:
 1. S1 in OW and S13 in OSE, in parallel.
 2. S2 and S3 in parallel, and S8 in OSE after S13. S3 shows the mode once S13 is merged.
 3. S4, then S5.
-4. S9 and S10 in parallel, then S11. S14 runs in OSE any time before S9 needs its campaign partner.
+4. S9 and S10 in parallel, then S11. S14 and S15 run in OSE any time before S9 needs a campaign partner and S2 needs declared programmes.
 
 S6, S7 and S12 wait on their prerequisites.
-S1 to S5, S10 and S11 need no OSE code change. S13, S8 and S14 are the near-term OSE changes.
+S1 to S5, S10 and S11 need no OSE code change. S13, S8, S14 and S15 are the near-term OSE changes.
 
 ## Questions for the owner
 
