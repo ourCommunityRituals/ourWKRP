@@ -152,6 +152,9 @@ The proposal, as story S13:
 - **A new field, `attendance_mode`,** required on create, with three values (owner, 2026-11-12: `both` is allowed):
   - `in_person`: needs a place. The event gets its H3 cell and shows on the map, as today.
   - `online`: no place. It has no cell, so it is off the map and opens by link (owner ruling, OSE-1643 q4). Its `/q` and `/s` codes still count, as they do for any event.
+    **Link only for now (owner, 2026-11-12):** it is also left out of `/events`, the landing page and the sitemap.
+    Today those lists do not check for a place, so an active `root` event with no location would show. S13 adds that rule, with a born-red check.
+    The brand API (`GET /api/v2/events?brand=`), which OW reads, still returns it.
   - `both`: a place and an online side. It is on the map by its place.
 
   The field follows schema.org's attendance modes (offline, online, mixed), so event pages can later carry that structured data.
@@ -263,7 +266,7 @@ The sizes are relative. Every story has the full pyramid in `showcase/TESTING.md
 | S9 | **Partners per station.** Read each linked event's public sponsor bundle and show the strip below the title and date. A station campaign's partner shows once, at the top of the station. The partner link is the event's SPONSOR `/s/` code. Born-red checks are in section 5. | OW (uses OSE as is) | S3, S4 | M |
 | S10 | **Layout and display menu.** `layout`, `stationOrder`, `sections` and `display` in the creator contract. Each option is rendered and run through the e2e and accessibility set; an unknown option fails the build. | OW | S2 | M |
 | S11 | **TV display option.** Auto-advancing stations, large type, no counts, codes and consented sponsors only. | OW | S10, S4 | S |
-| S13 | **Online or in person on every event.** A required `attendance_mode` field (`in_person` · `online` · `both`). The section 3 rules apply: existing rows become `in_person`; a place is needed for `in_person` and `both`; no meeting link is stored or published. Both test layers, the contract snapshot bump, and a born-red check per rule. | OSE | none | M |
+| S13 | **Online or in person on every event.** A required `attendance_mode` field (`in_person` · `online` · `both`). The section 3 rules apply: existing rows become `in_person`; a place is needed for `in_person` and `both`; `online` events are left out of `/events`, the landing page and the sitemap; no meeting link is stored or published. Both test layers, the contract snapshot bump, and a born-red check per rule. | OSE | none | M |
 | S12 | **A creator's own colours.** The page takes a pipeline-made `[data-brand]` block from the pinned `@ocr/ui`. It waits on the white-label pipeline (intake, processor, OSM, OA) and on a contrast checker for brand sets. OW only consumes the block. | OW; the pipeline is OSM and OA | The white-label pipeline | S here; L for the pipeline, not now |
 
 The recommended order:
@@ -281,7 +284,7 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE ch
 2. **Station pages.** *Decided, owner 2026-11-12: one page per category (station), with the creator page as the dial.* S2 builds it.
 3. **Online or in person.** *Decided, owner 2026-11-12: every event says which it is, at creation, and **both** is a third choice.* Still open:
    - (b) Does the event stay one OSE record, which a later OW creation flow writes (recommended)? Or should OW keep events of its own?
-   - (c) Should online events also appear in OSE's `/events` list? Being off the map, they open by link only today.
+   - (c) *Decided, owner 2026-11-12: online events are link only for now.* See S13.
 4. **Evergreen links (store, school, products):** plain and untracked (recommended)? Or should they be counted? Counting needs a decision on where, because `/s/` codes belong to an event today.
 5. **Plan tier for the showcase brand:** free (3 codes per event, counting the event page) or mid (5)? This decides how many "go next" codes a station event can carry.
 6. **The brand calendar feed (S8):** wanted now, later, or not at all?
