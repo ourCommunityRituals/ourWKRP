@@ -28,6 +28,4 @@ export default async function globalSetup() {
   }
   const { missing } = buildShowcase({ creator: readJson(join(SHOWCASE, 'fixtures', 'sample-creator.json')), reports, outDir: site });
   if (missing.length) throw new Error(`e2e setup: missing images ${missing.join(', ')}`);
-  // PLANTED FAULT (born-red proof, reverted next commit): the teach images do not decode.
-  for (const v of ['card', 'phone']) (await import('node:fs')).writeFileSync(join(site, `img/teach-${v}.jpg`), 'not an image');
 }
