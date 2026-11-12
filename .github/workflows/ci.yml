@@ -323,7 +323,8 @@ jobs:
       - name: E2E journeys (test:e2e)
         env:
           PW_LABEL: 'E2E journeys (tests/e2e)'
-        run: bash scripts/pw-guarded.sh tests/e2e
+        # BORN-RED PLANT (reverted in the next commit): a filter that selects no test.
+        run: bash scripts/pw-guarded.sh tests/e2e --grep @born-red-no-such-test
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v7
@@ -357,6 +358,9 @@ jobs:
       - run: npm run test:bruno
       # Zero-case guard: a Bruno run that executed no requests must not pass on
       # its exit code. Fails on a missing report, a non-JUnit file, or 0 cases.
+      # BORN-RED PLANT (reverted in the next commit): a Bruno run that recorded no case.
+      - name: Plant an empty Bruno report
+        run: printf '%s' '<testsuites></testsuites>' > .test-results/bru-api-junit.xml
       - name: Bruno ran at least one case
         run: node scripts/ci/junit-case-count.mjs .test-results/bru-api-junit.xml 'Bruno API contract'
       - name: Upload Bruno report
@@ -372,6 +376,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [security, lint-and-typecheck]
+    # BORN-RED PLANT (reverted in the next commit): a gate job that silently skips.
+    if: false
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
