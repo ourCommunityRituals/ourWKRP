@@ -1,0 +1,123 @@
+# Mutation testing (StrykerJS): the check on whether the tests have teeth.
+#
+# Modelled on OSE's (ourSharedEvents .github/workflows/mutation-testing.yml,
+# job `mutation`). The other gates catch a test that is skipped; they cannot see
+# one that is hollow. Stryker plants one small fault at a time in OW's security
+# and privacy guards (stryker.conf.mjs) and reruns the tests that cover it. A
+# mutant that survives is a fault the suite would let ship.
+#
+# It fails when:
+#   - a pull request lowers or drops a floor in mutation-floors.json (compared
+#     with the base branch's copy; OSE keeps its floors in code with no check);
+#   - Stryker's global score is under its `break` (stryker.conf.mjs);
+#   - any one guard file scores under its own floor, or was not mutated at all
+#     (scripts/ci/mutation-file-floor.mjs).
+#
+# WHEN IT RUNS. Every pull request and every push to main, with no `paths:`
+# filter, so the check always reports and can be made required on `main` (the
+# owner's setting). Whether a change needs the Stryker run is decided inside the
+# job by scripts/ci/mutation-paths.mjs, which fails closed: it skips the run only
+# when it read the changed files and none is on its list. Nightly and on manual
+# dispatch it always runs, which catches a test that reaches a guard only
+# through another module.
+#
+# Never merges, never pushes, needs no secret but the read-only hub token that
+# every job installing @ocr/ui uses (step-scoped, OW-150).
+name: Mutation testing
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # 09:10 UTC, clear of the 07:00 mobile workability audit.
+    - cron: '10 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Per event and ref, so a pull request's runs never cancel the nightly or a
+  # merge's run; a newer push to the same pull request cancels the older run.
+  group: mutation-testing-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  mutation:
+    name: Mutation
+    runs-on: ubuntu-24.04
+    # TIMEOUT_SET_AT_FIRST_RUN
+    timeout-minutes: 30
+    # No job-level `if:` and no `needs:`: this check must report on every pull
+    # request so it can be required.
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # 2, not the default 1: the scope step reads a pull request's changes
+          # as the merge commit against its first parent (HEAD^1).
+          fetch-depth: 2
+          persist-credentials: false
+
+      # FAIL CLOSED: every step below runs unless this step said `run=false`,
+      # and it says that only when it read the changed files and none is on the
+      # list. If this step prints nothing the steps still run; if it fails, the
+      # job is red.
+      - name: Does this change need a mutation run?
+        id: scope
+        env:
+          MUTATION_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MUTATION_BEFORE_SHA: ${{ github.event.before }}
+        run: node scripts/ci/mutation-paths.mjs
+
+      # A pull request may raise a floor or add one, never lower or drop one.
+      # The base branch's copy is the reference, so the pull request cannot
+      # change what it is measured against.
+      - name: Floors only go up (against the base branch)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch -q --depth=1 origin "$BASE_REF"
+          if git cat-file -e FETCH_HEAD:mutation-floors.json 2>/dev/null; then
+            git show FETCH_HEAD:mutation-floors.json > "$RUNNER_TEMP/base-mutation-floors.json"
+            node scripts/ci/mutation-file-floor.mjs --ratchet "$RUNNER_TEMP/base-mutation-floors.json"
+          else
+            echo "The base branch has no mutation-floors.json yet: nothing to ratchet against." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run != 'false'
+        with:
+          # StrykerJS 10 needs Node 22 or later.
+          node-version: '22'
+
+      - name: Stage @ocr/ui package
+        if: steps.scope.outputs.run != 'false'
+        run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
+
+      - run: npm ci
+        if: steps.scope.outputs.run != 'false'
+
+      - name: Run Stryker
+        if: steps.scope.outputs.run != 'false'
+        run: npm run test:mutation
+
+      - name: Per-file mutation floor
+        if: steps.scope.outputs.run != 'false'
+        run: npm run test:mutation:floor
+
+      - name: Upload mutation report
+        if: always() && steps.scope.outputs.run != 'false'
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutation-report-${{ github.run_number }}
+          path: reports/mutation/
+          retention-days: 30
+          if-no-files-found: warn

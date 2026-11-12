@@ -35,3 +35,7 @@ __pycache__/
 # Editor / local-history artifacts
 .history/
 .vscode/
+
+# Mutation testing (stryker.conf.mjs): reports and the sandbox.
+reports/
+.stryker-tmp/
