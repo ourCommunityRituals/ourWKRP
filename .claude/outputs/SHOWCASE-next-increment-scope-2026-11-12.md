@@ -177,7 +177,8 @@ The proposal, as story S13:
   - The current label and note pairs stay valid, with no link, until they are filled in.
 - `sources` stays what it is: citations with a read date, listed at the foot of the page. A place may also be a source; the page does not merge them.
 - Each station page lists its places under "Where". The creator page lists them all.
-- **Tracking:** evergreen links are plain links, **not tracked** (OSE's `/s/` codes belong to an event).
+- **Tracking (owner, 2026-11-12):** evergreen links are plain links, **not counted** (OSE's `/s/` codes belong to an event).
+  They carry no tracking parameters and fire no beacon, and the page adds nothing to the URL the creator file gives. A born-red check in S1 fails the build if a place URL is rewritten or redirected through any counting path.
   When a product goes to an event (a pop-up table), the event's own MORE or TICKETS code points at the store page, and that click is counted in the event's report. See question 4.
 - **Sponsor rule:** her own store or school is not a sponsor. A third-party brand on her page is a sponsor, and it appears only through OSE's consent flow (sponsor accepted and organizer accepted), never as a plain link in the creator file.
 
@@ -286,7 +287,7 @@ S1 to S5 and S9 to S11 need no OSE code change. S13 is the only near-term OSE ch
 3. **Online or in person.** *Decided, owner 2026-11-12: every event says which it is, at creation, and **both** is a third choice.* Still open:
    - (b) *Decided, owner 2026-11-12: an OW event is one OSE record. OW writes it through OSE's API and never keeps events of its own.*
    - (c) *Decided, owner 2026-11-12: online events are link only for now.* See S13.
-4. **Evergreen links (store, school, products):** plain and untracked (recommended)? Or should they be counted? Counting needs a decision on where, because `/s/` codes belong to an event today.
+4. **Evergreen links (store, school, products).** *Decided, owner 2026-11-12: plain links, not counted.* A product click is counted only through an event's own code (for example a pop-up's MORE code).
 5. **Plan tier for the showcase brand:** free (3 codes per event, counting the event page) or mid (5)? This decides how many "go next" codes a station event can carry.
 6. **The brand calendar feed (S8):** wanted now, later, or not at all?
 7. **Where the page is shown:** stay a privately shared static page (today), or serve it from OW staging behind a gate (S7)? S7 waits on the staging TLS fix either way.
