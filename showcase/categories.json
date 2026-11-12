@@ -1,0 +1,13 @@
+{
+  "about": "The station catalog for OurWKRP creator showcases. A creator file lists the categories it uses (by id) and writes its own copy for each. A category may be used by no creator yet.",
+  "categories": [
+    { "id": "teach",    "name": "Teach",    "freq": 89.1,  "covers": "classes, workshops, cohorts, tutoring", "eventKinds": ["class", "workshop"] },
+    { "id": "research", "name": "Research", "freq": 91.5,  "covers": "papers, catalogues, talks, accelerators", "eventKinds": ["talk"] },
+    { "id": "play",     "name": "Play",     "freq": 94.7,  "covers": "games, game nights, tournaments", "eventKinds": ["game night"] },
+    { "id": "sound",    "name": "Sound",    "freq": 97.3,  "covers": "music, DJ sets, listening rooms, podcasts recorded live", "eventKinds": ["set"] },
+    { "id": "wear",     "name": "Wear",     "freq": 100.9, "covers": "merch, fashion, art objects, pop-up tables", "eventKinds": ["pop-up"] },
+    { "id": "stream",   "name": "Stream",   "freq": 103.5, "covers": "clips, video, podcasts, social posts", "eventKinds": ["class", "set", "game night"] },
+    { "id": "lead",     "name": "Lead",     "freq": 106.1, "covers": "the operator's combined view across every station", "eventKinds": [] },
+    { "id": "spirit",   "name": "Spirit",   "freq": 107.7, "covers": "faith, meditation, ritual and gathering practices", "eventKinds": ["gathering"], "status": "future" }
+  ]
+}

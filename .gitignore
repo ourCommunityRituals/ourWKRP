@@ -39,3 +39,15 @@ __pycache__/
 # Mutation testing (stryker.conf.mjs): reports and the sandbox.
 reports/
 .stryker-tmp/
+
+# Creator showcase (showcase/): real creator files are private, the work folder
+# holds signed report links, the env file holds a throwaway local key, and the
+# built pages and captures are published only by hand.
+showcase/creators/*.json
+showcase/work/
+showcase/out/
+showcase/.e2e/
+showcase/lib/.mutants/
+showcase/local-ose.env.json
+showcase/test-results/
+showcase/playwright-report/

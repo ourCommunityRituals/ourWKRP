@@ -1,0 +1,263 @@
+# ourWKRP — Creator Showcase (showcase/)
+#
+# The test pyramid for the creator showcase container, security first
+# (showcase/TESTING.md). Every layer is its own job, so a red layer names
+# itself, and nothing below security runs until security is green:
+#
+#   0 security ─┬─ 1 lint ─────┐
+#               ├─ 2 contract ─┼─ born red ─┬─ 4 integration (a real local OSE worker)
+#               └─ 3 unit ─────┘            └─ 5 end to end (Playwright + axe)
+#
+# Every check is born red and kept red: the born-red job plants a fault for each
+# check in a copy of showcase/lib and fails if any check passes on its fault.
+# Only the fictional fixture creator is ever built here; real creator files are
+# private and git-ignored (showcase/creators/README.md).
+
+name: Creator Showcase
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'showcase/**'
+      - '.github/workflows/showcase.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'eslint.config.js'
+      - '.ocr-hub-ref'
+      - '.gitignore'
+  push:
+    branches: [main]
+    paths:
+      - 'showcase/**'
+      - '.github/workflows/showcase.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'eslint.config.js'
+      - '.ocr-hub-ref'
+      - '.gitignore'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: showcase-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  security:
+    name: 'Showcase 0: security'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
+      - run: npm ci
+      - name: Escaping, link and image allowlists, no secrets, publish gate, never who, floor, local only, CSP
+        run: npm run test:showcase:security
+
+  lint:
+    name: 'Showcase 1: lint'
+    needs: security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
+      - run: npm ci
+      - run: npm run lint:showcase
+
+  contract:
+    name: 'Showcase 2: contract'
+    needs: security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
+      - run: npm ci
+      - name: Schema, catalog, design tokens, theme.css against the pinned @ocr/ui
+        run: npm run test:showcase:contract
+
+  unit:
+    name: 'Showcase 3: unit'
+    needs: security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
+      - run: npm ci
+      - run: npm run test:showcase:unit
+
+  born-red:
+    name: 'Showcase: born red'
+    needs: [lint, contract, unit]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
+      - run: npm ci
+      - name: Every check catches its planted fault
+        run: npm run test:showcase:born-red
+
+  integration:
+    name: 'Showcase 4: integration (local OSE worker)'
+    needs: born-red
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Where OurSharedEvents goes
+        run: echo "OSE_ROOT=$RUNNER_TEMP/ose-root" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
+      - run: npm ci
+      # OurSharedEvents is public. It is fetched at the one commit showcase/.ose-ref
+      # names, so the same ourWKRP commit always seeds the same OSE code.
+      - name: Fetch OurSharedEvents at the pinned commit
+        run: |
+          REF="$(tr -d '[:space:]' < showcase/.ose-ref)"
+          [[ "$REF" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::showcase/.ose-ref must hold one full 40-char commit SHA"; exit 1; }
+          mkdir -p "$OSE_ROOT/ose"
+          git -C "$OSE_ROOT/ose" init -q
+          git -C "$OSE_ROOT/ose" remote add origin https://github.com/ourCommunityRituals/ourSharedEvents.git
+          git -C "$OSE_ROOT/ose" fetch -q --depth 1 origin "$REF"
+          git -C "$OSE_ROOT/ose" checkout -q FETCH_HEAD
+          echo "OurSharedEvents at $REF"
+      - name: Stage OurSharedEvents' own @ocr/ui pin
+        # Its script stages beside the checkout it is told about: $OSE_ROOT/packages.
+        run: GITHUB_WORKSPACE="$OSE_ROOT/ose" bash "$OSE_ROOT/ose/scripts/ci-stage-ocr-workspace.sh"
+        env:
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
+      - name: Install OurSharedEvents
+        run: |
+          (cd "$OSE_ROOT/ose" && npm ci --no-audit --no-fund)
+          (cd "$OSE_ROOT/ose/workers/oursharedevents" && npm ci --no-audit --no-fund)
+      - name: Restore Playwright system package cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pw-apt-archives
+          key: ${{ runner.os }}-pw-apt-chromium-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pw-apt-chromium-
+      - name: Install Chromium for the capture step
+        timeout-minutes: 10
+        run: bash scripts/ci/install-playwright-browsers.sh chromium
+      - name: Start a throwaway local OSE worker
+        run: bash showcase/start-local-ose.sh "$OSE_ROOT/ose/workers/oursharedevents" "$RUNNER_TEMP/showcase-ose" 8917
+      - name: Seed the fixture creator (real events, poster codes and scans)
+        run: node showcase/seed-local.mjs showcase/fixtures/sample-creator.json
+      - name: Capture each station's real SharedReport
+        run: node showcase/capture-reports.mjs sample-creator
+      - name: Build the page
+        run: node showcase/build-page.mjs showcase/fixtures/sample-creator.json
+      - name: 'Verdict: every report answered, every total floored, nothing private published'
+        run: node showcase/tests/integration/check-reports.mjs sample-creator
+      - name: Worker log on failure
+        if: failure()
+        run: tail -n 120 "$RUNNER_TEMP/showcase-ose/wrangler.log" || true
+      - name: Stop the worker
+        if: always()
+        run: |
+          [ -f "$RUNNER_TEMP/showcase-ose/wrangler.pid" ] && kill "$(cat "$RUNNER_TEMP/showcase-ose/wrangler.pid")" 2>/dev/null || true
+          rm -f showcase/local-ose.env.json
+      # Only the publishable folder: the fictional fixture's page and images. The
+      # work folder (signed links) is never uploaded.
+      - name: Upload the built fixture page
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: showcase-fixture-page-${{ github.run_number }}
+          path: showcase/out/sample-creator/
+          retention-days: 7
+
+  e2e:
+    name: 'Showcase 5: end to end'
+    needs: born-red
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
+      - run: npm ci
+      - name: Restore Playwright system package cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pw-apt-archives
+          key: ${{ runner.os }}-pw-apt-chromium-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pw-apt-chromium-
+      - name: Install Chromium
+        timeout-minutes: 10
+        run: bash scripts/ci/install-playwright-browsers.sh chromium
+      - name: One h1, no sideways scroll, images load, tuner by click and keys, axe (375/768/1280, both themes)
+        run: npm run test:showcase:e2e
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: showcase-e2e-report-${{ github.run_number }}
+          path: showcase/playwright-report/
+          retention-days: 14

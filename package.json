@@ -36,6 +36,13 @@
     "test:e2e": "node scripts/seed-local-d1.mjs && playwright test tests/e2e",
     "test:mobile-workability": "node scripts/seed-local-d1.mjs && playwright test tests/playwright",
     "test:performance": "vitest run tests/performance",
+    "lint:showcase": "eslint showcase/",
+    "test:showcase": "vitest run --config showcase/vitest.config.mjs",
+    "test:showcase:security": "vitest run --config showcase/vitest.config.mjs showcase/tests/security.test.mjs",
+    "test:showcase:contract": "vitest run --config showcase/vitest.config.mjs showcase/tests/contract.test.mjs",
+    "test:showcase:unit": "vitest run --config showcase/vitest.config.mjs showcase/tests/unit.test.mjs",
+    "test:showcase:born-red": "vitest run --config showcase/vitest.config.mjs showcase/tests/born-red.test.mjs",
+    "test:showcase:e2e": "playwright test --config showcase/playwright.config.mjs",
     "test:load": "k6 run k6/sync-load.js",
     "db:seed:local": "node scripts/seed-local-d1.mjs",
     "test:bruno": "node scripts/seed-local-d1.mjs && node -e \"require('fs').mkdirSync('.test-results',{recursive:true})\" && start-server-and-test \"npx wrangler dev --port 8787 --var WKRP_ADMIN_TOKEN:bruno-admin-token\" http-get://localhost:8787/health \"cd bruno/wkrp-api && npx bru run . -r --env wkrp-local --reporter-junit ../../.test-results/bru-api-junit.xml\"",
@@ -57,6 +64,7 @@
     }
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@cloudflare/workers-types": "^5.20260930.2",
     "@eslint/js": "^9.5.0",
     "@playwright/test": "^1.45.0",

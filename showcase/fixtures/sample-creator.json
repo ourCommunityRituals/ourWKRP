@@ -1,0 +1,60 @@
+{
+  "slug": "sample-creator",
+  "name": "Sam Sample",
+  "headline": ["Sam Sample,", "on three frequencies."],
+  "roles": ["teacher", "maker", "organizer"],
+  "lede": "A fictional creator used to test the showcase container. Every word here is made up; no real person or business is described.",
+  "pronoun": { "subject": "they", "object": "them", "possessive": "their" },
+  "readOn": "2026-11-12",
+  "sources": [
+    { "label": "example.com", "url": "https://example.com/", "usedFor": "placeholder source for the test fixture" }
+  ],
+  "disclaimer": "A test fixture for the OurWKRP creator showcase. Sam Sample is fictional.",
+  "places": [["A community hall", "workshops"], ["A market stall", "made goods"], ["A video channel", "clips"]],
+  "values": {
+    "title": "How many, never who.",
+    "body": "The showcase reports counts, not identities, and any count below five is withheld and shown in words."
+  },
+  "sponsorship": {
+    "title": "Sponsors on the creator's terms.",
+    "body": "A sponsor appears only where both sides said yes, and sees only the counts for what it backed."
+  },
+  "stations": [
+    {
+      "id": "teach", "eyebrow": "Teacher",
+      "title": "Evening workshops", "where": "A community hall",
+      "intro": "Short practical workshops for neighbours, two evenings a month.",
+      "online": "A sign-up page and a few short clips.",
+      "live": "The workshop itself, in the hall.",
+      "track": "One link per workshop, counted from the clip and the door QR as totals per source.",
+      "report": "Attendance per workshop and the source that brought people in. Any count under five reads Fewer than 5.",
+      "sponsor": "A local hardware shop credited on the workshop page.",
+      "choice": "Which workshops carry a sponsor.",
+      "event": { "title": "Fix-it evening", "kind": "class", "demo": "medium" }
+    },
+    {
+      "id": "wear", "eyebrow": "Maker",
+      "title": "Market stall", "where": "A weekend market",
+      "intro": "Hand-made goods sold from a stall at the weekend market.",
+      "online": "A small online shop.",
+      "live": "The stall, with a QR on the table card and on each tag.",
+      "track": "Scans from a tag or table card into the shop, counted per market day.",
+      "report": "Which market day moved which goods, as counts.",
+      "sponsor": "None yet.",
+      "choice": "Which goods go to which market.",
+      "event": { "title": "Saturday market stall", "kind": "pop-up", "demo": "low" }
+    },
+    {
+      "id": "lead", "eyebrow": "Organizer",
+      "title": "The organizer's view", "where": "Every station above",
+      "intro": "One view across the workshops and the stall.",
+      "online": "Every channel above, on one dashboard.",
+      "live": "Every room the creator is in.",
+      "track": "Both frequencies in one place.",
+      "report": "One combined report. Sponsors see only their part.",
+      "sponsor": "Season sponsors instead of single events.",
+      "choice": "All of it.",
+      "event": null
+    }
+  ]
+}
