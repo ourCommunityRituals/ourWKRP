@@ -118,7 +118,7 @@ What is missing, and where each piece should go:
 
 > Events and campaigns should be available and should be dictated on frequency
 
-Read here as: the station's frequency (Teach 89.1, Sound 97.3, and so on) is what places an event or a campaign. Each frequency makes **all** of its events and campaigns available, not one demo event each.
+Confirmed by the owner, 2026-11-12: the station's frequency (Teach 89.1, Sound 97.3, and so on) is what places an event or a campaign, and each frequency has its own purpose and schedule. Each frequency makes **all** of its events and campaigns available, not one demo event each.
 
 - **Every event and every campaign has one frequency**, chosen when it is made, just as online or in person is. An event also has an intent: one-off, programme or trial (see "Three kinds of event" below).
   OW keeps the link, because OSE knows brands and events but not stations: `events: [{ frequency, oseEventId }]` and `campaigns: [{ frequency, oseCampaignId }]` in the creator file now, and an OW table later (the same shape as `dj_sets.event_id`).
