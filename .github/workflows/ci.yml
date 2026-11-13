@@ -574,6 +574,20 @@ jobs:
       - name: Smoke — prove controls are live (staging)
         run: npm run smoke:staging
 
+      # OW-203: the contract against a DEPLOYED Worker, not a local one.
+      # test:bruno runs the same collection against `wrangler dev`, which mocks
+      # the boundary: the collection stays green whether or not the deployed
+      # routes answer the same shape. This runs the stateless, auth-free subset
+      # of Core Flows against stg.ourwkrp.com, so a contract break reaches a
+      # human here rather than in a demo.
+      #
+      # Subset, not the whole collection, and deliberately so: the other eight
+      # requests form a write journey (register → import → playlist) needing a
+      # session and WKRP_ADMIN_TOKEN. Running those against staging on every
+      # push accumulates rows and needs a secret the owner sets. That is OW-204.
+      - name: Contract — public reads against deployed staging
+        run: npm run contract:staging
+
   # ============================================
   # Deploy Production — MANUAL ONLY
   # ============================================
