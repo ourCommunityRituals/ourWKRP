@@ -124,14 +124,19 @@ export async function escapingProblems(m) {
       return body;
     },
   });
-  const pages = m.render.renderPages({ creator, catalog: catalog().categories, reports, theme: '', ose, now: NOW });
   const out = [];
-  for (const [path, html] of Object.entries(pages)) {
-    const want = path === 'index.html' ? 1 : 0;
-    const scripts = (html.match(/<script\b/gi) ?? []).length;
-    if (scripts !== want) out.push(`${path}: ${scripts} <script> elements (want ${want})`);
-    if (/<(img|svg)\b[^>]*\son(error|load)\s*=/i.test(html.replace(/="[^"]*"/g, '=""'))) out.push(`${path}: a field rendered a live element with a handler`);
-    out.push(...inlineHandlerProblems(html).map((p) => `${path}: ${p}`), ...urlProblems(html, ose.origin).map((p) => `${path}: ${p}`));
+  // Every layout's markup and the TV board, not only the default page set.
+  for (const layout of ['dial', 'list', 'grid']) {
+    const pages = m.render.renderPages({ creator: { ...creator, layout, display: 'tv' }, catalog: catalog().categories, reports, theme: '', ose, now: NOW });
+    if (!pages['tv/index.html']) out.push('the hostile build has no TV board to check');
+    for (const [path, html] of Object.entries(pages)) {
+      const where = `${layout} ${path}`;
+      const want = path === 'index.html' || path === 'tv/index.html' ? 1 : 0;
+      const scripts = (html.match(/<script\b/gi) ?? []).length;
+      if (scripts !== want) out.push(`${where}: ${scripts} <script> elements (want ${want})`);
+      if (/<(img|svg)\b[^>]*\son(error|load)\s*=/i.test(html.replace(/="[^"]*"/g, '=""'))) out.push(`${where}: a field rendered a live element with a handler`);
+      out.push(...inlineHandlerProblems(html).map((p) => `${where}: ${p}`), ...urlProblems(html, ose.origin).map((p) => `${where}: ${p}`));
+    }
   }
   return out;
 }
@@ -586,6 +591,16 @@ export function contractProblems(m) {
     delete c.stations[1].event.placements;
     if (m.schema.creatorProblems(c, catalog()).length) out.push('refused a demo event with no placement labels');
   }
+  // S10: the layout and display menu. An unknown option stops the build.
+  refused((c) => { c.layout = 'carousel'; }, /^layout/m, 'an unknown layout');
+  refused((c) => { c.stationOrder = 'random'; }, /^stationOrder/m, 'an unknown station order');
+  refused((c) => { c.display = 'billboard'; }, /^display/m, 'an unknown display');
+  refused((c) => { c.sections = { surprise: false }; }, /^sections/m, 'an unknown section');
+  refused((c) => { c.sections = { reports: 'no' }; }, /^sections\.reports/m, 'a section switch that is not true or false');
+  refused((c) => { c.sections = { sources: false }; }, /sources cannot be hidden/, 'hidden sources');
+  for (const o of [{ layout: 'dial' }, { layout: 'list' }, { layout: 'grid' }, { stationOrder: 'next-event' }, { display: 'tv' }, { sections: { values: false, scatter: false, reports: false, schedule: false, sources: true } }]) {
+    if (m.schema.creatorProblems({ ...sample(), ...o }, catalog()).length) out.push(`refused the menu option ${JSON.stringify(o)}`);
+  }
   // S5: a schedule row names a linked event.
   refused((c) => { c.schedule.rows[1][4] = 'evt_sample-9999'; }, /schedule\.rows\.1/, 'a schedule row naming an unlinked event');
   return out;
@@ -861,5 +876,108 @@ export async function instanceWordingProblems(m) {
   const none = strip(sample());
   for (const s of none.stations) { s.event = null; delete s.programme; }
   if (!page(none).includes("this week's event.")) out.push('an instance with no kinds does not read "event"');
+  return out;
+}
+
+const text = (html) => html.replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+const pagesWith = async (m, over, edit) => {
+  const creator = { ...sample(), ...over };
+  edit?.(creator);
+  const ose = await sampleOse(m, { creator });
+  return m.render.renderPages({ creator, catalog: catalog().categories, reports: seededReports(), theme: '', ose, now: NOW });
+};
+const channelIds = (html) => [...(html.match(/<ul class="channels[^"]*"[\s\S]*?<\/ul>/)?.[0] ?? '').matchAll(/href="(?:\.\.\/)?([a-z0-9-]+)\/index\.html"/g)].map((x) => x[1]);
+
+/** S10 layout: the same station links as a dial, a list or a grid; the default is the dial. */
+export async function layoutProblems(m) {
+  const out = [];
+  const ids = sample().stations.map((s) => s.id);
+  const plain = await pagesWith(m, {});
+  for (const layout of ['dial', 'list', 'grid']) {
+    const pages = await pagesWith(m, { layout });
+    for (const [p, html] of Object.entries(pages)) {
+      if (channelIds(html).join() !== ids.join()) out.push(`${layout} ${p}: station links ${channelIds(html).join(', ')}`);
+      if ((html.match(/<h1\b/g) ?? []).length !== 1) out.push(`${layout} ${p}: not one <h1>`);
+      const dial = /<svg class="dial"/.test(html);
+      if ((layout === 'dial') !== dial) out.push(`${layout} ${p}: ${dial ? 'draws' : 'does not draw'} the dial`);
+      if (layout !== 'dial' && !html.includes(`<ul class="channels ${layout}"`)) out.push(`${layout} ${p}: the stations are not laid out as a ${layout}`);
+      if (layout !== 'dial' && !/<span class="t">Evening workshops<\/span>/.test(html)) out.push(`${layout} ${p}: a station does not carry its title`);
+      if (p !== 'index.html' && !html.includes(`href="../${p}" aria-current="page"`)) out.push(`${layout} ${p}: does not mark itself`);
+    }
+    if (layout === 'dial' && JSON.stringify(pages) !== JSON.stringify(plain)) out.push('a file with no layout is not the dial');
+  }
+  return out;
+}
+
+/** S10 station order: the file's order by default; by next event when asked, Lead last, the empty after the busy. */
+export async function stationOrderProblems(m) {
+  const out = [];
+  const reversed = (c) => { c.stations = [c.stations[1], c.stations[0], c.stations[2]]; };
+  const file = await pagesWith(m, {}, reversed);
+  if (channelIds(file['index.html']).join() !== 'wear,teach,lead') out.push(`file order reads ${channelIds(file['index.html']).join()}`);
+  const next = await pagesWith(m, { stationOrder: 'next-event' }, reversed);
+  // The fixture's soonest event is a teach trial (Tuesday); wear's first is Saturday.
+  for (const [p, html] of Object.entries(next)) if (channelIds(html).join() !== 'teach,wear,lead') out.push(`next-event ${p} reads ${channelIds(html).join()}`);
+  const quiet = await pagesWith(m, { stationOrder: 'next-event' }, (c) => { c.events = c.events.filter((e) => e.frequency !== 'teach'); c.schedule.rows = c.schedule.rows.map((r) => r.slice(0, 4)); });
+  if (channelIds(quiet['index.html']).join() !== 'wear,teach,lead') out.push(`a station with nothing upcoming is not after the busy ones: ${channelIds(quiet['index.html']).join()}`);
+  return out;
+}
+
+/** S10 sections: each switch hides its own section and nothing else. */
+export async function sectionProblems(m) {
+  const out = [];
+  const marks = {
+    values: (p) => text(p['index.html']).includes(sample().values.body),
+    scatter: (p) => p['index.html'].includes('id="scatter-title"'),
+    reports: (p) => Object.values(p).some((h) => /class="shot|aria-label="People per station"|Demo visitors/.test(h)),
+    schedule: (p) => p['index.html'].includes('id="now-title"'),
+  };
+  const all = await pagesWith(m, {});
+  for (const [k, on] of Object.entries(marks)) if (!on(all)) out.push(`${k} is not on the default page`);
+  for (const k of Object.keys(marks)) {
+    const pages = await pagesWith(m, { sections: { [k]: false } });
+    for (const [other, on] of Object.entries(marks)) {
+      if (other === k && on(pages)) out.push(`${k} is switched off and still shows`);
+      if (other !== k && !on(pages)) out.push(`${other} went when only ${k} was switched off`);
+    }
+    for (const html of Object.values(pages)) if (!html.includes('<span class="eyebrow">Sources</span>')) out.push(`sources went with ${k}`);
+  }
+  const bare = await pagesWith(m, { sections: { values: false, reports: false } });
+  if (bare['index.html'].includes('id="reports-title"')) out.push('the reporting section shows with nothing in it');
+  return out;
+}
+
+/** S11 TV board: built only when asked; events and codes, no counts; a hold, a pause and a dwell a viewer can read in. */
+export async function tvProblems(m) {
+  const out = [];
+  if ((await pagesWith(m, {}))['tv/index.html']) out.push('a TV board is built without display: tv');
+  const pages = await pagesWith(m, { display: 'tv' });
+  const tv = pages['tv/index.html'];
+  if (!tv) return ['display: tv builds no TV board'];
+  if ((tv.match(/<h1\b/g) ?? []).length !== 1) out.push('the TV board has not one <h1>');
+  const panels = [...tv.matchAll(/<section class="panel" aria-labelledby="[^"]*" data-dwell="(\d+)">([\s\S]*?)<\/section>/g)];
+  if (panels.length !== 2) out.push(`${panels.length} panels, want teach and wear`);
+  if (/Every frequency in one view|class="tuner"/.test(tv)) out.push('Lead or the tuner is on the TV board');
+  // No counts on a display: no report, no report image, no floor text, no placement labels.
+  if (/class="shot|<img|scanners|Fewer than|Table card|Clip link|People per station/.test(tv)) out.push('a report or a count is on the TV board');
+  // Its codes are station-page codes, and no more than two events a panel.
+  const codes = (h) => [...h.matchAll(/data-code-url="([^"]*)"/g)].map((x) => x[1]);
+  const pageCodes = new Set(['teach', 'wear'].flatMap((s) => codes(pages[`${s}/index.html`])));
+  if (!codes(tv).length) out.push('the TV board shows no code');
+  for (const u of codes(tv)) if (!pageCodes.has(u)) out.push(`the TV board shows a code no station page has: ${u}`);
+  for (const [, dwell, body] of panels) {
+    if ((body.match(/<article class="event"/g) ?? []).length > 2) out.push('a panel shows more than two events');
+    const words = body.replace(/<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+    const want = Math.max(14, Math.ceil(5 + words * 0.6));
+    if (Number(dwell) !== want) out.push(`a ${words}-word panel stays up ${dwell} s, want ${want}`);
+  }
+  if (m.render.dwellSeconds(0) !== 14 || m.render.dwellSeconds(30) !== 23 || m.render.dwellSeconds(50) !== 35) out.push('the dwell is not 3 s + reading at 100 words a minute + 2 s');
+  // The hold and the pause: a rotating code must be holdable (guideline 70), and rotation pausable (WCAG 2.2.2).
+  if (m.render.HOLD_SECONDS < 20) out.push(`a touch holds the panel ${m.render.HOLD_SECONDS} s, want at least 20`);
+  if (!/var HOLD = (\d+);/.test(tv) || Number(tv.match(/var HOLD = (\d+);/)[1]) !== m.render.HOLD_SECONDS) out.push('the page does not carry the hold');
+  if (!/<button type="button" class="tv-pause" aria-pressed="false" hidden>Pause<\/button>/.test(tv)) out.push('the TV board has no Pause button');
+  if (!/addEventListener\("keydown", hold\)/.test(tv) || !/addEventListener\("pointerdown", hold\)/.test(tv)) out.push('a key or a tap does not hold the panel');
+  if (!/prefers-reduced-motion: reduce\)"\)\.matches\) return;/.test(tv)) out.push('reduced motion does not stop the rotation');
+  if (!tv.includes('.panel[hidden] { display: none; }')) out.push('a hidden panel would still show');
   return out;
 }

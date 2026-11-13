@@ -35,6 +35,12 @@ export const CADENCES = ['daily-weekdays', 'weekly', 'biweekly', 'monthly', 'as-
 export const MODES = ['online', 'in_person', 'both'];
 export const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 export const WEEKS = ['first', 'second', 'third', 'fourth', 'last'];
+// The layout and display menu (owner, 2026-11-12): a fixed set of safe options.
+// An unknown option fails the build; it never falls back silently.
+export const LAYOUTS = ['dial', 'list', 'grid'];
+export const STATION_ORDERS = ['file', 'next-event'];
+export const DISPLAYS = ['page', 'tv'];
+export const SECTIONS = ['values', 'scatter', 'reports', 'schedule', 'sources'];
 
 const event = z
   .object({
@@ -143,6 +149,13 @@ export const creatorSchema = z
     events: z.array(eventLink).optional(),
     campaigns: z.array(campaignLink).optional(),
     privateNames: z.array(text).optional(),
+    // How the stations are laid out (default dial), in what order (default the
+    // file's), which sections show (default all) and whether a TV board is
+    // built beside the pages (default page: none).
+    layout: z.enum(LAYOUTS).optional(),
+    stationOrder: z.enum(STATION_ORDERS).optional(),
+    display: z.enum(DISPLAYS).optional(),
+    sections: z.object(Object.fromEntries(SECTIONS.map((k) => [k, z.boolean().optional()]))).strict().optional(),
     schedule: z
       .object({ intro: text, source: text, rows: z.array(scheduleRow) })
       .strict()
@@ -205,6 +218,8 @@ export function creatorProblems(creator, catalog) {
   const parsed = creatorSchema.safeParse(creator);
   if (!parsed.success) return parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
   const problems = [];
+  // Sources are the page's citations: while the file lists any, they show.
+  if (creator.sections?.sources === false && creator.sources.length) problems.push('sections.sources: sources cannot be hidden while the file lists any');
   const ids = new Set();
   const cats = new Map();
   for (const s of creator.stations) {

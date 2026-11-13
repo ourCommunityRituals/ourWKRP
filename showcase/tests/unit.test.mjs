@@ -36,6 +36,18 @@ describe('creator showcase: unit', () => {
   it("the fixed sentences name the instance and list its own event kinds", async () => {
     expect(await C.instanceWordingProblems(m)).toEqual([]);
   });
+  it('layout: a dial, a list or a grid of the same station links; no layout is the dial', async () => {
+    expect(await C.layoutProblems(m)).toEqual([]);
+  });
+  it('station order: the file by default; by next event when asked, the quiet after the busy, Lead last', async () => {
+    expect(await C.stationOrderProblems(m)).toEqual([]);
+  });
+  it('sections: each switch hides its own section and nothing else; sources always show', async () => {
+    expect(await C.sectionProblems(m)).toEqual([]);
+  });
+  it('TV board: only when asked; events and codes, no counts; a hold, a pause and a readable dwell', async () => {
+    expect(await C.tvProblems(m)).toEqual([]);
+  });
   it('dates read as day, short month, year', () => {
     expect(C.dateProblems(m)).toEqual([]);
   });

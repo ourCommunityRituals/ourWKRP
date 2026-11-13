@@ -27,7 +27,7 @@ This folder is the **container**. It holds no real creator.
 
 - `work/<slug>/reports.json` holds signed SharedReport links. It is git-ignored and never published.
 - `local-ose.env.json` holds the throwaway local admin key. It is git-ignored.
-- `out/<slug>/` is the only publishable folder: `index.html`, `<station>/index.html` per station, a public `reports.json` (counts and image paths only) and `img/`. Share it as a folder or a zip. The build refuses to write it if any text in it carries a signed link, a key, a token, an email address, an anonymous cookie or an id, or if any code on it is not an OSE `/q` or `/s` URL.
+- `out/<slug>/` is the only publishable folder: `index.html`, `<station>/index.html` per station, `tv/index.html` when the file asks for the TV board, a public `reports.json` (counts and image paths only) and `img/`. Share it as a folder or a zip. The build refuses to write it if any text in it carries a signed link, a key, a token, an email address, an anonymous cookie or an id, or if any code on it is not an OSE `/q` or `/s` URL.
 - Seeding and capture refuse any worker that is not `127.0.0.1` or `localhost`. The build reads OSE's public API only (GET, no key), from a local worker or OSE staging, never production.
 - Until the creator agrees, OSE carries neutral text only. The build stops if anything it reads from OSE names her, a name in `privateNames`, a place or one of her links.
 - Place links are plain: shown exactly as the creator file gives them, never counted.
@@ -45,6 +45,10 @@ Version 1 files still validate. Version 2 adds, all optional:
 | `events[]` | `{ frequency, oseEventId, intent, placement?, until? }`. `frequency` is a station id; `intent` is one-off, pop-up, programme or trial; `placement` is the showcase placement (its `/q` code); `until` ends a pop-up's window (OSE events have no end time). |
 | `campaigns[]` | `{ frequency, oseCampaignId }`. Validated now; shown once OSE serves campaigns (S14, S9). |
 | `stations[].event.placements[]` | 1 to 4 short labels (40 characters each) for where a demo event's codes hung, in the instance's own words. Absent: the demo size's labels. |
+| `layout` | How the stations are laid out: `dial` (the default), `list` (a column) or `grid` (cards). List and grid draw no dial and show each station's title. |
+| `stationOrder` | `file` (the default: the file's order) or `next-event` (soonest next event first; a station with nothing upcoming after those; Lead last). |
+| `sections` | Switches, each `true` or `false`, all shown by default: `values`, `scatter` ("Where the work lives"), `reports`, `schedule`, `sources`. `sources: false` is refused while the file lists any source. |
+| `display` | `page` (the default) or `tv`: also build `tv/index.html`, a board for a screen in the room. |
 | `privateNames[]` | Other names she or her ventures go by. Never shown; kept out of OSE text. |
 | `schedule.rows[]` 5th item | The OSE event id a copied row became. That row leaves the copied table. |
 
@@ -56,6 +60,22 @@ event kinds its own stations run (each station's demo `event.kind`, then its
 programme slots' kinds), so a bar reads "game night" and is never told about a
 class it does not hold. Give a demo event its own `placements` when the size's
 labels do not fit.
+
+## The TV board (`display: tv`)
+
+A screen in the room, built beside the pages at `tv/index.html`. Large type, one
+station at a time, each with its programme and its next two events and their
+codes. A display shows no counts, so no report is drawn on it. Lead is left
+off: it is the whole dial and would repeat every other panel.
+
+A rotating screen must never take a code away from someone lining up a phone, so:
+
+- each panel stays up long enough to read: 3 s to notice, reading at 100 words a minute, 2 s to act, never under 14 s;
+- any key, tap or click holds the panel for 20 s, with the time left on screen;
+- Pause stops the rotation until Resume;
+- with reduced motion, or without the script, every panel shows and nothing rotates.
+
+An unknown layout, order, display or section stops the build. It never falls back silently.
 
 ## Make a page
 
