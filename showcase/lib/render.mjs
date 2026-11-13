@@ -154,6 +154,12 @@ td.num.w { color: var(--text-muted); }
 .code figcaption { font-size: var(--step--1); min-width: 0; }
 .code .word { display: block; font-family: var(--font-mono); letter-spacing: 0.12em; color: var(--text-muted); }
 .code a { display: inline-flex; align-items: center; min-height: 44px; font-family: var(--font-mono); overflow-wrap: anywhere; word-break: break-all; }
+.backers, .partners { font-size: var(--step--1); }
+.calendar { margin-top: 8px; }
+.calendar a { display: inline-flex; align-items: center; min-height: 44px; }
+.backers a, .partners a { display: inline-flex; align-items: center; min-height: 44px; margin-left: 8px; }
+.partners { list-style: none; padding: 0; margin: 20px 0 0; display: grid; gap: 4px; }
+.partners .label { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-right: 6px; }
 .empty { padding: 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); margin-top: 16px; }
 .copied-note { margin-top: 12px; font-size: 0.9375rem; color: var(--text-muted); }
 footer { border-top: 1px solid var(--border); padding-block: 36px 56px; font-size: 0.875rem; color: var(--text-muted); }
@@ -253,6 +259,64 @@ function codeFigure(code) {
             </figure>`;
 }
 
+// Partners (owner, 2026-11-12). A sponsor reaches a page only from OSE's public
+// sponsor bundle, where both sides have accepted. Its one link is the event's
+// own SPONSOR /s/ code, so a tap is counted like any other code; the page sends
+// OSE nothing else about a sponsor. A sponsor is text and never a control:
+// nobody can filter, search or sort by it.
+const sponsorCode = (codes = []) => codes.find((k) => k.kind === 'sponsor') ?? null;
+
+/** The strip on an event card: it sits below the title and date, above the rest. */
+function sponsorStrip(sponsors = [], codes = []) {
+  if (!sponsors.length) return '';
+  const code = sponsorCode(codes);
+  return `<p class="backers"><span class="label">Backed by</span>${sponsors.map((s) => `<span class="backer">${esc(s.title)}</span>`).join(', ')}${
+    code ? `<a href="${esc(code.url)}">About ${sponsors.length > 1 ? 'these partners' : 'this partner'}</a>` : ''
+  }</p>`;
+}
+
+/**
+ * A station's campaign partners. The creator file says which OSE campaign backs
+ * a frequency; a partner shows only when OSE lists it under that campaign on
+ * one of the station's upcoming events. Each shows once, with the soonest such
+ * event's SPONSOR code.
+ */
+export function stationPartners(c, s, upcoming) {
+  const out = [];
+  const seen = new Set();
+  for (const link of (c.campaigns ?? []).filter((k) => k.frequency === s.id)) {
+    for (const x of upcoming) {
+      for (const sp of x.sponsors ?? []) {
+        const key = `${link.oseCampaignId} ${sp.id}`;
+        if (sp.campaign?.id !== link.oseCampaignId || seen.has(key)) continue;
+        seen.add(key);
+        out.push({ sponsor: sp, campaign: sp.campaign, code: sponsorCode(x.codes) });
+      }
+    }
+  }
+  return out;
+}
+
+function partnerList(s, partners, { links = true } = {}) {
+  if (!partners.length) return '';
+  return `<ul class="partners" aria-label="Partners backing ${esc(s.name)}">${partners
+    .map(
+      ({ sponsor, campaign, code }) =>
+        `<li><span class="label">Backed by</span><span class="backer">${esc(sponsor.title)}</span>${campaign?.title ? ` <span class="muted">· ${esc(campaign.title)}</span>` : ''}${
+          links && code ? `<a href="${esc(code.url)}">About this partner</a>` : ''
+        }</li>`,
+    )
+    .join('')}</ul>`;
+}
+
+// The brand's calendar feed on OSE (owner, 2026-11-12), drawn only when the
+// build found OSE serving it. A plain link: the page counts nothing on it.
+const CALENDAR_URL = /^https?:\/\/[^/?#\s"]+\/brands\/[a-z0-9]+(-[a-z0-9]+)*\/calendar\.ics$/;
+function calendarLine(calendar) {
+  if (!calendar || !CALENDAR_URL.test(calendar)) return '';
+  return `<p class="calendar"><a href="${esc(calendar)}">Every date as a calendar feed</a> <span class="muted">From OurSharedEvents. This page counts nothing on it.</span></p>`;
+}
+
 function footer(c, built) {
   const sourceItem = (s) => {
     const href = safeHttpsUrl(s.url);
@@ -296,7 +360,7 @@ export function renderPages({ creator: c, catalog, reports = { reports: [] }, th
   const opt = options(c);
   const ordered = opt.stationOrder === 'next-event' ? byNextEvent(stations, schedules) : stations;
 
-  const pages = { 'index.html': creatorPage({ c, stations: ordered, linked, reports, theme, now, built, byId, opt }) };
+  const pages = { 'index.html': creatorPage({ c, stations: ordered, linked, reports, theme, now, built, byId, opt, calendar: ose.calendar ?? null }) };
   for (const s of ordered) pages[`${s.id}/index.html`] = stationPage({ c, s, stations: ordered, schedule: schedules[s.id], theme, built, byId, opt });
   if (opt.display === 'tv') pages['tv/index.html'] = tvPage({ c, stations: ordered, schedules, theme, built, byId });
   return pages;
@@ -343,7 +407,7 @@ function reportFigure(s, prefix, { compact = false } = {}) {
   </figure>`;
 }
 
-function creatorPage({ c, stations, linked, reports, theme, now, built, byId, opt }) {
+function creatorPage({ c, stations, linked, reports, theme, now, built, byId, opt, calendar }) {
   const withReports = stations.filter((s) => s.report?.images);
   const kinds = eventKinds(c).length ? eventKinds(c) : ['event'];
   const seededOn = reports.seededAt ? fmtDate(String(reports.seededAt).slice(0, 10)) : null;
@@ -382,7 +446,7 @@ function creatorPage({ c, stations, linked, reports, theme, now, built, byId, op
         next.length
           ? `<ul>${next.map(({ link, event }) => `<li>${esc(whenText(event, link))}: ${esc(event.title)} (<a href="${esc(link.frequency)}/index.html">${esc(byId[link.frequency]?.name ?? link.frequency)}</a>, ${esc(INTENT_LABELS[link.intent])})</li>`).join('')}</ul>`
           : 'Nothing is scheduled yet.'
-      }</dd></div>
+      }${calendarLine(calendar)}</dd></div>
       <div><dt>Where</dt><dd>Online at the places under "Where the work lives"; in person at each event's own address, on its station page.</dd></div>
       <div><dt>Why</dt><dd>${esc(c.values.title)}</dd></div>
       <div><dt>How</dt><dd>Tune a frequency above. Each station page has its events, with a code to scan and the same link to tap.</dd></div>
@@ -474,7 +538,7 @@ ${footer(c, built)}
 `;
 }
 
-function eventCard({ link, event, codes }, i, { isLead, byId }) {
+function eventCard({ link, event, codes, sponsors }, i, { isLead, byId }) {
   // Every programme event on a slot carries that slot's purpose, not only the next one.
   const slot = byId[link.frequency] ? slotOf(byId[link.frequency], link, event) : null;
   const why = event.whyPurpose || slot?.purpose || byId[link.frequency]?.why || null;
@@ -485,6 +549,7 @@ function eventCard({ link, event, codes }, i, { isLead, byId }) {
           <p class="tags"><span class="tag intent">${esc(INTENT_LABELS[link.intent])}</span>${mode ? `<span class="tag">${esc(mode)}</span>` : ''}${isLead ? `<span class="tag">${esc(byId[link.frequency]?.name ?? link.frequency)}</span>` : ''}</p>
           <h3 id="ev-${i}">${esc(event.title)}</h3>
           ${row('When', whenText(event, link))}
+          ${sponsorStrip(sponsors, codes)}
           ${row('Where', where)}
           ${row('What', event.whatShort)}
           ${row('Host', event.whoHost)}
@@ -511,6 +576,7 @@ function stationPage({ c, s, stations, schedule, theme, built, byId, opt }) {
     <p class="eyebrow">${s.freq.toFixed(1)} · ${esc(s.name)} · ${esc(s.eyebrow)}</p>
     <h1>${esc(s.title)}</h1>
     <p class="lede">${esc(s.intro)}</p>
+    ${partnerList(s, stationPartners(c, s, schedule.upcoming))}
     ${tuner(c, stations, s, '../', opt.layout)}
   </header>
 
@@ -585,11 +651,12 @@ export function dwellSeconds(words) {
 export const panelWords = (html) =>
   html.replace(/<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
 
-function tvPanel(s, schedule, i, byId) {
+function tvPanel(c, s, schedule, i, byId) {
   const events = schedule.upcoming.slice(0, TV_EVENTS);
   const body = `<p class="eyebrow">${s.freq.toFixed(1)} · ${esc(s.name)}</p>
       <h2 id="tv-${i}">${esc(s.title)}</h2>
       ${s.why ? `<p class="why">${esc(s.why)}</p>` : ''}
+      ${partnerList(s, stationPartners(c, s, schedule.upcoming), { links: false })}
       ${
         schedule.onAir.length
           ? `<ul class="onair-list" aria-label="On air">${schedule.onAir
@@ -619,7 +686,7 @@ function tvPage({ c, stations, schedules, theme, built, byId }) {
     <h1>${esc(c.headline[0])} <span class="muted">${esc(c.headline[1])}</span></h1>
     <p class="tv-controls"><button type="button" class="tv-pause" aria-pressed="false" hidden>Pause</button><span class="tv-left" role="status"></span></p>
   </header>
-  ${shown.map((s, i) => tvPanel(s, schedules[s.id], i, byId)).join('\n  ')}
+  ${shown.map((s, i) => tvPanel(c, s, schedules[s.id], i, byId)).join('\n  ')}
 </div>
 </div>
 

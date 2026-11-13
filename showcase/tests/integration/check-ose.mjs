@@ -6,6 +6,10 @@
 // another brand's and a past event have none; each card shows the placement's
 // /q code (when it has a placement) and every non-form /s code; and every code
 // on every page answers the live worker with a redirect that is not a form.
+// Sponsors (S9): a card names exactly the plan's sponsors that both sides
+// accepted; one side's yes, a pending answer and a past event's sponsor reach no
+// page. A campaign partner is expected at the top of its station only when the
+// worker's sponsor bundle carries campaigns (OSE S14).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -22,9 +26,14 @@ const FORM_TARGET = /\/forms?\//i;
  * @param {Record<string,string>} pages  path → html of the built folder
  * @param {{url: string, status: number, location: string|null}[]} resolved  each code, fetched once
  * @param {number} now
+ * @param {{campaigns?: boolean}} [worker]  whether the worker's sponsor bundle names campaigns
  */
-export function oseVerdictProblems(plan, creator, pages, resolved, now) {
+export function oseVerdictProblems(plan, creator, pages, resolved, now, { campaigns = false } = {}) {
   const out = [];
+  const onShow = (sp) => sp.sponsorAccepted !== false && sp.organizerAccepted !== false;
+  const strips = (html) => (html.match(/<p class="backers">[\s\S]*?<\/p>/g) ?? []).map((p) => [...p.matchAll(/<span class="backer">([^<]*)<\/span>/g)].map((x) => x[1]).sort().join(' + '));
+  const wantStrips = {};
+  const wantPartners = {};
   const lead = creator.stations.find((s) => (s.category ?? s.id) === 'lead')?.id;
   const today = (tz) => planDate({ days: 0 }, now, tz);
   const cards = (html) => (html.match(/<article class="event"/g) ?? []).length;
@@ -40,7 +49,20 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now) {
     if (!shown && p.title && all.includes(`>${p.title}<`) && !plan.events.some((q) => q !== p && q.title === p.title && q.state !== 'draft' && !q.brand)) {
       out.push(`${p.ref}: "${p.title}" reached a page`);
     }
+    const backers = (p.sponsors ?? []).filter(onShow);
+    for (const sp of p.sponsors ?? []) {
+      // A name that shows nowhere else: not on show here, or on an event that is not shown.
+      const elsewhere = plan.events.some((q) => q.state !== 'draft' && !q.brand && planDate(q.on, now, q.timezone) >= today(q.timezone) && (q.sponsors ?? []).some((x) => x.name === sp.name && onShow(x)));
+      if (!elsewhere && all.includes(sp.name)) out.push(`${p.ref}: sponsor "${sp.name}" reached a page`);
+    }
     if (!shown) return;
+    if (backers.length) {
+      const names = backers.map((b) => b.name).sort().join(' + ');
+      for (const id of [link.frequency, lead].filter(Boolean)) (wantStrips[id] ??= []).push(names);
+      for (const b of backers) {
+        if (campaigns && b.campaign && (creator.campaigns ?? []).some((c) => c.frequency === link.frequency && c.oseCampaignId === b.campaign.id)) (wantPartners[link.frequency] ??= new Set()).add(b.name);
+      }
+    }
     want[link.frequency] = (want[link.frequency] ?? 0) + 1;
     if (lead) want[lead] = (want[lead] ?? 0) + 1;
     wantCodes[link.frequency] = (wantCodes[link.frequency] ?? 0) + (link.placement ? 1 : 0) + 1 + (p.codes ?? []).filter((c) => !FORM_KINDS.has(c.kind)).length;
@@ -49,6 +71,12 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now) {
     const html = pages[`${s.id}/index.html`] ?? '';
     if (cards(html) !== (want[s.id] ?? 0)) out.push(`${s.id}: ${cards(html)} event cards, want ${want[s.id] ?? 0}`);
     if (codes(html).length !== (wantCodes[s.id] ?? 0)) out.push(`${s.id}: ${codes(html).length} codes, want ${wantCodes[s.id] ?? 0}`);
+    const got = strips(html).sort().join(' | ');
+    const wanted = (wantStrips[s.id] ?? []).sort().join(' | ');
+    if (got !== wanted) out.push(`${s.id}: sponsor strips "${got}", want "${wanted}"`);
+    const partners = [...(html.match(/<ul class="partners"[\s\S]*?<\/ul>/)?.[0] ?? '').matchAll(/<span class="backer">([^<]*)<\/span>/g)].map((x) => x[1]).sort().join(' + ');
+    const wantedPartners = [...(wantPartners[s.id] ?? [])].sort().join(' + ');
+    if (partners !== wantedPartners) out.push(`${s.id}: station partners "${partners}", want "${wantedPartners}"`);
   }
   const shownCodes = new Set(Object.values(pages).flatMap(codes));
   for (const url of shownCodes) {
@@ -79,7 +107,15 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     const res = await fetch(url, { redirect: 'manual', headers: { 'User-Agent': 'showcase-integration' } });
     resolved.push({ url, status: res.status, location: res.headers.get('location') });
   }
-  const problems = oseVerdictProblems(plan, creator, pages, resolved, Date.now());
+  // Does this worker's sponsor bundle name campaigns? Asked of the worker itself, not of the page.
+  let campaigns = false;
+  for (const e of creator.events) {
+    const res = await fetch(`${base}/api/v2/events/${encodeURIComponent(e.oseEventId)}/sponsor-bundle?surface=public`);
+    const body = res.ok ? await res.json().catch(() => null) : null;
+    if ((body?.bundle?.sponsors ?? []).some((sp) => sp.campaign)) campaigns = true;
+  }
+  const problems = oseVerdictProblems(plan, creator, pages, resolved, Date.now(), { campaigns });
+  console.log(`sponsor bundle names campaigns: ${campaigns ? 'yes' : 'no (this OSE is before campaigns in the bundle)'}`);
   for (const r of resolved) console.log(`${r.url} -> ${r.status} ${r.location ?? ''}`);
   if (problems.length) {
     console.error(`::error::showcase OSE integration failed:\n  ${problems.join('\n  ')}`);

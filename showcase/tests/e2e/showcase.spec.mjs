@@ -116,6 +116,29 @@ test('Lead shows every frequency and sends codes to their station pages', async 
   await expect(page.getByRole('link', { name: 'Codes on the Wear page' }).first()).toHaveAttribute('href', '../wear/index.html');
 });
 
+// ── S9: partners, and the brand's calendar feed ──────────────────────────────
+
+test('a station names its campaign partner once at the top, and each event its consented sponsors', async ({ page }) => {
+  await open(page, '/wear/index.html');
+  const partners = page.getByRole('list', { name: 'Partners backing Wear' });
+  await expect(partners.getByRole('listitem')).toHaveCount(1);
+  await expect(partners).toContainText('Corner hardware (showcase demo)');
+  await expect(partners).toContainText('Winter tables (showcase demo)');
+  await expect(partners.getByRole('link')).toHaveAttribute('href', /\/s\/Sp0005$/);
+  const strips = page.locator('article.event p.backers');
+  await expect(strips).toHaveCount(2);
+  // No control on the page carries a sponsor: nothing to filter, search or sort by.
+  await expect(page.locator('input, select, button, form')).toHaveCount(0);
+  await open(page, '/teach/index.html');
+  await expect(page.locator('ul.partners')).toHaveCount(0);
+  await expect(page.locator('article.event p.backers')).toHaveText(['Backed byPrint shop (showcase demo)']);
+});
+
+test('the creator page links the calendar feed as a plain link', async ({ page }) => {
+  await open(page, '/index.html');
+  await expect(page.getByRole('link', { name: 'Every date as a calendar feed' })).toHaveAttribute('href', /\/brands\/showcase-sample\/calendar\.ics$/);
+});
+
 // ── S10: the layout and display menu ─────────────────────────────────────────
 
 test('the list layout is a column of stations with no dial, soonest station first', async ({ page }) => {

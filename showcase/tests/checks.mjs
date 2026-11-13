@@ -75,11 +75,12 @@ const OWN_PAGE = /^(\.\.\/)?([a-z0-9]+(-[a-z0-9]+)*\/)?index\.html$/;
 const OWN_IMAGE = /^(\.\.\/)?img\/[a-z0-9-]+\.(jpg|png)$/;
 /**
  * Every href / src / srcset is https:, one of the creator's own pages or images,
- * or an OSE /q or /s code on `origin` (the OSE the build read).
+ * or, on `origin` (the OSE the build read), a /q or /s code or the brand's
+ * calendar feed.
  */
 export function urlProblems(html, origin = null) {
   const out = [];
-  const code = origin ? new RegExp(`^${origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/(q|s)/[A-Za-z0-9_-]+$`) : null;
+  const code = origin ? new RegExp(`^${origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/((q|s)/[A-Za-z0-9_-]+|brands/[a-z0-9-]+/calendar\\.ics)$`) : null;
   for (const t of tags(html)) {
     for (const [, attr, value] of t.matchAll(/\s(href|src|srcset)\s*=\s*"([^"]*)"/gi)) {
       const v = value.trim();
@@ -121,10 +122,17 @@ export async function escapingProblems(m) {
     edit: (kind, body) => {
       if (kind === 'event') for (const k of ['title', 'name', 'what_short', 'who_host', 'why_purpose', 'how_details', 'where_address', 'venue']) body.item[k] = `x${PAYLOADS[n.i++ % 4]}`;
       if (kind === 'bundle') for (const s of body.slots) { s.word = `x${PAYLOADS[n.i++ % 4]}`; s.label = s.word; }
+      if (kind === 'sponsors') {
+        for (const s of body.bundle.sponsors) {
+          s.title = `x${PAYLOADS[n.i++ % 4]}`;
+          if (s.campaign) s.campaign.title = `x${PAYLOADS[n.i++ % 4]}`;
+        }
+      }
       return body;
     },
   });
   const out = [];
+  if (!ose.linked.some((x) => x.sponsors.some((sp) => sp.campaign))) out.push('the hostile build has no campaign partner to check');
   // Every layout's markup and the TV board, not only the default page set.
   for (const layout of ['dial', 'list', 'grid']) {
     const pages = m.render.renderPages({ creator: { ...creator, layout, display: 'tv' }, catalog: catalog().categories, reports, theme: '', ose, now: NOW });
@@ -276,6 +284,16 @@ export function readBaseProblems(m) {
   return out;
 }
 
+// Every read the build may make, each spelled out. A new read is added here on
+// purpose, never matched by a loose pattern.
+const READS = [
+  /^\/api\/v2\/events\?brand=[a-z0-9-]+$/,
+  /^\/api\/v2\/events\/[^/?]+$/,
+  /^\/api\/v2\/events\/[^/?]+\/poster-bundle(\?deployment=[^&]+)?$/,
+  /^\/api\/v2\/events\/[^/?]+\/sponsor-bundle\?surface=public$/,
+  /^\/brands\/[a-z0-9-]+\/calendar\.ics$/,
+];
+
 /** The build's OSE reads are public reads: GET, no credential, no cookie. */
 export async function readOnlyProblems(m) {
   const calls = [];
@@ -287,7 +305,8 @@ export async function readOnlyProblems(m) {
     if ((init.method ?? 'GET') !== 'GET') out.push(`${init.method} ${url}`);
     for (const h of ['authorization', 'cookie', 'x-ocr-internal']) if (headers.has(h)) out.push(`${url} sends ${h}`);
     if (init.credentials && init.credentials !== 'omit') out.push(`${url} sends credentials`);
-    if (!/\/api\/v2\/events(\?brand=|\/[^/]+(\/poster-bundle)?(\?deployment=[^&]+)?$)/.test(url)) out.push(`unexpected read ${url}`);
+    const path = url.slice(FAKE_ORIGIN.length);
+    if (!READS.some((r) => r.test(path))) out.push(`unexpected read ${url}`);
   }
   return out;
 }
@@ -979,5 +998,210 @@ export async function tvProblems(m) {
   if (!/addEventListener\("keydown", hold\)/.test(tv) || !/addEventListener\("pointerdown", hold\)/.test(tv)) out.push('a key or a tap does not hold the panel');
   if (!/prefers-reduced-motion: reduce\)"\)\.matches\) return;/.test(tv)) out.push('reduced motion does not stop the rotation');
   if (!tv.includes('.panel[hidden] { display: none; }')) out.push('a hidden panel would still show');
+  return out;
+}
+
+// ── Partners (S9) and the calendar feed (S8 follow-up) ───────────────────────
+const SPONSOR = 'Corner hardware (showcase demo)';
+const CAMPAIGN = 'Winter tables (showcase demo)';
+const cardsOf = (html) => html.match(/<article class="event"[\s\S]*?<\/article>/g) ?? [];
+const stopped = async (run, want) => {
+  try {
+    await run();
+  } catch (e) {
+    return want.test(e.message) ? null : e.message;
+  }
+  return 'no error';
+};
+
+/**
+ * Sponsors on an event card: only what OSE's public bundle lists, below the
+ * title and date and above the rest, as text and never a control, and nothing
+ * of a sponsor but its name leaves the bundle.
+ */
+export async function sponsorProblems(m) {
+  const out = [];
+  const calls = [];
+  const ose = await sampleOse(m, { calls });
+  const render = (o = ose, creator = sample()) => m.render.renderPages({ creator: { ...creator, display: 'tv' }, catalog: catalog().categories, reports: seededReports(), theme: '', ose: o, now: NOW });
+  const pages = render();
+  const all = Object.values(pages).join('\n');
+
+  // Where the strip sits.
+  const wear = cardsOf(pages['wear/index.html']);
+  if (!wear.some((c) => c.includes(SPONSOR))) out.push('wear: the consented sponsor is not on its event');
+  for (const [path, html] of Object.entries(pages)) {
+    for (const card of cardsOf(html)) {
+      const at = card.indexOf('class="backers"');
+      if (at < 0) continue;
+      const title = card.indexOf('</h3>');
+      const when = card.indexOf('<span class="label">When</span>');
+      const rest = ['Where', 'What', 'Host', 'Why', 'How'].map((l) => card.indexOf(`<span class="label">${l}</span>`)).filter((i) => i >= 0);
+      const codes = card.indexOf('class="codes"');
+      if (title < 0 || at < title) out.push(`${path}: a sponsor strip above the event title`);
+      if (when < 0 || at < when) out.push(`${path}: a sponsor strip above the event date`);
+      if (rest.some((i) => i < at) || (codes >= 0 && codes < at)) out.push(`${path}: a sponsor strip below the event's content`);
+    }
+  }
+
+  // Only what the bundle lists: one side's yes is not enough, and a past event is never read.
+  for (const name of ['Waiting cafe', 'Unsure bakery', "Last week's partner"]) if (all.includes(name)) out.push(`"${name}" reached a page`);
+  if (!all.includes('Print shop (showcase demo)')) out.push('a sponsor with no campaign is missing from its event');
+  if (calls.some((c) => /evt_sample-0004\/sponsor-bundle/.test(c.url))) out.push("a past event's sponsors were read");
+  const reads = calls.filter((c) => /\/sponsor-bundle/.test(c.url));
+  if (reads.some((c) => !c.url.endsWith('/sponsor-bundle?surface=public'))) out.push('a sponsor read that is not the public surface');
+
+  // A station with no linked event shows no sponsor; nor does any page when OSE lists none.
+  for (const [path, html] of Object.entries(pages)) {
+    if (!cardsOf(html).length && /class="(backers|partners)"/.test(html) && path !== 'tv/index.html') out.push(`${path}: a sponsor on a page with no event`);
+  }
+  const none = render(await sampleOse(m, { edit: (k, b) => { if (k === 'sponsors') b.bundle.sponsors = []; return b; } }));
+  if (/class="(backers|partners)"/.test(Object.values(none).join('\n'))) out.push('a sponsor shows though OSE lists none');
+  if (Object.values(none).join('\n').includes(SPONSOR)) out.push('a sponsor name shows though OSE lists none');
+
+  // Nothing but a name (and a campaign) leaves the bundle, and no beacon is ever fired.
+  for (const [what, re] of [
+    ['a beacon token', /\bbt_sb_/], ['a click token', /\bct_sb_/], ['a display token', /\bdt_sb_/], ['a sponsor website', /partner\.example\.org/],
+    ['a sponsor logo', /\/sponsors\/[^"'\s]*\/logo/], ['a sponsor card link', /\/sponsors\/sb_/], ['an impression beacon', /\/impression\b/], ['a click beacon', /\/click\b/], ['a sponsor tier', /\bgold\b/],
+  ]) {
+    if (re.test(all)) out.push(`${what} reached a page`);
+  }
+  for (const x of ose.linked) for (const sp of x.sponsors) for (const k of Object.keys(sp)) if (!['id', 'title', 'campaign'].includes(k)) out.push(`the build kept a sponsor's ${k}`);
+
+  // The one link is the event's own SPONSOR /s/ code.
+  const withCode = wear.find((c) => c.includes(SPONSOR) && c.includes('class="codes"'));
+  const strip = (card) => card?.match(/<p class="backers">[\s\S]*?<\/p>/)?.[0] ?? '';
+  const href = strip(withCode).match(/<a href="([^"]*)"/)?.[1];
+  if (href !== `${FAKE_ORIGIN}/s/Sp0005`) out.push(`the sponsor link is ${href ?? 'missing'}, not the event's SPONSOR code`);
+  const noCode = wear.find((c) => c.includes('Launch evening'));
+  if (!strip(noCode).includes(SPONSOR)) out.push('the event with no SPONSOR code lost its sponsor');
+  if (/<a /.test(strip(noCode))) out.push('a sponsor link on an event with no SPONSOR code');
+
+  // A sponsor is never a control: nobody filters, searches or sorts by it.
+  if (/<(input|select|option|datalist|button|label|form|textarea)\b[^>]*>[^<]*(Corner hardware|Print shop|Winter tables)/i.test(all)) out.push('a sponsor name inside a control');
+  if (/<(input|select|option|datalist|button|label|form|textarea)\b[^>]*(Corner hardware|Print shop|Winter tables)/i.test(all)) out.push('a sponsor name on a control');
+
+  // A sponsor list that cannot be read stops the build; so does one that names the creator.
+  const lost = await stopped(() => sampleOse(m, { fail: (k) => (k === 'sponsors' ? 503 : null) }), /sponsor bundle answered 503/);
+  if (lost) out.push(`a sponsor bundle that answered 503 did not stop the build (${lost})`);
+  const shapeless = await stopped(() => sampleOse(m, { edit: (k, b) => { if (k === 'sponsors') delete b.bundle; return b; } }), /sponsor bundle answered 200/);
+  if (shapeless) out.push(`a sponsor bundle with no list did not stop the build (${shapeless})`);
+  for (const [what, plant] of [
+    ['a sponsor named after her', (b) => { b.bundle.sponsors[0].title = 'Sam Sample Hardware'; }],
+    ['a campaign named after her', (b) => { b.bundle.sponsors[0].campaign = { id: 'cmp_x', title: 'Sample Studio season' }; }],
+  ]) {
+    const named = await stopped(() => sampleOse(m, { edit: (k, b) => { if (k === 'sponsors' && b.bundle.sponsors.length) plant(b); return b; } }), /not neutral/);
+    if (named) out.push(`the build read ${what} without stopping (${named})`);
+  }
+  return out;
+}
+
+/** A station's campaign partner: once, at the top, only where the creator file and OSE agree. */
+export async function partnerProblems(m) {
+  const out = [];
+  const ose = await sampleOse(m);
+  const render = (creator = sample(), o = ose) => m.render.renderPages({ creator: { ...creator, display: 'tv' }, catalog: catalog().categories, reports: seededReports(), theme: '', ose: o, now: NOW });
+  const lists = (html) => html.match(/<ul class="partners"[\s\S]*?<\/ul>/g) ?? [];
+  const pages = render();
+  const wear = pages['wear/index.html'];
+
+  // Once, though two of the station's events list it; in the hero, before the events.
+  const mine = lists(wear);
+  if (mine.length !== 1) out.push(`wear: ${mine.length} partner lists, want 1`);
+  const items = (mine[0] ?? '').match(/<li>/g) ?? [];
+  if (items.length !== 1) out.push(`wear: the partner shows ${items.length} times at the top, want once`);
+  if (!(mine[0] ?? '').includes(SPONSOR) || !(mine[0] ?? '').includes(CAMPAIGN)) out.push('wear: the partner or its campaign is not named');
+  const at = wear.indexOf('<ul class="partners"');
+  if (at < 0 || at < wear.indexOf('</h1>') || at > wear.indexOf('<nav class="tuner"') || at > wear.indexOf('<article class="event"')) out.push('wear: the partner is not at the top of the station');
+  // Its link is the SPONSOR code of the soonest event that lists it.
+  const href = (mine[0] ?? '').match(/<a href="([^"]*)"/)?.[1];
+  if (href !== `${FAKE_ORIGIN}/s/Sp0005`) out.push(`wear: the partner link is ${href ?? 'missing'}, not the soonest event's SPONSOR code`);
+
+  // Only on the frequency the creator file names.
+  for (const [path, html] of Object.entries(pages)) {
+    if (path !== 'wear/index.html' && path !== 'tv/index.html' && lists(html).length) out.push(`${path}: a partner on a frequency with no campaign`);
+  }
+  // The TV board names it on its station's panel, with no link to tap.
+  const panel = (pages['tv/index.html'].match(/<section class="panel"[\s\S]*?<\/section>/g) ?? []).filter((p) => p.includes('class="partners"'));
+  if (panel.length !== 1) out.push(`tv: ${panel.length} panels name a partner, want 1`);
+  if (/<ul class="partners"[\s\S]*?<a /.test(panel[0]?.match(/<ul class="partners"[\s\S]*?<\/ul>/)?.[0] ?? '')) out.push('tv: the partner carries a link');
+
+  // The creator file alone never makes a partner: OSE must list it under that campaign.
+  const other = sample();
+  other.campaigns = [{ frequency: 'wear', oseCampaignId: 'cmp_someone_else' }];
+  if (lists(render(other)['wear/index.html']).length) out.push('a campaign OSE does not list made a partner');
+  const noLink = sample();
+  delete noLink.campaigns;
+  const plain = render(noLink)['wear/index.html'];
+  if (lists(plain).length) out.push('a partner shows though the creator file links no campaign');
+  if (!plain.includes(SPONSOR)) out.push('without the campaign link, the sponsor left its event too');
+  const unlisted = await sampleOse(m, { edit: (k, b) => { if (k === 'sponsors') for (const s of b.bundle.sponsors) delete s.campaign; return b; } });
+  if (lists(render(sample(), unlisted)['wear/index.html']).length) out.push('a sponsor with no campaign became a station partner');
+
+  // A campaign on Lead is the whole dial's.
+  const lead = sample().stations.find((s) => (s.category ?? s.id) === 'lead')?.id;
+  if (!lead) out.push('the fixture has no Lead station');
+  else {
+    const whole = sample();
+    whole.campaigns = [{ frequency: lead, oseCampaignId: 'cmp_sample_wear' }];
+    const p = render(whole);
+    if (lists(p[`${lead}/index.html`]).length !== 1) out.push('a campaign on Lead does not show on Lead');
+    if (lists(p['wear/index.html']).length) out.push('a campaign on Lead shows on another station');
+  }
+  return out;
+}
+
+/** The brand's calendar feed: linked only where OSE serves a real one, as a plain link, and held to the neutral rule. */
+export async function calendarProblems(m) {
+  const out = [];
+  const want = `${FAKE_ORIGIN}/brands/showcase-sample/calendar.ics`;
+  const render = (ose, creator = sample()) => m.render.renderPages({ creator, catalog: catalog().categories, reports: seededReports(), theme: '', ose, now: NOW });
+  const links = (pages) => Object.entries(pages).flatMap(([path, html]) => [...html.matchAll(/<a href="([^"]*calendar\.ics[^"]*)"([^>]*)>/g)].map((x) => ({ path, href: x[1], rest: x[2] })));
+
+  const ose = await sampleOse(m);
+  if (ose.calendar !== want) out.push(`the build found ${ose.calendar ?? 'no feed'}, want ${want}`);
+  const found = links(render(ose));
+  if (found.length !== 1 || found[0].path !== 'index.html') out.push(`${found.length} calendar links (${found.map((f) => f.path).join(', ')}), want one on the creator page`);
+  else if (found[0].href !== want || found[0].rest.trim()) out.push(`the calendar link is "${found[0].href}"${found[0].rest}, not the plain feed URL`);
+
+  // Not served, refused at the edge, or not a calendar: left off, and the build goes on.
+  for (const [what, opts] of [
+    ['a 404', { fail: (k) => (k === 'calendar' ? 404 : null) }],
+    ['a 403 challenge', { fail: (k) => (k === 'calendar' ? 403 : null) }],
+    ['a page that is not a calendar', { edit: (k, b) => { if (k === 'calendar') b.text = '<!doctype html><title>Just a moment</title>'; return b; } }],
+  ]) {
+    let o = null;
+    try {
+      o = await sampleOse(m, opts);
+    } catch (e) {
+      out.push(`${what} stopped the build: ${e.message.split('\n')[0]}`);
+      continue;
+    }
+    if (o.calendar !== null) out.push(`${what} was taken for a feed`);
+    if (links(render(o)).length) out.push(`${what} still put a calendar link on a page`);
+    if (o.linked.length !== ose.linked.length) out.push(`${what} changed the events read`);
+  }
+
+  // A feed naming the creator stops the build, folded across two lines or not.
+  for (const [what, plant] of [
+    ['a feed that names her', (b) => { b.text = b.text.replace('SUMMARY:', 'SUMMARY:Class with Sam Sample · '); }],
+    ['a feed that names her across a folded line', (b) => { b.text = b.text.replace('SUMMARY:', 'SUMMARY:An evening with Sa\r\n m · '); }],
+  ]) {
+    const named = await stopped(() => sampleOse(m, { edit: (k, b) => { if (k === 'calendar') plant(b); return b; } }), /calendar feed names/);
+    if (named) out.push(`the build read ${what} without stopping (${named})`);
+  }
+
+  // A URL that is not the feed's is never drawn, whatever the reader returned.
+  for (const bad of [`${FAKE_ORIGIN}/brands/showcase-sample/calendar.ics?utm_source=ourwkrp`, 'javascript:alert(1)', `${FAKE_ORIGIN}/api/v2/admin/events`]) {
+    if (links(render({ ...ose, calendar: bad })).length || Object.values(render({ ...ose, calendar: bad })).join('').includes(bad)) out.push(`"${bad}" was drawn as the calendar link`);
+  }
+
+  // No events linked: nothing is read, so no feed is listed.
+  const calls = [];
+  const bare = sample();
+  for (const k of ['events', 'campaigns']) delete bare[k];
+  bare.schedule.rows = bare.schedule.rows.filter((r) => r.length < 5);
+  const none = await sampleOse(m, { creator: bare, calls });
+  if (calls.length || none.calendar) out.push('a creator with no events read OSE for a feed');
   return out;
 }

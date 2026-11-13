@@ -43,7 +43,7 @@ Version 1 files still validate. Version 2 adds, all optional:
 | `stations[].programme[]` | Slots: `cadence` (daily-weekdays, weekly, biweekly, monthly, as-announced), `day`, `week` (monthly), `time`, `timezone`, `mode` (online, in_person, both), `kind` (one of the category's `eventKinds`), `purpose`. |
 | `oseBrand` | The OSE brand the events live on (never `root`). |
 | `events[]` | `{ frequency, oseEventId, intent, placement?, until? }`. `frequency` is a station id; `intent` is one-off, pop-up, programme or trial; `placement` is the showcase placement (its `/q` code); `until` ends a pop-up's window (OSE events have no end time). |
-| `campaigns[]` | `{ frequency, oseCampaignId }`. Validated now; shown once OSE serves campaigns (S14, S9). |
+| `campaigns[]` | `{ frequency, oseCampaignId }`. The campaign's partner shows once at the top of that station, only when OSE's public sponsor bundle lists a sponsor under that campaign on one of the station's upcoming events (OSE S14). Lead takes a whole-dial campaign. |
 | `stations[].event.placements[]` | 1 to 4 short labels (40 characters each) for where a demo event's codes hung, in the instance's own words. Absent: the demo size's labels. |
 | `layout` | How the stations are laid out: `dial` (the default), `list` (a column) or `grid` (cards). List and grid draw no dial and show each station's title. |
 | `stationOrder` | `file` (the default: the file's order) or `next-event` (soonest next event first; a station with nothing upcoming after those; Lead last). |
@@ -60,6 +60,20 @@ event kinds its own stations run (each station's demo `event.kind`, then its
 programme slots' kinds), so a bar reads "game night" and is never told about a
 class it does not hold. Give a demo event its own `placements` when the size's
 labels do not fit.
+
+## Partners and the calendar feed
+
+A sponsor reaches a page only from OurSharedEvents' public sponsor bundle, where
+both sides have accepted and the event has sponsors switched on. Nothing in the
+creator file can add one.
+
+- On an event card the strip reads "Backed by", below the title and date.
+- A campaign the creator file puts on a frequency shows its partner once, at the top of that station.
+- The only link is the event's own SPONSOR code, so a tap is counted like any other code. The page sends OSE nothing else: no impression or click beacon, no logo request.
+- A sponsor is text, never a control: nobody can filter, search or sort by it.
+
+Where OSE serves the brand's calendar feed, the creator page links it under
+"When" as a plain link. The page counts nothing on it.
 
 ## The TV board (`display: tv`)
 

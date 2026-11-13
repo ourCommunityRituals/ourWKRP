@@ -44,6 +44,9 @@ describe('creator showcase: security', () => {
   it("reads OSE through its public API only: GET, no key, no cookie", async () => {
     expect(await C.readOnlyProblems(m)).toEqual([]);
   });
+  it('sponsors: only what OSE lists with both sides agreed, below the title and date, a name and nothing else, never a control, no beacon', async () => {
+    expect(await C.sponsorProblems(m)).toEqual([]);
+  });
   it('stops the build when OSE text names the creator, a venture or one of her links', async () => {
     expect(await C.neutralNameProblems(m)).toEqual([]);
   });

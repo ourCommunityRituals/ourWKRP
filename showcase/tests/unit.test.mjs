@@ -48,6 +48,12 @@ describe('creator showcase: unit', () => {
   it('TV board: only when asked; events and codes, no counts; a hold, a pause and a readable dwell', async () => {
     expect(await C.tvProblems(m)).toEqual([]);
   });
+  it('station partner: once, at the top, only where the creator file and OSE name the same campaign', async () => {
+    expect(await C.partnerProblems(m)).toEqual([]);
+  });
+  it('calendar feed: linked only where OSE serves one, as a plain link, and never one that names the creator', async () => {
+    expect(await C.calendarProblems(m)).toEqual([]);
+  });
   it('dates read as day, short month, year', () => {
     expect(C.dateProblems(m)).toEqual([]);
   });

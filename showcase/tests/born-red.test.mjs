@@ -111,6 +111,61 @@ const MUTANTS_LIST = [
   ['tv: a key does not hold the panel', 'tvProblems', [{ file: R, from: 'document.addEventListener("keydown", hold);', to: '' }]],
   ['tv: reduced motion still rotates', 'tvProblems', [{ file: R, from: 'if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;', to: '' }]],
   ['tv: a hidden panel still shows', 'tvProblems', [{ file: R, from: '.panel[hidden] { display: none; }', to: '' }]],
+  // Partners (S9)
+  ['sponsors: the strip above the event title', 'sponsorProblems', [
+    { file: R, from: "          ${row('When', whenText(event, link))}\n          ${sponsorStrip(sponsors, codes)}", to: "          ${row('When', whenText(event, link))}" },
+    { file: R, from: '          <h3 id="ev-${i}">${esc(event.title)}</h3>', to: '          ${sponsorStrip(sponsors, codes)}\n          <h3 id="ev-${i}">${esc(event.title)}</h3>' },
+  ]],
+  ['sponsors: the strip below the content', 'sponsorProblems', [
+    { file: R, from: "          ${row('When', whenText(event, link))}\n          ${sponsorStrip(sponsors, codes)}", to: "          ${row('When', whenText(event, link))}" },
+    { file: R, from: "          ${row('How', event.howDetails)}", to: "          ${row('How', event.howDetails)}\n          ${sponsorStrip(sponsors, codes)}" },
+  ]],
+  ['sponsors: never shown', 'sponsorProblems', [{ file: R, from: "if (!sponsors.length) return '';\n  const code = sponsorCode(codes);", to: "if (sponsors.length < 99) return '';\n  const code = sponsorCode(codes);" }]],
+  ['sponsors: a past event read', 'sponsorProblems', [{ file: O, from: 'if (!isPast(event, now)) {', to: 'if (true) {' }]],
+  ['sponsors: not the public surface', 'sponsorProblems', [{ file: O, from: '/sponsor-bundle?surface=public`);', to: '/sponsor-bundle`);' }]],
+  ['sponsors: the whole row kept', 'sponsorProblems', [{ file: O, from: 'out.push({ id, title, campaign });', to: 'out.push({ ...s, id, title, campaign });' }]],
+  ['sponsors: linked to its website', 'sponsorProblems', [
+    { file: O, from: 'out.push({ id, title, campaign });', to: 'out.push({ id, title, campaign, website_url: s.website_url });' },
+    { file: R, from: 'code ? `<a href="${esc(code.url)}">About ${sponsors.length > 1', to: 'sponsors[0].website_url ? `<a href="${esc(sponsors[0].website_url)}">About ${sponsors.length > 1' },
+  ]],
+  ['sponsors: a click beacon on the link', 'sponsorProblems', [{ file: R, from: 'code ? `<a href="${esc(code.url)}">About ${sponsors.length > 1', to: 'code ? `<a href="${esc(code.url)}" ping="/api/v2/events/x/sponsors/${esc(sponsors[0].id)}/click">About ${sponsors.length > 1' }]],
+  ['sponsors: any /s/ code taken for the SPONSOR code', 'sponsorProblems', [{ file: R, from: "codes.find((k) => k.kind === 'sponsor') ?? null;", to: "codes.find((k) => k.kind !== 'track') ?? null;" }]],
+  ['sponsors: a sponsor as a button', 'sponsorProblems', [{ file: R, from: '.map((s) => `<span class="backer">${esc(s.title)}</span>`)', to: '.map((s) => `<button type="button" class="backer">${esc(s.title)}</button>`)' }]],
+  ['sponsors: a failed bundle passes', 'sponsorProblems', [{ file: O, from: 'if (backing.status !== 200 || !Array.isArray(backing.body?.bundle?.sponsors)) {', to: 'if (false) {' }]],
+  ['sponsors: names unchecked', 'sponsorProblems', [{ file: O, from: 'for (const s of sponsors) problems.push(', to: 'for (const s of []) problems.push(' }]],
+  ['sponsors: a campaign title unchecked', 'sponsorProblems', [{ file: O, from: "`${s.title} ${s.campaign?.title ?? ''}`, terms));", to: '`${s.title}`, terms));' }]],
+  ['escaping: a sponsor name unescaped', 'escapingProblems', [{ file: R, from: '.map((s) => `<span class="backer">${esc(s.title)}</span>`)', to: '.map((s) => `<span class="backer">${s.title}</span>`)' }]],
+  ['escaping: a campaign title unescaped', 'escapingProblems', [{ file: R, from: '<span class="muted">· ${esc(campaign.title)}</span>', to: '<span class="muted">· ${campaign.title}</span>' }]],
+  ['read only: a click beacon posted to OSE', 'readOnlyProblems', [{ file: O, from: '        sponsors = sponsorsFromBundle(backing.body.bundle);', to: "        sponsors = sponsorsFromBundle(backing.body.bundle);\n        for (const s of sponsors) await f(`${origin}/api/v2/events/${link.oseEventId}/sponsors/${s.id}/impression`, { method: 'GET' }).catch(() => null);" }]],
+  ['partner: once per event, not once per station', 'partnerProblems', [{ file: R, from: 'if (sp.campaign?.id !== link.oseCampaignId || seen.has(key)) continue;', to: 'if (sp.campaign?.id !== link.oseCampaignId) continue;' }]],
+  ['partner: any sponsor on the station', 'partnerProblems', [{ file: R, from: 'if (sp.campaign?.id !== link.oseCampaignId || seen.has(key)) continue;', to: 'if (seen.has(key)) continue;' }]],
+  ['partner: every frequency, not the one named', 'partnerProblems', [{ file: R, from: '(c.campaigns ?? []).filter((k) => k.frequency === s.id)', to: '(c.campaigns ?? [])' }]],
+  ['partner: shown without a campaign link', 'partnerProblems', [{ file: R, from: 'for (const link of (c.campaigns ?? []).filter((k) => k.frequency === s.id)) {', to: "for (const link of [{ frequency: s.id, oseCampaignId: 'cmp_sample_wear' }].filter((k) => s.id === 'wear')) {" }]],
+  ['partner: below the events', 'partnerProblems', [
+    { file: R, from: "    ${partnerList(s, stationPartners(c, s, schedule.upcoming))}\n", to: '' },
+    { file: R, from: '  <section aria-labelledby="report-title" class="station-report">', to: '  ${partnerList(s, stationPartners(c, s, schedule.upcoming))}\n  <section aria-labelledby="report-title" class="station-report">' },
+  ]],
+  ['partner: the campaign not named', 'partnerProblems', [{ file: R, from: "${campaign?.title ? ` <span class=\"muted\">· ${esc(campaign.title)}</span>` : ''}", to: '' }]],
+  ['partner: a link on the TV board', 'partnerProblems', [{ file: R, from: 'partnerList(s, stationPartners(c, s, schedule.upcoming), { links: false })', to: 'partnerList(s, stationPartners(c, s, schedule.upcoming))' }]],
+  ['partner: missing from the TV board', 'partnerProblems', [{ file: R, from: '      ${partnerList(s, stationPartners(c, s, schedule.upcoming), { links: false })}\n', to: '' }]],
+  // Calendar feed (S8 follow-up)
+  ['calendar: listed whatever OSE answered', 'calendarProblems', [{ file: O, from: "const feed = res?.status === 200 ? await res.text().catch(() => '') : '';\n    if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {", to: "const feed = res ? await res.text().catch(() => '') : '';\n    if (true) {" }]],
+  ['calendar: any 200 taken for a feed', 'calendarProblems', [{ file: O, from: 'if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {', to: 'if (feed) {' }]],
+  ['calendar: a missing feed stops the build', 'calendarProblems', [{ file: O, from: 'if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {', to: "if (!/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) throw new Error('no calendar feed');\n    {" }]],
+  ['calendar: never listed', 'calendarProblems', [{ file: O, from: 'calendar = `${origin}${path}`;', to: 'calendar = null;' }]],
+  ['calendar: its text unchecked', 'calendarProblems', [{ file: O, from: "problems.push(...neutralProblems('the calendar feed', lines, terms));", to: '' }]],
+  ['calendar: folded lines not joined', 'calendarProblems', [{ file: O, from: "feed.replace(/\\r?\\n[ \\t]/g, '')", to: 'feed' }]],
+  ['calendar: a tracking parameter added', 'calendarProblems', [{ file: R, from: '<p class="calendar"><a href="${esc(calendar)}">', to: '<p class="calendar"><a href="${esc(calendar)}?utm_source=ourwkrp">' }]],
+  ['calendar: any URL drawn', 'calendarProblems', [{ file: R, from: 'if (!calendar || !CALENDAR_URL.test(calendar)) return', to: 'if (!calendar) return' }]],
+  ['calendar: on every station page', 'calendarProblems', [
+    { file: R, from: 'function stationPage({ c, s, stations, schedule, theme, built, byId, opt }) {', to: 'function stationPage({ c, s, stations, schedule, theme, built, byId, opt, calendar }) {' },
+    { file: R, from: "pages[`${s.id}/index.html`] = stationPage({ c, s,", to: "pages[`${s.id}/index.html`] = stationPage({ calendar: ose.calendar, c, s," },
+    { file: R, from: "    ${partnerList(s, stationPartners(c, s, schedule.upcoming))}\n", to: "    ${partnerList(s, stationPartners(c, s, schedule.upcoming))}\n    ${calendarLine(calendar)}\n" },
+  ]],
+  ['calendar: read for a creator with no events', 'calendarProblems', [
+    { file: O, from: "if (!links.length) return { origin, linked: [], dropped: [], calendar: null };", to: '' },
+    { file: O, from: '  if (linked.length) {\n    await paced();\n    const path = calendarPath', to: '  if (true) {\n    await paced();\n    const path = calendarPath' },
+  ]],
   ["placements: a station's own labels ignored", 'placementLabelProblems', [{ file: S, from: "(event.placements?.length ? event.placements : SHAPES[event.demo].placements)", to: "SHAPES[event.demo].placements" }]],
   ['wording: "the creator" is back', 'instanceWordingProblems', [{ file: R, from: "${esc(c.name)} sees all of it.", to: "The creator sees all of it." }]],
   ['wording: the fixed list of kinds is back', 'instanceWordingProblems', [{ file: R, from: "for this week's ${esc(orList(kinds))}.", to: "for this week's class, set or game night." }]],
@@ -176,13 +231,22 @@ describe('creator showcase: born red', () => {
     const pages = await C.samplePages(m);
     const urls = [...new Set(Object.values(pages).flatMap((h) => [...h.matchAll(/data-code-url="([^"]*)"/g)].map((x) => x[1])))];
     const resolved = urls.map((url) => ({ url, status: 302, location: `${C.FAKE_ORIGIN}/events/evt_sample-0001` }));
-    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW)).toEqual([]);
     const lostCard = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('<article class="event"', '<article class="gone"') };
-    expect(oseVerdictProblems(plan(), C.sample(), lostCard, resolved, C.NOW).join('\n')).toMatch(/teach: 2 event cards, want 3/);
+    expect(oseVerdictProblems(plan(), C.sample(), lostCard, resolved, C.NOW, { campaigns: true }).join('\n')).toMatch(/teach: 2 event cards, want 3/);
     const draftShown = { ...pages, 'teach/index.html': `${pages['teach/index.html']}<h3>Draft class (showcase demo)</h3>` };
     expect(oseVerdictProblems(plan(), C.sample(), draftShown, resolved, C.NOW).join('\n')).toMatch(/evt_sample-0007: "Draft class/);
     const dead = resolved.map((r, i) => (i === 0 ? { ...r, status: 404 } : r));
     expect(oseVerdictProblems(plan(), C.sample(), pages, dead, C.NOW).join('\n')).toMatch(/answered 404/);
+    // The fake names campaigns in its bundle, so the wear partner is expected.
+    const withCampaigns = { campaigns: true };
+    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, withCampaigns)).toEqual([]);
+    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW).join('\n')).toMatch(/wear: station partners "Corner hardware \(showcase demo\)", want ""/);
+    const oneSided = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('Print shop (showcase demo)</span>', 'Print shop (showcase demo)</span>, <span class="backer">Waiting cafe (showcase demo)</span>') };
+    expect(oseVerdictProblems(plan(), C.sample(), oneSided, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/sponsor "Waiting cafe \(showcase demo\)" reached a page/);
+    const lostStrip = { ...pages, 'wear/index.html': pages['wear/index.html'].replace('<p class="backers">', '<p class="gone">') };
+    expect(oseVerdictProblems(plan(), C.sample(), lostStrip, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/wear: sponsor strips/);
+    const lostPartner = { ...pages, 'wear/index.html': pages['wear/index.html'].replace('<ul class="partners"', '<ul class="gone"') };
+    expect(oseVerdictProblems(plan(), C.sample(), lostPartner, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/wear: station partners "", want "Corner hardware/);
     const toForm = resolved.map((r, i) => (i === 1 ? { ...r, location: `${C.FAKE_ORIGIN}/events/evt_x/forms/checkin` } : r));
     expect(oseVerdictProblems(plan(), C.sample(), pages, toForm, C.NOW).join('\n')).toMatch(/not to the event/);
   });

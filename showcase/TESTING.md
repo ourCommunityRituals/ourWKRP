@@ -20,7 +20,7 @@ in OSE's own response shapes, built from the seed plan. The integration layer ru
 the same build against a real OSE worker at `.ose-ref`, on this machine (never
 staging). The staging layer is below.
 
-## What the build reads from OSE (S3, S4)
+## What the build reads from OSE (S3, S4, S9)
 
 Public reads only, GET, no key, no cookie (`lib/ose.mjs`):
 
@@ -29,6 +29,10 @@ Public reads only, GET, no key, no cookie (`lib/ose.mjs`):
 | `GET /api/v2/events?brand=<oseBrand>` | Which linked events are public on the creator's brand. Anything else drops off. |
 | `GET /api/v2/events/:id` | Each linked event's When, Where and How: dates, start, timezone, the 5W fields. |
 | `GET /api/v2/events/:id/poster-bundle?deployment=<placement>` | Its codes: the showcase placement's `/q` code and the event's `/s` codes. Not read for a past event. |
+| `GET /api/v2/events/:id/sponsor-bundle?surface=public` | Its sponsors, as OSE lists them: both sides accepted and the event has sponsors on. The build keeps a name and, when OSE gives one, the campaign (`id`, `title`); tokens, logo, website and tier are left behind. Not read for a past event. A bundle that cannot be read stops the build. |
+| `GET /brands/<oseBrand>/calendar.ics` | Whether OSE serves the brand's calendar feed. Listed on the creator page only on a 200 that starts `BEGIN:VCALENDAR`; a 404, an edge challenge or any other body leaves it off and fails nothing. Its text is held to the neutral-name rule. |
+
+The checks hold the build to this list read by read (`READS` in `tests/checks.mjs`): a new read is added there on purpose.
 
 The build reads a local worker (`127.0.0.1` / `localhost`) or OSE staging
 (`https://stg.oursharedevents.com`), never production.
@@ -107,6 +111,13 @@ JSON file runs in the contract layer.
 - The escaping check now renders every layout and the TV board, not only the default page set. Planted: a station title unescaped on the board; a card title unescaped in the list and grid layouts.
 - The seed plan's dates and UTC instants, across a DST change.
 
+## Partners (S9)
+
+- **Sponsor strip** (`sponsorProblems`, security): on an event card, below the title and date and above everything else; only the sponsors OSE's public bundle lists (one side's yes, a pending answer and a past event's sponsor reach no page); a name and nothing else of the row; the one link is the event's own SPONSOR `/s/` code, and there is none without that code; no `/impression` or `/click` request; a sponsor name is never in or on a control; a bundle that fails, has no list, or names the creator stops the build.
+- **Station partner** (`partnerProblems`, unit): once at the top of the station though several events list it, with its campaign named and the soonest event's SPONSOR code; only on the frequency the creator file names, and only when OSE lists a sponsor under that campaign; a campaign on Lead shows on Lead alone; the TV board names it with no link.
+- **Calendar feed** (`calendarProblems`, unit): one plain link on the creator page, exactly the feed's URL; left off on a 404, a 403 or a body that is not a calendar; a feed that names the creator, folded across lines or not, stops the build; nothing is read for a creator with no events.
+- Integration: the seed adds the fixture's sponsors through OSE's admin API and writes each side's answer as the plan gives it (the sponsor's own yes has no script-held token, so it is written to the throwaway local database). `check-ose.mjs` then requires each station's strips to be exactly the plan's both-sides sponsors.
+
 ## 4. Integration (job *Showcase 4: integration*)
 
 A real OSE worker, fetched at `.ose-ref`, runs locally under `wrangler dev`.
@@ -130,8 +141,8 @@ The layout and display menu is run pairwise, not in every combination: beside th
 |---|---|
 | A slot's mode equals each attached event's mode | OSE S13 (`attendance_mode`). The check is built and born red on a stand-in mode; it runs on real events once OSE serves the field. |
 | A `programme` event sits on a declared series | OSE S15. Today the build requires it to match a slot. |
-| A campaign is shown only while one of its events is upcoming, and only with both sides' consent | OSE S14 (campaigns in the public sponsor bundle) and OW S9. `campaigns` links are validated (S1) and not yet shown. |
-| No impression or click beacon on the page | OW S9, which adds the sponsor strip. The page fires no request today. |
+| A campaign partner at the top of its station, against a real worker | OSE S14 (campaigns in the public sponsor bundle). Built and born red on the stand-in. The integration seed already attaches the fixture's placements to a campaign, and `check-ose.mjs` asks the worker whether its bundle names campaigns: once `.ose-ref` moves past S14 it expects the partner with no further change. |
+| The calendar feed link, against a real worker | OSE S8 (`/brands/:brand/calendar.ics`). Built and born red on the stand-in; the pinned worker answers 404, so the integration pages carry no link. |
 | Promoting a trial never changes its past dates or counts | OSE S15. |
 
 ## Staging layer

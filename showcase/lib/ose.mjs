@@ -4,6 +4,8 @@
 //   GET /api/v2/events?brand=<brand>           which events are public on the brand
 //   GET /api/v2/events/:id                     each linked event (When, Where, How)
 //   GET /api/v2/events/:id/poster-bundle[?deployment=<placement>]   its codes
+//   GET /api/v2/events/:id/sponsor-bundle?surface=public            its consented sponsors
+//   GET /brands/<brand>/calendar.ics                                the brand's calendar feed, where OSE serves one
 //
 // A linked event that is missing, not public, or on another brand drops off the
 // page and fails nothing. Text read from OSE that names the creator stops the
@@ -93,15 +95,41 @@ export function toEvent(item) {
 }
 
 /**
- * Read every linked event. Returns `{ origin, linked, dropped }`, where
- * `linked` is `[{ link, event, codes }]` for each public event on the brand.
+ * The sponsors a page may show for one event, from OSE's public sponsor bundle.
+ * OSE lists a sponsor there only when both sides accepted and the event has
+ * sponsors switched on, so the page shows exactly this list and never adds to
+ * it. Only a name and, when OSE gives one, the campaign leave the bundle: no
+ * token, logo, website or tier.
+ */
+export function sponsorsFromBundle(bundle) {
+  const seen = new Set();
+  const out = [];
+  for (const s of bundle?.sponsors ?? []) {
+    const id = String(s?.id ?? '');
+    const title = String(s?.title ?? s?.display_name ?? s?.name ?? '').trim();
+    if (!id || !title || seen.has(id)) continue;
+    seen.add(id);
+    const c = s.campaign;
+    const campaign = c && typeof c.id === 'string' && c.id ? { id: c.id, title: String(c.title ?? '').trim() } : null;
+    out.push({ id, title, campaign });
+  }
+  return out;
+}
+
+/** Where OSE serves a brand's calendar feed. */
+export const calendarPath = (brand) => `/brands/${encodeURIComponent(brand)}/calendar.ics`;
+
+/**
+ * Read every linked event. Returns `{ origin, linked, dropped, calendar }`:
+ * `linked` is `[{ link, event, codes, sponsors }]` for each public event on the
+ * brand, and `calendar` is the brand feed's URL when OSE serves one, else null.
  *
  * @param {{ base: string, creator: object, fetch?: typeof fetch, now?: Date|number, paced?: () => Promise<void> }} o
  */
 export async function readOse({ base, creator, fetch: f = globalThis.fetch, now = Date.now(), paced = async () => {} }) {
   const origin = assertReadBase(base);
   const links = creator.events ?? [];
-  if (!links.length) return { origin, linked: [], dropped: [] };
+  if (!links.length) return { origin, linked: [], dropped: [], calendar: null };
   // The creator file is checked before OSE is read: a bad file reads nothing.
   const parsed = creatorSchema.safeParse(creator);
   const fileProblems = parsed.success ? [] : parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
@@ -110,6 +138,7 @@ export async function readOse({ base, creator, fetch: f = globalThis.fetch, now 
   const terms = identityTerms(creator);
   const problems = [];
   const codeErrors = [];
+  const sponsorErrors = [];
 
   async function get(path) {
     await paced();
@@ -142,8 +171,9 @@ export async function readOse({ base, creator, fetch: f = globalThis.fetch, now 
     for (const k of EVENT_TEXT) problems.push(...neutralProblems(`${link.oseEventId} ${k}`, item[k], terms));
     const event = toEvent(item);
 
-    // A past event shows no code, so its bundle is never read.
+    // A past event shows no code and no sponsor, so neither bundle is read.
     let codes = [];
+    let sponsors = [];
     if (!isPast(event, now)) {
       const q = link.placement ? `?deployment=${encodeURIComponent(link.placement)}` : '';
       const bundle = await get(`/api/v2/events/${encodeURIComponent(link.oseEventId)}/poster-bundle${q}`);
@@ -158,10 +188,39 @@ export async function readOse({ base, creator, fetch: f = globalThis.fetch, now 
         codes = codesFromBundle(bundle.body, origin);
         for (const s of bundle.body.slots ?? []) problems.push(...neutralProblems(`${link.oseEventId} code ${s.kind}`, `${s.word ?? ''} ${s.label ?? ''}`, terms));
       }
+      // The same for its sponsors: a list that cannot be read stops the build,
+      // so a partner never drops off a page unseen, and none is ever guessed.
+      const backing = await get(`/api/v2/events/${encodeURIComponent(link.oseEventId)}/sponsor-bundle?surface=public`);
+      if (backing.status !== 200 || !Array.isArray(backing.body?.bundle?.sponsors)) {
+        sponsorErrors.push(`${link.oseEventId}: its sponsor bundle answered ${backing.status}`);
+      } else {
+        sponsors = sponsorsFromBundle(backing.body.bundle);
+        for (const s of sponsors) problems.push(...neutralProblems(`${link.oseEventId} sponsor`, `${s.title} ${s.campaign?.title ?? ''}`, terms));
+      }
     }
-    linked.push({ link, event, codes });
+    linked.push({ link, event, codes, sponsors });
+  }
+
+  // The brand's calendar feed is listed only where OSE serves one: a missing
+  // route, an empty brand or an edge challenge leaves it off and fails nothing.
+  // It carries every public event on the brand, linked here or not, so its
+  // text is held to the same neutral rule.
+  let calendar = null;
+  if (linked.length) {
+    await paced();
+    const path = calendarPath(creator.oseBrand);
+    const res = await f(`${origin}${path}`, { method: 'GET', headers: { Accept: 'text/calendar' }, redirect: 'error', credentials: 'omit' }).catch(() => null);
+    const feed = res?.status === 200 ? await res.text().catch(() => '') : '';
+    if (/^BEGIN:VCALENDAR\r?\n/.test(feed)) {
+      // Folded lines are joined first, so a name split across two lines is
+      // still seen. The brand's own id is left out, as it is for an event.
+      const lines = feed.replace(/\r?\n[ \t]/g, '').replaceAll(creator.oseBrand, '');
+      problems.push(...neutralProblems('the calendar feed', lines, terms));
+      calendar = `${origin}${path}`;
+    }
   }
   if (problems.length) throw new Error(`OSE text is not neutral:\n  ${problems.join('\n  ')}`);
   if (codeErrors.length) throw new Error(`OSE codes refused:\n  ${codeErrors.join('\n  ')}`);
-  return { origin, linked, dropped };
+  if (sponsorErrors.length) throw new Error(`OSE sponsors refused:\n  ${sponsorErrors.join('\n  ')}`);
+  return { origin, linked, dropped, calendar };
 }
