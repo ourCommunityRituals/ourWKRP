@@ -513,7 +513,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: all-checks
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # OW-202: also runs on workflow_dispatch so a production release proves this
+    # exact commit on staging first. A skipped job skips everything that needs
+    # it, so without dispatch here, gating production on staging would make
+    # production undeployable rather than safer.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     environment: staging
     steps:
       - uses: actions/checkout@v6
@@ -586,7 +592,13 @@ jobs:
     name: Deploy Production
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    needs: [all-checks]
+    # OW-202: production is gated on staging having been deployed AND smoked for
+    # this same commit, not on the PR-time checks alone. Without `deploy-staging`
+    # here, a workflow_dispatch on main ships to production on a SHA whose remote
+    # D1 migration and `smoke:staging` never ran. The `environment: production`
+    # approval stays, but an approver cannot see what was never proven, so the
+    # dependency has to carry that rather than the human.
+    needs: [all-checks, deploy-staging]
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
     environment: production
     steps:
