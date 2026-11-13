@@ -64,7 +64,10 @@ export const GATES = {
     'performance-tests',
   ],
   'deploy-staging': ['all-checks'],
-  'deploy-production': ['all-checks'],
+  // OW-202: production is downstream of staging, not merely of the PR-time
+  // fan-in. A workflow_dispatch used to reach production on a commit whose
+  // remote D1 migration and smoke:staging never ran.
+  'deploy-production': ['all-checks', 'deploy-staging'],
 };
 
 const EXECUTED = new Set(['success', 'failure']);
