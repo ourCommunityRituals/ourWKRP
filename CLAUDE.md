@@ -18,7 +18,7 @@ Designed to scale from a local community (50-100 people) to white-labeled instan
 2. **Screen 2 — Spotify Login (optional)**: Browser opens Spotify OAuth, user approves, Worker handles callback
 3. **Screen 3 — Loading -> Catalog**: "Matt connected — syncing library..." -> catalog with filters
 
-After Screen 2, **all Spotify work is backend**. User never sees tokens or URLs. Spotify is a *linked account*, not an identity prerequisite. Known issue (OW-120): a 403 from the deprecated `/audio-features` endpoint currently fails silently — sync reports success with zero features written.
+After Screen 2, **all Spotify work is backend**. User never sees tokens or URLs. Spotify is a *linked account*, not an identity prerequisite. OW-120 (the deprecated `/audio-features` endpoint) is handled rather than silent: `getAudioFeatures` isolates each batch, stops on a `not_entitled` 403 because every remaining batch would fail identically, and returns an `AudioFeaturesStatus` of `ok` / `partial` / `unavailable` to the caller instead of throwing. The sync result carries that stage status alongside the counts, so a Spotify app with no audio-features access reports `unavailable` rather than success-with-zero-features. Locked by `tests/contract/api-contract.test.ts`.
 
 ---
 
@@ -107,15 +107,16 @@ Counts below are a static count of `it()`/`test()` blocks (incl. `.each`/`.skip`
 
 | Layer | Tool | Count (blocks / files) |
 |-------|------|-------|
-| Unit | Vitest | ~435 / 36 |
-| Security | Vitest | ~262 / 20 |
-| Integration | Vitest | ~67 / 6 |
-| E2E | Playwright | ~50 / 13 |
+| Unit | Vitest | ~553 / 51 |
+| Security | Vitest | ~371 / 30 |
+| Integration | Vitest | ~90 / 9 |
+| E2E | Playwright | ~48 / 13 |
 | Contract | Vitest (Pact-style) | ~28 / 3 |
 | Fuzz / Property | Vitest (fast-check) | ~18 / 4 |
 | Performance | Vitest + k6 | ~13 / 2 (+ k6 scenarios) |
+| Mobile workability | Playwright | ~2 / 1 |
 
-**≈873 `it`/`test` blocks across ~84 files** — plus k6 load scripts, Bruno API contract collections (`bruno/wkrp-api`, ex-Newman), and the Python `level0_security.py` gate. (The pre-2026-09 doc said "65 tests" / "~605"; both were stale by roughly an order of magnitude — hence this measured refresh.)
+**≈1,131 `it`/`test` blocks across 116 files** — plus k6 load scripts, Bruno API contract collections (`bruno/wkrp-api`, ex-Newman), and the Python `level0_security.py` gate. (Re-measured 2026-11-13 during the OW security/testing audit; the 2026-09-10 figures of ~873 / ~84 were stale, chiefly in unit and security.)
 
 ### Invariant enforcement (how the shared constitution binds WKRP)
 
