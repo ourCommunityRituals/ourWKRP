@@ -30,6 +30,12 @@ describe('creator showcase: unit', () => {
   it('stations take catalog defaults, the creator copy wins, and reports attach without their links', () => {
     expect(C.mergeProblems(m)).toEqual([]);
   });
+  it("a demo event's codes hang under its own labels, else under its size's", () => {
+    expect(C.placementLabelProblems(m)).toEqual([]);
+  });
+  it("the fixed sentences name the instance and list its own event kinds", async () => {
+    expect(await C.instanceWordingProblems(m)).toEqual([]);
+  });
   it('dates read as day, short month, year', () => {
     expect(C.dateProblems(m)).toEqual([]);
   });

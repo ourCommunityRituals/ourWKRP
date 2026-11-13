@@ -42,6 +42,9 @@ export const SHAPES = {
   low: { hours: [12, 13, 14, 15], counts: [5, 8, 6, 2], placements: ['Table card', 'Garment tag'] },
 };
 
+/** The labels a demo event's codes hang under: its own when it names any, else its size's. */
+export const placementsFor = (event) => (event.placements?.length ? event.placements : SHAPES[event.demo].placements);
+
 export const scansFor = (shape) => shape.counts.reduce((a, b) => a + b, 0);
 
 /** What the report must show: the scans sent, less every hour under the floor. */

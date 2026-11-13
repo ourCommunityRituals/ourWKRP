@@ -28,6 +28,7 @@ const MUTANTS_LIST = [
   ['escaping: an unescaped attribute', 'escapingProblems', [{ file: R, from: 'aria-label="Open the full ${esc(s.name)} report"', to: 'aria-label="Open the full ${s.name} report"' }]],
   ['escaping: script data not guarded', 'escapingProblems', [{ file: R, from: /JSON\.stringify\(stationData\)\.replace\([^)]*\)/, to: 'JSON.stringify(stationData)' }]],
   ['escaping: an OSE event title unescaped', 'escapingProblems', [{ file: R, from: '<h3 id="ev-${i}">${esc(event.title)}</h3>', to: '<h3 id="ev-${i}">${event.title}</h3>' }]],
+  ['escaping: an event kind unescaped', 'escapingProblems', [{ file: R, from: "for this week's ${esc(orList(kinds))}.", to: "for this week's ${orList(kinds)}." }]],
   ['escaping: an OSE code word unescaped', 'escapingProblems', [{ file: R, from: '<span class="word">${esc(code.word)}</span>', to: '<span class="word">${code.word}</span>' }]],
   ['link allowlist: any source scheme linked', 'linkProblems', [{ file: R, from: 'const href = safeHttpsUrl(s.url);', to: 'const href = s.url;' }]],
   ['link allowlist: any place scheme linked', 'linkProblems', [{ file: R, from: 'if (p.url && safeHttpsUrl(p.url)) return', to: 'if (p.url) return' }]],
@@ -66,6 +67,8 @@ const MUTANTS_LIST = [
   ['past: a past event shown with its codes', 'pastCodeProblems', [{ file: SH, from: "return last < todayIn(now, ev.timezone || 'UTC');", to: 'return false;' }]],
   ['CSP: an inline handler', 'cspProblems', [{ file: R, from: '<a class="ch" href=', to: '<a class="ch" onclick="void 0" href=' }]],
   // 2. Contract
+  ['contract: any number of placement labels accepted', 'contractProblems', [{ file: SC, from: "placements: z.array(z.string().trim().min(1).max(40)).min(1).max(4).optional(),", to: "placements: z.array(z.string().trim().min(1).max(40)).optional()," }]],
+  ['contract: a blank or endless placement label accepted', 'contractProblems', [{ file: SC, from: "placements: z.array(z.string().trim().min(1).max(40)).min(1).max(4).optional(),", to: "placements: z.array(z.string()).min(1).max(4).optional()," }]],
   ['contract: non-https sources allowed', 'contractProblems', [{ file: SC, from: 'url: https,', to: 'url: text,' }]],
   ['contract: future categories open', 'contractProblems', [{ file: SC, from: "else if (cat.status === 'future')", to: 'else if (false)' }]],
   ['contract: unknown fields allowed', 'contractProblems', [{ file: SC, from: '      .optional(),\n  })\n  .strict();', to: '      .optional(),\n  });' }]],
@@ -75,6 +78,12 @@ const MUTANTS_LIST = [
   ['contract: a pop-up window not required', 'contractProblems', [{ file: SC, from: "if (e.intent === 'pop-up' && !e.until)", to: 'if (false)' }]],
   ['contract: slot kinds not checked', 'contractProblems', [{ file: SC, from: 'if (cat && !cat.eventKinds.includes(s.kind))', to: 'if (false)' }]],
   // 3. Unit
+  ["placements: a station's own labels ignored", 'placementLabelProblems', [{ file: S, from: "(event.placements?.length ? event.placements : SHAPES[event.demo].placements)", to: "SHAPES[event.demo].placements" }]],
+  ['wording: "the creator" is back', 'instanceWordingProblems', [{ file: R, from: "${esc(c.name)} sees all of it.", to: "The creator sees all of it." }]],
+  ['wording: the fixed list of kinds is back', 'instanceWordingProblems', [{ file: R, from: "for this week's ${esc(orList(kinds))}.", to: "for this week's class, set or game night." }]],
+  ['wording: the consent rule names nobody', 'instanceWordingProblems', [{ file: R, from: "and ${esc(c.name)} has accepted.", to: "and the other side has accepted." }]],
+  ['wording: an instance with no kinds reads nothing', 'instanceWordingProblems', [{ file: R, from: "eventKinds(c).length ? eventKinds(c) : ['event']", to: "eventKinds(c)" }]],
+  ['wording: kinds read from every station but the first', 'instanceWordingProblems', [{ file: R, from: "const kinds = creator.stations.flatMap(", to: "const kinds = creator.stations.slice(1).flatMap(" }]],
   ['unit: totals ignore an hour of exactly 5', 'totalProblems', [{ file: S, from: 'filter((n) => n >= FLOOR)', to: 'filter((n) => n > FLOOR)' }]],
   ['unit: hours all get the first count', 'bucketProblems', [{ file: S, from: 'n: shape.counts[i]', to: 'n: shape.counts[0]' }]],
   ['unit: the pacer never waits', 'pacingProblems', [{ file: S, from: 'if (stamps.length >= perMinute) {', to: 'if (false) {' }]],
@@ -122,6 +131,9 @@ describe('creator showcase: born red', () => {
     lost.reports[1].scansSent = 18;
     expect(reportProblems(creator, lost).join('\n')).toMatch(/wear: 18 of 21 scans counted/);
     const named = structuredClone(good);
+    const mislabelled = structuredClone(good);
+    mislabelled.reports[1].placements = ['Table card', 'Garment tag'];
+    expect(reportProblems(creator, mislabelled).join('\n')).toMatch(/wear: codes hung under "Table card, Garment tag", want "Table card, Stall sign"/);
     named.reports[0].pageText = 'Checked in: planted.person@example.com';
     expect(reportProblems(creator, named).join('\n')).toMatch(/email address/);
   });

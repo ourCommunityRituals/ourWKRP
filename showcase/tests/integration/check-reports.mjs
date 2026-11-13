@@ -4,7 +4,7 @@
 //   node showcase/tests/integration/check-reports.mjs <slug>
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { SHAPES, scansFor, expectedTotal } from '../../lib/showcase.mjs';
+import { SHAPES, placementsFor, scansFor, expectedTotal } from '../../lib/showcase.mjs';
 import { SHOWCASE, readJson, publishProblems, publishedTexts } from '../../lib/build.mjs';
 
 export function reportProblems(creator, data) {
@@ -17,6 +17,8 @@ export function reportProblems(creator, data) {
       continue;
     }
     const shape = SHAPES[st.event.demo];
+    const labels = placementsFor(st.event);
+    if ((r.placements ?? []).join('|') !== labels.join('|')) problems.push(`${st.id}: codes hung under "${(r.placements ?? []).join(', ')}", want "${labels.join(', ')}"`);
     if (r.reportStatus !== 200) problems.push(`${st.id}: report answered ${r.reportStatus}`);
     if (r.scansSent !== scansFor(shape)) problems.push(`${st.id}: ${r.scansSent} of ${scansFor(shape)} scans counted`);
     if (r.distinctScanners !== expectedTotal(shape)) problems.push(`${st.id}: report total ${r.distinctScanners}, expected ${expectedTotal(shape)}`);

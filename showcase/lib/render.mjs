@@ -244,6 +244,19 @@ function footer(c, built) {
  * Every page of one creator's showcase, as { 'index.html': html, '<station>/index.html': html }.
  * `ose` is what lib/ose.mjs read at build time: `{ origin, linked: [{ link, event, codes }] }`.
  */
+/** "a", "a or b", "a, b or c". */
+const orList = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} or ${xs.at(-1)}`);
+
+/**
+ * The kinds of event this instance runs, in station order: each station's demo
+ * event, then its programme slots. A bar reads "game night"; nobody is told
+ * about a class or a set they do not run.
+ */
+export function eventKinds(creator) {
+  const kinds = creator.stations.flatMap((s) => [s.event?.kind, ...(s.programme ?? []).map((p) => p.kind)]);
+  return [...new Set(kinds.filter(Boolean).map((k) => String(k).trim().toLowerCase()))];
+}
+
 export function renderPages({ creator: c, catalog, reports = { reports: [] }, theme, ose = { origin: null, linked: [] }, now = Date.now() }) {
   const stations = mergeStations(c, catalog, reports);
   const byId = Object.fromEntries(stations.map((s) => [s.id, s]));
@@ -279,6 +292,7 @@ function reportFigure(s, prefix, { compact = false } = {}) {
 
 function creatorPage({ c, stations, linked, reports, theme, now, built, byId }) {
   const withReports = stations.filter((s) => s.report?.images);
+  const kinds = eventKinds(c).length ? eventKinds(c) : ['event'];
   const seededOn = reports.seededAt ? fmtDate(String(reports.seededAt).slice(0, 10)) : null;
   const stationData = stations.map((s) => ({ id: s.id, name: s.name }));
   const next = linked
@@ -339,11 +353,11 @@ function creatorPage({ c, stations, linked, reports, theme, now, built, byId }) 
     <h2 id="bridge-title" style="margin-top:12px">From a clip to a room to a report.</h2>
     <p style="margin-top:16px">The same path works for every station. One link carries the moment from the online side to the live side and back.</p>
     <ol class="bridge">
-      <li class="on"><span class="tag">Online</span><h3>A clip goes out</h3><p>A post points at one OurWKRP link for this week's class, set or game night.</p></li>
+      <li class="on"><span class="tag">Online</span><h3>A clip goes out</h3><p>A post points at one OurWKRP link for this week's ${esc(orList(kinds))}.</p></li>
       <li class="on"><span class="tag">Online</span><h3>The link knows the moment</h3><p>The page shows what is on the air now: what it is, when, and how to get in.</p></li>
       <li class="live"><span class="tag">Live</span><h3>People show up</h3><p>A poster QR at the door, on screen or on a table counts the arrival, never the person.</p></li>
       <li class="live"><span class="tag">Live</span><h3>The room branches out</h3><p>From the same room: the game on screen, the music on the speakers, the research behind the talk, the merch on the table.</p></li>
-      <li class="on"><span class="tag">After</span><h3>One report per moment</h3><p>Counts, floored under five. Each sponsor sees what they backed. The creator sees all of it.</p></li>
+      <li class="on"><span class="tag">After</span><h3>One report per moment</h3><p>Counts, floored under five. Each sponsor sees what they backed. ${esc(c.name)} sees all of it.</p></li>
     </ol>
   </section>
 
@@ -370,8 +384,8 @@ function creatorPage({ c, stations, linked, reports, theme, now, built, byId }) 
     <h2 id="choice-title" style="margin-top:12px">${esc(c.sponsorship.title)}</h2>
     <p style="margin-top:16px">${esc(c.sponsorship.body)}</p>
     <div class="rules">
-      <div class="rule"><h3>Both sides say yes</h3><p>A sponsor appears only when it has accepted and the creator has accepted. Either side can withdraw.</p></div>
-      <div class="rule"><h3>The creator picks the placement</h3><p>Which class, which game night, which set carries which sponsor is the creator's call. A sponsor never becomes a filter on who can attend.</p></div>
+      <div class="rule"><h3>Both sides say yes</h3><p>A sponsor appears only when it has accepted and ${esc(c.name)} has accepted. Either side can withdraw.</p></div>
+      <div class="rule"><h3>${esc(c.name)} picks the placement</h3><p>Which ${esc(orList(kinds))} carries which sponsor is ${esc(c.name)}'s call. A sponsor never becomes a filter on who can attend.</p></div>
       <div class="rule"><h3>Sponsors get the report</h3><p>They see the counts for what they backed, floored under five. They never get a list of people.</p></div>
     </div>
   </section>

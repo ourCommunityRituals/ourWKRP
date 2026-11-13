@@ -44,6 +44,9 @@ const event = z
     price: z.string().optional(),
     location: text.optional(),
     demo: z.enum(['high', 'medium', 'low']),
+    // Where this demo event's codes hung, in the instance's own words (a bar has
+    // no garment tag). Absent: the demo size's labels (SHAPES in showcase.mjs).
+    placements: z.array(z.string().trim().min(1).max(40)).min(1).max(4).optional(),
   })
   .strict();
 

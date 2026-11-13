@@ -41,7 +41,7 @@ export const seededReports = () => ({
     },
     {
       station: 'wear', eventId: 'evt_demo_wear', title: 'Saturday market stall', date: '2026-11-02', scansSent: 21, rowsStored: 21,
-      shape: 'low', placements: ['Table card', 'Garment tag'], reportStatus: 200, distinctScanners: 3,
+      shape: 'low', placements: ['Table card', 'Stall sign'], reportStatus: 200, distinctScanners: 3,
       reportPath: '/sharedReport?eventId=evt_demo_wear&token=planted.TOKEN-value_0987654321',
       images: { card: 'img/wear-card.jpg', desktop: 'img/wear-desktop.jpg', phone: 'img/wear-phone.jpg' },
     },
@@ -576,6 +576,16 @@ export function contractProblems(m) {
   refused((c) => { c.stations[0].programme[0].timezone = 'Mars/Olympus'; }, /unknown timezone/, 'an unknown timezone');
   refused((c) => { c.stations[0].programme[0].mode = 'hybrid'; }, /programme\.0\.mode/, 'an unknown mode');
   refused((c) => { delete c.stations[0].programme[1].week; }, /needs a week/, 'a monthly slot with no week');
+  // A demo event's own placement labels: 1 to 4 short labels, or none at all.
+  refused((c) => { c.stations[1].event.placements = []; }, /stations\.1\.event\.placements/, 'an empty list of placement labels');
+  refused((c) => { c.stations[1].event.placements = ['a', 'b', 'c', 'd', 'e']; }, /stations\.1\.event\.placements/, 'five placement labels');
+  refused((c) => { c.stations[1].event.placements = ['x'.repeat(41)]; }, /stations\.1\.event\.placements/, 'a placement label over 40 characters');
+  refused((c) => { c.stations[1].event.placements = ['  ']; }, /stations\.1\.event\.placements/, 'a blank placement label');
+  {
+    const c = sample();
+    delete c.stations[1].event.placements;
+    if (m.schema.creatorProblems(c, catalog()).length) out.push('refused a demo event with no placement labels');
+  }
   // S5: a schedule row names a linked event.
   refused((c) => { c.schedule.rows[1][4] = 'evt_sample-9999'; }, /schedule\.rows\.1/, 'a schedule row naming an unlinked event');
   return out;
@@ -803,5 +813,53 @@ export async function pageSetProblems(m) {
     if (p !== 'index.html' && !html.includes(`href="../${p}" aria-current="page"`)) out.push(`${p} does not mark itself in the tuner`);
     for (const w of ['Who', 'What', 'When', 'Where', 'How']) if (!html.includes(`<dt>${w}</dt>`)) out.push(`${p} has no ${w}`);
   }
+  return out;
+}
+
+/** A demo event's codes hang under its own labels when it names any, else under its size's. */
+export function placementLabelProblems(m) {
+  const { placementsFor, SHAPES } = m.showcase;
+  const out = [];
+  const own = placementsFor({ demo: 'low', placements: ['Door card', 'Bar mat'] });
+  if (own.join('|') !== 'Door card|Bar mat') out.push(`a station's own labels became ${own.join(', ')}`);
+  for (const k of Object.keys(SHAPES)) {
+    if (placementsFor({ demo: k }).join('|') !== SHAPES[k].placements.join('|')) out.push(`${k}: no labels given, but not the size's labels`);
+  }
+  const wear = sample().stations.find((s) => s.id === 'wear');
+  if (placementsFor(wear.event).join('|') !== wear.event.placements.join('|')) out.push("the fixture's own labels are not used");
+  return out;
+}
+
+/**
+ * The fixed sentences fit any instance: they use its name where they said "the
+ * creator", and its own event kinds where they listed "class, set or game night".
+ */
+export async function instanceWordingProblems(m) {
+  const out = [];
+  // What a visitor reads: no style or script, no tags.
+  const page = (creator) => m.render.renderPages({ creator, catalog: catalog().categories, reports: seededReports(), theme: '', now: NOW })['index.html']
+    .replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  // No linked events (no OSE needed), and no "creator" in the file's own copy: what is left is the fixed text.
+  const strip = (creator) => {
+    for (const k of ['events', 'campaigns']) delete creator[k];
+    creator.sponsorship.title = 'Sponsors, by choice.';
+    return creator;
+  };
+  const sam = page(strip(sample()));
+  if (/\bthe creator\b/i.test(sam)) out.push('a fixed sentence still says "the creator"');
+  if (/class, set or game night|which class, which game night/i.test(sam)) out.push('a fixed sentence still lists kinds the instance may not run');
+  if (!sam.includes('Sam Sample picks the placement')) out.push('the placement rule does not name the instance');
+  if (!sam.includes("this week's class, workshop or pop-up.")) out.push("the fixture's own kinds are not listed in station order");
+  // An instance with one kind reads that kind alone; one with none reads "event".
+  const bar = strip(sample());
+  bar.name = 'The Corner Bar';
+  bar.stations = bar.stations.filter((s) => s.id !== 'teach');
+  const barPage = page(bar);
+  if (!barPage.includes("this week's pop-up.")) out.push('a one-kind instance does not read its one kind');
+  if (!barPage.includes('The Corner Bar has accepted')) out.push('the consent rule does not name the instance');
+  if (/this week's [^.]*\b(class|workshop)\b/.test(barPage) || /Which [^.]*\b(class|workshop)\b[^.]* carries which sponsor/.test(barPage)) out.push('a kind the instance does not run reached a fixed sentence');
+  const none = strip(sample());
+  for (const s of none.stations) { s.event = null; delete s.programme; }
+  if (!page(none).includes("this week's event.")) out.push('an instance with no kinds does not read "event"');
   return out;
 }

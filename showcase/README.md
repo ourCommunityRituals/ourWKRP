@@ -44,8 +44,18 @@ Version 1 files still validate. Version 2 adds, all optional:
 | `oseBrand` | The OSE brand the events live on (never `root`). |
 | `events[]` | `{ frequency, oseEventId, intent, placement?, until? }`. `frequency` is a station id; `intent` is one-off, pop-up, programme or trial; `placement` is the showcase placement (its `/q` code); `until` ends a pop-up's window (OSE events have no end time). |
 | `campaigns[]` | `{ frequency, oseCampaignId }`. Validated now; shown once OSE serves campaigns (S14, S9). |
+| `stations[].event.placements[]` | 1 to 4 short labels (40 characters each) for where a demo event's codes hung, in the instance's own words. Absent: the demo size's labels. |
 | `privateNames[]` | Other names she or her ventures go by. Never shown; kept out of OSE text. |
 | `schedule.rows[]` 5th item | The OSE event id a copied row became. That row leaves the copied table. |
+
+## Any instance, not only a creator
+
+The same container builds a site for a person, a venue or an organizer. The fixed
+sentences use the instance's `name` where a person would be named, and list the
+event kinds its own stations run (each station's demo `event.kind`, then its
+programme slots' kinds), so a bar reads "game night" and is never told about a
+class it does not hold. Give a demo event its own `placements` when the size's
+labels do not fit.
 
 ## Make a page
 

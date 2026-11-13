@@ -78,6 +78,7 @@ JSON file runs in the contract layer.
 
 - Creator files validate against `lib/schema.mjs` (zod, strict), contract v2 (S1). A version 1 file (places as pairs, no v2 field) still validates; so does creator #1's private file on the owner's machine.
 - Refused, each by its own case: a non-https source or place; a place on an unknown station or of an unknown kind; an event or campaign on an unknown frequency; one event on two frequencies; an event with no or an unknown intent; an id that is not OSE-shaped; linked events with no `oseBrand`; a pop-up with no `until`, or an `until` on anything else; a frequency on air with no `why`; a slot with a bad cadence, a missing day or week, a time with no timezone, an unknown timezone or mode, or a kind outside its category's `eventKinds`; a schedule row naming an unlinked event.
+- A demo event's own `placements`: refused when empty, over 4, blank or over 40 characters; a demo event with none stays valid. Planted: any number accepted; a blank or endless label accepted.
 - Planted: non-https allowed; unknown fields allowed; future categories open; a version 1 place refused; the frequency check removed; `why` not required; a pop-up's window not required; slot kinds not checked.
 - Every station's category exists in `categories.json` and is open; Spirit stays `future`.
 - `theme.css` is exactly what the pinned `@ocr/ui` generates, and the renderer holds no colour value (the QR's paper and ink are tokens too). Planted: a hex colour in the renderer.
@@ -96,6 +97,8 @@ JSON file runs in the contract layer.
 - The creator page's When list runs in the stations' order (one comparator, `soonestFirst`): a date-only event comes after a timed event on the same day. Planted: the dial sorting by bare date.
 - S5: a schedule row that is now an OSE event leaves the copied table; the rest stay, labelled "Copied from …". Planted: linked rows kept.
 - The page set: the creator page plus one page per station, exactly one `<h1>` each, Who, What, When, Where and How on every page, each station marked in the tuner. Planted: a station page loses its `<h1>`.
+- A demo event's codes hang under its own `placements` when it names any, else under its size's. Planted: a station's own labels ignored.
+- The fixed sentences fit any instance: none says "the creator" or lists "class, set or game night"; they name the instance and list its own event kinds in station order; a one-kind instance reads that kind alone, and one with none reads "event". Read from the visible text only. Planted: "the creator" back; the fixed list back; the consent rule naming nobody; no fallback for an instance with no kinds; kinds read from every station but the first. An unescaped kind is caught by the escaping check.
 - The seed plan's dates and UTC instants, across a DST change.
 
 ## 4. Integration (job *Showcase 4: integration*)
@@ -106,7 +109,8 @@ A real OSE worker, fetched at `.ose-ref`, runs locally under `wrangler dev`.
 - The capture step photographs each real report; the build reads OSE's public API and writes every page.
 - `tests/integration/check-reports.mjs` requires: every report answered 200, every scan counted, each total equals the scans sent less the hours under 5 (medium: 30 sent, 27 shown; low: 21 sent, 19 shown), three images per report, no identity on the real report pages, and nothing private in the publishable folder.
 - `tests/integration/check-ose.mjs` requires, from the seed plan rather than the renderer: each upcoming, public, on-brand event has one card on its station page and on Lead; the draft, the other brand's and the past event have none; each card shows its placement's `/q` code and every non-form `/s` code; and every code on every page answers the live worker with a 302 that does not lead to a form.
-- Born red in the born-red job: an unfloored total, a lost scan and an email on a report page; a lost card, a draft on a page, a dead code and a code leading to a form are each caught.
+- `check-reports.mjs` also requires each report's placement labels to be the ones its station names (the fixture's stall: "Table card, Stall sign").
+- Born red in the born-red job: an unfloored total, a lost scan, codes hung under the wrong labels and an email on a report page; a lost card, a draft on a page, a dead code and a code leading to a form are each caught.
 
 ## 5. End to end (job *Showcase 5: end to end*)
 

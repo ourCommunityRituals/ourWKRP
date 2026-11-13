@@ -19,7 +19,7 @@
 // Writes showcase/work/<slug>/reports.json: PRIVATE, it holds signed links.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { assertLocalBase, createPacer, hourBuckets, scansFor, SHAPES } from './lib/showcase.mjs';
+import { assertLocalBase, createPacer, hourBuckets, placementsFor, scansFor, SHAPES } from './lib/showcase.mjs';
 import { SHOWCASE, readJson, loadCatalog } from './lib/build.mjs';
 import { creatorProblems } from './lib/schema.mjs';
 import { planDate } from './lib/plan.mjs';
@@ -156,7 +156,7 @@ async function main() {
     await api('PUT', `/api/v2/admin/events/${ev.id}`, { status: 'active' });
 
     const placements = [];
-    for (const label of shape.placements) {
+    for (const label of placementsFor(st.event)) {
       const pd = await api('POST', `/api/v2/admin/events/${ev.id}/poster-deployments`, {
         placement_label: label,
         placement_type: /door|room|table/i.test(label) ? 'venue' : 'community',

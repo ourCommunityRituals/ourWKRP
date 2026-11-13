@@ -58,7 +58,7 @@
       "programme": [
         { "cadence": "monthly", "week": "last", "day": "sunday", "time": "12:00", "timezone": "America/Chicago", "mode": "in_person", "kind": "pop-up", "purpose": "the market table" }
       ],
-      "event": { "title": "Saturday market stall", "kind": "pop-up", "demo": "low" }
+      "event": { "title": "Saturday market stall", "kind": "pop-up", "demo": "low", "placements": ["Table card", "Stall sign"] }
     },
     {
       "id": "lead", "eyebrow": "Organizer",
