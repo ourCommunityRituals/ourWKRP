@@ -63,6 +63,9 @@ describe('creator showcase: unit', () => {
   it('where map: in-person events by area, at the 5 km grain and nothing finer, see-through, with the list beside it', async () => {
     expect(await C.mapProblems(m)).toEqual([]);
   });
+  it('online or in person: the card says how an event is held, an online event has no place, and a class is held as its slot says', async () => {
+    expect(await C.modeProblems(m)).toEqual([]);
+  });
   it('dates read as day, short month, year', () => {
     expect(C.dateProblems(m)).toEqual([]);
   });
