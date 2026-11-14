@@ -7,12 +7,10 @@
 // from the creator file; event-level When, Where and How come from OSE, read
 // at build time. Nothing is kept in both places.
 import { esc, fmtDate, floorText, mergeStations, safeHttpsUrl, FLOOR } from './showcase.mjs';
-import { onStation, INTENT_LABELS, MODE_LABELS, isPast, slotOf, soonestFirst, stationSchedule, todayIn, whenText } from './schedule.mjs';
+import { onStation, INTENT_LABELS, MODE_LABELS, isLeadStation, isPast, slotOf, soonestFirst, stationSchedule, todayIn, whenText } from './schedule.mjs';
 import { qrSvg } from './codes.mjs';
 import { SECTIONS } from './schema.mjs';
-import { mapSvg, whereAreas } from './map.mjs';
-
-const isLeadStation = (s) => (s.category ?? s.id) === 'lead';
+import { mapKey, mapSvg, whereAreas } from './map.mjs';
 
 function css(stations) {
   return `
@@ -162,12 +160,16 @@ td.num.w { color: var(--text-muted); }
 .partners { list-style: none; padding: 0; margin: 20px 0 0; display: grid; gap: 4px; }
 .partners .label { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-right: 6px; }
 /* The where map: areas as hexagons, the list beside it. Colours are the map tokens.
-   An area is see-through, as OurSharedEvents draws its own, so a street layer
-   under it reads through; its number keeps a halo so it reads over anything. */
+   An area is see-through, as OurSharedEvents draws its own, so its street layer
+   reads through; its number keeps a halo so it reads over anything. The street
+   layer's own rules come from OurSharedEvents with the layer, and follow these. */
 .where-map { margin: 16px 0 0; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--map-ground); }
 .hex-map { display: block; width: 100%; height: auto; max-height: 360px; }
 .hex-empty { fill: none; stroke: var(--map-cell-line); stroke-width: 1.5; }
 .hex-area { fill: var(--accent); fill-opacity: 0.3; stroke: var(--accent); stroke-width: 2; }
+.where-credit { margin-top: 8px; font-size: var(--step--1); color: var(--text-muted); }
+.where-credit p { margin: 0; }
+.where-credit a { display: inline-flex; align-items: center; min-height: 44px; }
 .hex-number { font-family: var(--font-mono); font-weight: 700; font-size: 26px; fill: var(--text); paint-order: stroke; stroke: var(--map-ground); stroke-width: 5px; stroke-linejoin: round; }
 .areas { margin: 16px 0 0; padding-left: 0; list-style: none; display: grid; gap: 10px; }
 .areas > li { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
@@ -203,7 +205,7 @@ footer .note { margin-top: 18px; }
 `;
 }
 
-function head(title, theme, stations) {
+function head(title, theme, stations, more = '') {
   return `<title>${esc(title)}</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -212,7 +214,7 @@ function head(title, theme, stations) {
 <style>
 ${theme}
 </style>
-<style>${css(stations)}</style>
+<style>${css(stations)}${more}</style>
 `;
 }
 
@@ -333,21 +335,31 @@ function calendarLine(calendar) {
 // The where map (owner, 2026-11-13: "incorporate the map template where
 // appropriate"). It sits below the events, so every title, date and sponsor
 // strip comes before it. Drawn only when an in-person event has an area.
-function whereSection(s, upcoming, isLead) {
-  const { areas, offMap } = whereAreas(upcoming);
-  if (!areas.length) return '';
+//
+// The drawing is OurSharedEvents' own, read by the build (lib/map.mjs). When
+// that read gave no map, the section still shows: the list is the content, and
+// the note says the map is missing rather than leaving an empty frame.
+// Returns the section and the street layer's rules for the page's stylesheet.
+function whereSection(s, upcoming, isLead, maps) {
+  const { areas, offMap, beyond } = whereAreas(upcoming);
+  if (!areas.length) return { html: '', css: '' };
+  const map = maps[mapKey(areas.map((a) => a.cell))] ?? null;
   const item = (i) => {
     const { event, link } = upcoming[i];
     return `<li><a href="#ev-${i}">${esc(event.title)}</a> · ${esc(whenText(event, link))}${event.whereAddress || event.venue ? ` · ${esc(event.whereAddress || event.venue)}` : ''}</li>`;
   };
-  return `<section aria-labelledby="where-title" id="where">
+  const size = 'Each numbered area is about 5 square kilometres, the size OurSharedEvents maps at.';
+  const html = `<section aria-labelledby="where-title" id="where">
     <span class="eyebrow">Where</span>
     <h2 id="where-title" style="margin-top:12px">${isLead ? 'Every frequency, in person, by area.' : `${esc(s.name)} in person, by area.`}</h2>
-    <p class="muted" id="where-note" style="margin-top:12px">Each numbered area is about 5 square kilometres, the size OurSharedEvents maps at. The map shows where events are. It never shows where people are. The same events are listed below it.</p>
-    <figure class="where-map">${mapSvg(areas, { labelledby: 'where-title where-note' })}</figure>
+    <p class="muted" id="where-note" style="margin-top:12px">${map ? `${size} The map shows where events are. It never shows where people are. The same events are listed below it.` : `${size} The map could not be drawn when this page was built, so the areas are listed without it.`}</p>
+    ${map ? `<figure class="where-map">${mapSvg(map, { labelledby: 'where-title where-note' })}</figure>` : ''}
+    ${map?.streets ? `<div class="where-credit">${map.streets.credit}</div>` : ''}
     <ol class="areas" aria-label="Events by area">${areas.map((a, n) => `<li><b>Area ${n + 1}</b><ul>${a.at.map(item).join('')}</ul></li>`).join('')}</ol>
+    ${beyond.length ? `<p class="muted" style="margin-top:12px">Also in person, in areas beyond the ${areas.length} one map shows:</p><ul class="areas-off">${beyond.map(item).join('')}</ul>` : ''}
     ${offMap.length ? `<p class="muted" style="margin-top:12px">Also in person, with no area on the map yet:</p><ul class="areas-off">${offMap.map(item).join('')}</ul>` : ''}
   </section>`;
+  return { html, css: map?.streets ? `\n${map.streets.css}\n` : '' };
 }
 
 function footer(c, built) {
@@ -394,7 +406,7 @@ export function renderPages({ creator: c, catalog, reports = { reports: [] }, th
   const ordered = opt.stationOrder === 'next-event' ? byNextEvent(stations, schedules) : stations;
 
   const pages = { 'index.html': creatorPage({ c, stations: ordered, linked, reports, theme, now, built, byId, opt, calendar: ose.calendar ?? null }) };
-  for (const s of ordered) pages[`${s.id}/index.html`] = stationPage({ c, s, stations: ordered, schedule: schedules[s.id], theme, built, byId, opt });
+  for (const s of ordered) pages[`${s.id}/index.html`] = stationPage({ c, s, stations: ordered, schedule: schedules[s.id], theme, built, byId, opt, maps: ose.maps ?? {} });
   if (opt.display === 'tv') pages['tv/index.html'] = tvPage({ c, stations: ordered, schedules, theme, built, byId });
   return pages;
 }
@@ -602,11 +614,12 @@ function eventCard({ link, event, codes, sponsors, series }, i, { isLead, byId, 
         </article>`;
 }
 
-function stationPage({ c, s, stations, schedule, theme, built, byId, opt }) {
+function stationPage({ c, s, stations, schedule, theme, built, byId, opt, maps }) {
   const isLead = isLeadStation(s);
+  const where = opt.show.map ? whereSection(s, schedule.upcoming, isLead, maps) : { html: '', css: '' };
   const places = c.places.filter((p) => !Array.isArray(p) && p.station === s.id);
   const firstUp = schedule.upcoming[0];
-  return `${head(`${s.name} ${s.freq.toFixed(1)}: ${c.name} on OurWKRP`, theme, stations)}
+  return `${head(`${s.name} ${s.freq.toFixed(1)}: ${c.name} on OurWKRP`, theme, stations, where.css)}
 <div class="wrap">
   <header class="hero station-hero">
     <a class="back" href="../index.html">All of ${esc(c.name)}'s frequencies</a>
@@ -651,7 +664,7 @@ function stationPage({ c, s, stations, schedule, theme, built, byId, opt }) {
     }
   </section>
 
-  ${opt.show.map ? whereSection(s, schedule.upcoming, isLead) : ''}
+  ${where.html}
 
   <section aria-labelledby="report-title" class="station-report">
     <span class="eyebrow">The real report for this station</span>

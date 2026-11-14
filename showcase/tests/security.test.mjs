@@ -44,6 +44,9 @@ describe('creator showcase: security', () => {
   it("reads OSE through its public API only: GET, no key, no cookie", async () => {
     expect(await C.readOnlyProblems(m)).toEqual([]);
   });
+  it('the where map: nothing in OSE\'s answer reaches a page unchecked (script, handler, link, address, stylesheet breakout, another area)', async () => {
+    expect(await C.mapAnswerProblems(m)).toEqual([]);
+  });
   it('sponsors: only what OSE lists with both sides agreed, below the title and date, a name and nothing else, never a control, no beacon', async () => {
     expect(await C.sponsorProblems(m)).toEqual([]);
   });

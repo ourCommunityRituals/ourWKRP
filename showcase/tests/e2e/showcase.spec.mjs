@@ -160,11 +160,40 @@ test('a station maps its in-person events by area, with the same events listed a
   const where = page.locator('#where');
   await expect(where.getByRole('img')).toBeVisible();
   await expect(where.locator('polygon.hex-area')).toHaveCount(2);
+  // The drawing is OurSharedEvents' (read at build time): its frame, and nothing asked of anyone by the page.
+  await expect(where.locator('svg.hex-map')).toHaveAttribute('viewBox', '0 0 600 360');
+  await expect(where.locator('.hex-streets > *')).toHaveCount(0);
+  await expect(where.locator('.amap-credit')).toHaveCount(0);
   const areas = where.getByRole('list', { name: 'Events by area' });
   await expect(areas.locator('> li')).toHaveCount(2);
   await areas.getByRole('link', { name: 'Launch evening (showcase demo)' }).click();
   await expect(page).toHaveURL(/#ev-\d+$/);
   await expect(page.locator('article.event:target, article.event:has(:target)')).toContainText('Launch evening (showcase demo)');
+});
+
+test('with a street layer from OurSharedEvents: streets under see-through areas, the credit beside the map, and no request from the page', async ({ page }) => {
+  const asked = [];
+  page.on('request', (r) => asked.push(r.url()));
+  await open(page, '/list/wear/index.html');
+  const where = page.locator('#where');
+  await expect(where.locator('.hex-streets .amap-s path').first()).toBeAttached();
+  await expect(where.locator('polygon.hex-area')).toHaveCount(2);
+  // The street layer is under the areas, and an area lets it read through.
+  const order = await where.locator('svg.hex-map > g').evaluateAll((gs) => gs.map((g) => g.getAttribute('class')));
+  expect(order).toEqual(['hex-streets', 'hex-around', 'hex-areas']);
+  const opacity = await where.locator('polygon.hex-area').first().evaluate((el) => Number(globalThis.getComputedStyle(el).fillOpacity));
+  expect(opacity).toBeGreaterThan(0);
+  expect(opacity).toBeLessThanOrEqual(0.5);
+  // The street rules reached the page: a road is stroked and not filled, the ground is the surface token.
+  const road = await where.locator('.as-r').first().evaluate((el) => ({ fill: globalThis.getComputedStyle(el).fill, stroke: globalThis.getComputedStyle(el).stroke }));
+  expect(road.fill).toBe('none');
+  expect(road.stroke).not.toBe('none');
+  // OpenStreetMap's credit, beside the map, with tappable links.
+  const credit = where.locator('.where-credit');
+  await expect(credit.getByRole('link', { name: 'OpenStreetMap' })).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright/en');
+  for (const box of await credit.locator('a').evaluateAll((as) => as.map((a) => a.getBoundingClientRect().height))) expect(box).toBeGreaterThanOrEqual(44);
+  // The map is in the page: nothing is asked of OurSharedEvents, OpenStreetMap or anyone for it.
+  expect(asked.filter((u) => /oursharedevents|openstreetmap|protomaps|map\/areas|tile/i.test(u))).toEqual([]);
 });
 
 test('the creator page links the calendar feed as a plain link', async ({ page }) => {

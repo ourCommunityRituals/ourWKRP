@@ -6,6 +6,7 @@
 //   GET /api/v2/events/:id/poster-bundle[?deployment=<placement>]   its codes
 //   GET /api/v2/events/:id/sponsor-bundle?surface=public            its consented sponsors
 //   GET /brands/<brand>/calendar.ics                                the brand's calendar feed, where OSE serves one
+//   GET /api/v2/map/areas?cells=<cell>,…&around=1                   each station's where map, as OSE draws it
 //
 // A linked event that is missing, not public, or on another brand drops off the
 // page and fails nothing. Text read from OSE that names the creator stops the
@@ -13,8 +14,8 @@
 import { assertLocalBase, safeHttpsUrl } from './showcase.mjs';
 import { codesFromBundle } from './codes.mjs';
 import { creatorSchema, MODES } from './schema.mjs';
-import { isPast } from './schedule.mjs';
-import { areaCell } from './map.mjs';
+import { isLeadStation, isPast, stationSchedule } from './schedule.mjs';
+import { areaCell, mapFromAnswer, mapKey, mapPath, whereAreas } from './map.mjs';
 
 /** OSE staging. Production is closed, so a build never reads it. */
 export const OSE_STAGING = 'https://stg.oursharedevents.com';
@@ -143,20 +144,81 @@ export function seriesFromRead(body) {
   };
 }
 
+/** Between two map reads, at least this long: under 6 a second, as OSE asks of a build of many stations. */
+export const MAP_GAP_MS = 200;
+/** A map read that has not answered by now is given up on. */
+export const MAP_TIMEOUT_MS = 10_000;
+
+/**
+ * The maps a build needs: each station's areas, in the order its list numbers
+ * them, once per distinct list. The renderer works the same lists out from the
+ * same events (`whereAreas`), and finds its map under the same key.
+ *
+ * @returns {string[][]}
+ */
+export function mapLists(creator, linked, now) {
+  if (creator.sections?.map === false) return [];
+  const lists = new Map();
+  for (const s of creator.stations ?? []) {
+    const { upcoming } = stationSchedule(s, linked, now, { isLead: isLeadStation(s) });
+    const cells = whereAreas(upcoming).areas.map((a) => a.cell);
+    if (cells.length) lists.set(mapKey(cells), cells);
+  }
+  return [...lists.values()];
+}
+
+/**
+ * Read each map from OurSharedEvents, one request per list, cells only. This
+ * read never stops a build: an answer that is late, refused, rate-limited or
+ * not a map of the cells asked for leaves that map out, the page is built with
+ * its list alone, and the reason is returned in `mapsMissed` for the build to
+ * print. It is not retried: the next build reads again.
+ *
+ * @returns {Promise<{maps: Record<string, object>, mapsMissed: string[]}>}
+ */
+export async function readMaps({ origin, lists, fetch: f = globalThis.fetch, paced = async () => {}, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), clock = Date.now }) {
+  const maps = {};
+  const mapsMissed = [];
+  let last = null;
+  for (const cells of lists) {
+    if (last !== null) {
+      const wait = MAP_GAP_MS - (clock() - last);
+      if (wait > 0) await sleep(wait);
+    }
+    await paced();
+    last = clock();
+    let why = null;
+    try {
+      const res = await f(`${origin}${mapPath(cells)}`, { method: 'GET', headers: { Accept: 'application/json' }, redirect: 'error', credentials: 'omit', signal: globalThis.AbortSignal.timeout(MAP_TIMEOUT_MS) });
+      if (res.status !== 200) why = `answered ${res.status}`;
+      else {
+        const map = mapFromAnswer(await res.json(), cells);
+        if (map) maps[mapKey(cells)] = map;
+        else why = 'answered with something that is not a map of the areas asked for';
+      }
+    } catch (e) {
+      why = e?.name === 'TimeoutError' ? `gave no answer in ${MAP_TIMEOUT_MS / 1000} seconds` : 'could not be read';
+    }
+    if (why) mapsMissed.push(`a map of ${cells.length} ${cells.length === 1 ? 'area' : 'areas'} was left out: OurSharedEvents ${why}`);
+  }
+  return { maps, mapsMissed };
+}
+
 /** Where OSE serves a brand's calendar feed. */
 export const calendarPath = (brand) => `/brands/${encodeURIComponent(brand)}/calendar.ics`;
 
 /**
- * Read every linked event. Returns `{ origin, linked, dropped, calendar }`:
+ * Read every linked event. Returns `{ origin, linked, dropped, calendar, maps, mapsMissed }`:
  * `linked` is `[{ link, event, codes, sponsors, series }]` for each public event on the
- * brand, and `calendar` is the brand feed's URL when OSE serves one, else null.
+ * brand, `calendar` is the brand feed's URL when OSE serves one, else null, and
+ * `maps` holds each station's where map as OSE drew it (see `readMaps`).
  *
- * @param {{ base: string, creator: object, fetch?: typeof fetch, now?: Date|number, paced?: () => Promise<void> }} o
+ * @param {{ base: string, creator: object, fetch?: typeof fetch, now?: Date|number, paced?: () => Promise<void>, sleep?: (ms: number) => Promise<void>, clock?: () => number }} o
  */
-export async function readOse({ base, creator, fetch: f = globalThis.fetch, now = Date.now(), paced = async () => {} }) {
+export async function readOse({ base, creator, fetch: f = globalThis.fetch, now = Date.now(), paced = async () => {}, sleep, clock }) {
   const origin = assertReadBase(base);
   const links = creator.events ?? [];
-  if (!links.length) return { origin, linked: [], dropped: [], calendar: null };
+  if (!links.length) return { origin, linked: [], dropped: [], calendar: null, maps: {}, mapsMissed: [] };
   // The creator file is checked before OSE is read: a bad file reads nothing.
   const parsed = creatorSchema.safeParse(creator);
   const fileProblems = parsed.success ? [] : parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
@@ -251,5 +313,7 @@ export async function readOse({ base, creator, fetch: f = globalThis.fetch, now 
   if (problems.length) throw new Error(`OSE text is not neutral:\n  ${problems.join('\n  ')}`);
   if (codeErrors.length) throw new Error(`OSE codes refused:\n  ${codeErrors.join('\n  ')}`);
   if (sponsorErrors.length) throw new Error(`OSE sponsors refused:\n  ${sponsorErrors.join('\n  ')}`);
-  return { origin, linked, dropped, calendar };
+  // Last, and only for a build that will go on: the where maps.
+  const { maps, mapsMissed } = await readMaps({ origin, lists: mapLists(creator, linked, now), fetch: f, paced, sleep, clock });
+  return { origin, linked, dropped, calendar, maps, mapsMissed };
 }
