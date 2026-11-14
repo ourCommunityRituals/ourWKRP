@@ -192,6 +192,7 @@ const MUTANTS_LIST = [
   ["map: no neighbours drawn", 'mapProblems', [{ file: M, from: "&around=1`;", to: "&around=0`;" }]],
   ["map: the areas under the street layer", 'mapProblems', [{ file: M, from: "<g class=\"hex-streets\">${map.streets ? map.streets.svg : ''}</g><g class=\"hex-around\">${empty}</g><g class=\"hex-areas\">${filled}</g>", to: "<g class=\"hex-areas\">${filled}</g><g class=\"hex-around\">${empty}</g><g class=\"hex-streets\">${map.streets ? map.streets.svg : ''}</g>" }]],
   ['map: the areas opaque', 'mapProblems', [{ file: R, from: '.hex-area { fill: var(--accent); fill-opacity: 0.3;', to: '.hex-area { fill: var(--accent); fill-opacity: 0.9;' }]],
+  ["map: the heading opens with the station's name, so \"Wear\" reads as a misspelt Where", 'mapProblems', [{ file: R, from: "`Where ${esc(s.name)} meets in person, by area.`", to: "`${esc(s.name)} in person, by area.`" }]],
   ["map: the showcase's own frame, not the one OurSharedEvents gave", 'mapProblems', [{ file: M, from: "viewBox=\"0 0 ${map.w} ${map.h}\"", to: "viewBox=\"0 0 640 360\"" }]],
   ["map: a number off its centre", 'mapProblems', [{ file: M, from: "x=\"${a.centre[0]}\" y=\"${a.centre[1]}\"", to: "x=\"${a.centre[1]}\" y=\"${a.centre[0]}\"" }]],
   ["map: cells sent out of the list's order", 'mapProblems', [{ file: O, from: "const cells = whereAreas(upcoming).areas.map((a) => a.cell);", to: "const cells = whereAreas(upcoming).areas.map((a) => a.cell).reverse();" }]],

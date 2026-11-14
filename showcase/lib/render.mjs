@@ -351,7 +351,7 @@ function whereSection(s, upcoming, isLead, maps) {
   const size = 'Each numbered area is about 5 square kilometres, the size OurSharedEvents maps at.';
   const html = `<section aria-labelledby="where-title" id="where">
     <span class="eyebrow">Where</span>
-    <h2 id="where-title" style="margin-top:12px">${isLead ? 'Every frequency, in person, by area.' : `${esc(s.name)} in person, by area.`}</h2>
+    <h2 id="where-title" style="margin-top:12px">${isLead ? 'Where every frequency meets in person, by area.' : `Where ${esc(s.name)} meets in person, by area.`}</h2>
     <p class="muted" id="where-note" style="margin-top:12px">${map ? `${size} The map shows where events are. It never shows where people are. The same events are listed below it.` : `${size} The map could not be drawn when this page was built, so the areas are listed without it.`}</p>
     ${map ? `<figure class="where-map">${mapSvg(map, { labelledby: 'where-title where-note' })}</figure>` : ''}
     ${map?.streets ? `<div class="where-credit">${map.streets.credit}</div>` : ''}

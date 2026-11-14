@@ -1400,6 +1400,10 @@ export async function mapProblems(m) {
   const wear = section(pages['wear/index.html']);
   const all = Object.values(pages).join('\n');
 
+  // The heading opens with Where and then names the station: a station called "Wear" must not read as a misspelt "Where" (owner, 2026-11-14).
+  const title = (html) => html.match(/<h2 id="where-title"[^>]*>([^<]*)<\/h2>/)?.[1] ?? '';
+  if (title(wear) !== 'Where Wear meets in person, by area.') out.push(`the wear map is headed "${title(wear)}"`);
+  if (title(section(pages['lead/index.html'])) !== 'Where every frequency meets in person, by area.') out.push(`the lead map is headed "${title(section(pages['lead/index.html']))}"`);
   // Two areas, numbered as the list numbers them; the neighbours are outlines only.
   if (count(wear, /<polygon class="hex-area"/g) !== 2) out.push(`wear draws ${count(wear, /<polygon class="hex-area"/g)} areas, want 2`);
   const numbers = [...wear.matchAll(/<text class="hex-number"[^>]*>([^<]*)<\/text>/g)].map((x) => x[1]).join(',');
