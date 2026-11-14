@@ -11,8 +11,16 @@
 import type { Env } from '../types';
 import { sanitizeForExport, coarsenSets } from '../lib/privacy';
 import { requireCrossProductToken } from '../lib/cross-product-auth';
-import { applyCountFloor, dropSubFloorRows, sumContributingBuckets } from '../lib/count-floor';
+import { dropSubFloorRows, flooredFields, COUNT_FLOOR } from '../lib/count-floor';
+import {
+  eventAttributionsQuery,
+  summariseEventAttributions,
+  type EventAttributionRow,
+} from '../lib/event-attributions';
 import { log } from '../lib/logger';
+
+/** Length of the top-track list. */
+const TOP_TRACKS = 25;
 
 /**
  * GET /api/events/:id/music
@@ -27,7 +35,7 @@ export async function handleGetEventMusic(request: Request, env: Env, eventId: s
 
   log('EVENT_MUSIC_QUERY', { event_id: eventId });
 
-  const [setsResult, attributionsResult, topTracksResult, trackCountsResult] = await env.WKRP_DB.batch([
+  const [setsResult, attributionsResult] = await env.WKRP_DB.batch([
     // All DJ sets for this event
     env.WKRP_DB.prepare(
       `SELECT ds.id, ds.dj_id, c.name as dj_name, ds.venue_name,
@@ -39,60 +47,45 @@ export async function handleGetEventMusic(request: Request, env: Env, eventId: s
        ORDER BY ds.started_at ASC, ds.id ASC`
     ).bind(eventId),
 
-    // Listener and DJ counts (the attribution total is built below, OW-160)
-    env.WKRP_DB.prepare(
-      `SELECT COUNT(DISTINCT listener_id) as distinct_listeners,
-              COUNT(DISTINCT dj_id) as dj_count
-       FROM attributions WHERE event_id = ?`
-    ).bind(eventId),
-
-    // Top tracks discovered at this event
-    env.WKRP_DB.prepare(
-      `SELECT t.id, t.name, t.artist, t.album, t.genre, t.image_url,
-              COUNT(*) as attribution_count,
-              c.name as attributed_dj
-       FROM attributions a
-       INNER JOIN tracks t ON a.track_id = t.id
-       INNER JOIN contributors c ON a.dj_id = c.id
-       WHERE a.event_id = ?
-       GROUP BY t.id ORDER BY attribution_count DESC, t.id ASC LIMIT 25`
-    ).bind(eventId),
-
-    // Per-track counts over EVERY track of the event (no LIMIT): the total is
-    // built from these, so tracks past the top 25 still count (OW-160).
-    env.WKRP_DB.prepare(
-      `SELECT track_id, COUNT(*) as attribution_count
-       FROM attributions WHERE event_id = ?
-       GROUP BY track_id`
-    ).bind(eventId),
+    // Every attribution of the event; floored below, the same way the sponsor
+    // report floors them.
+    eventAttributionsQuery(env, eventId),
   ]);
 
-  const stats = attributionsResult.results[0] as Record<string, unknown> ?? {};
-  const attributionCountOf = (r: unknown): number =>
-    Number((r as Record<string, unknown>).attribution_count ?? 0);
-
   // Privacy boundary: this endpoint is a cross-product export to OSE. DJs are the
-  // named pole (opted-in public attribution) and stay named; every listener-derived
-  // count takes the SAME uniform floor OSE applies (count-floor.ts — OSE-665/683/711),
-  // so this seam can't become the side channel that discloses a small cohort OSE's own
-  // surfaces suppress. Listener PII never crosses (sanitizeForExport).
-  //   - distinct_listeners: one count of people, floored.
-  //   - total_attributions: the sum of the tracks that each clear the floor
-  //     (drop before sum, OW-160), so the total minus the listed tracks never
-  //     gives a dropped track's count back.
-  const distinctListeners = applyCountFloor(Number(stats.distinct_listeners ?? 0));
-  const totalAttributions = applyCountFloor(
-    sumContributingBuckets((trackCountsResult?.results ?? []) as Record<string, unknown>[], attributionCountOf),
-  );
+  // named pole (opted-in public attribution) and stay named; every count of
+  // listeners, taps or DJs takes the uniform floor (count-floor.ts, K = 5).
+  // Every figure below is built from the same counted taps as the sponsor
+  // report (lib/event-attributions.ts): taps that sit in a group of at least K
+  // per DJ, per hour and per track. So:
+  //   - total_attributions is the sum of the listed tracks' counts (plus any
+  //     tracks past the top 25, each at least K);
+  //   - distinct_listeners and dj_count count the same taps;
+  //   - a tap in a group under the floor changes nothing in the response, and
+  //     no count of the groups left out is published.
+  // A count under the floor is { <name>: null, <name>_suppressed: true }; 0 reads
+  // the same as 1 to 4. Listener PII never crosses (sanitizeForExport).
+  const counts = summariseEventAttributions((attributionsResult?.results ?? []) as unknown as EventAttributionRow[]);
   const topTracks = dropSubFloorRows(
-    sanitizeForExport(topTracksResult.results as Record<string, unknown>[]),
-    attributionCountOf,
+    sanitizeForExport(
+      counts.byTrack.slice(0, TOP_TRACKS).map((t) => ({
+        id: t.track_id,
+        name: t.track_name,
+        artist: t.artist,
+        album: t.album,
+        genre: t.genre,
+        image_url: t.image_url,
+        attribution_count: t.attribution_count,
+        attributed_dj: t.attributed_dj,
+      })),
+    ),
+    (r) => Number(r.attribution_count),
   );
 
   // Coarsen sets before egress (OSE-1299): drop per-set track_count and reduce
   // started_at/ended_at to date granularity — they are a differencing vector
-  // against the sibling sponsor attendance timeline. DJ name/id + set identity
-  // (the named pole) are preserved.
+  // against the sibling sponsor timeline. DJ name/id + set identity (the named
+  // pole) are preserved.
   const sets = coarsenSets(setsResult.results as Record<string, unknown>[]);
 
   return Response.json({
@@ -102,15 +95,12 @@ export async function handleGetEventMusic(request: Request, env: Env, eventId: s
     music: {
       sets,
       stats: {
-        total_attributions: totalAttributions.count,
-        total_attributions_suppressed: totalAttributions.suppressed,
-        distinct_listeners: distinctListeners.count,
-        distinct_listeners_suppressed: distinctListeners.suppressed,
-        dj_count: stats.dj_count ?? 0,
-        reporting_floor: distinctListeners.floor,
+        ...flooredFields('total_attributions', counts.total),
+        ...flooredFields('distinct_listeners', counts.distinctListeners),
+        ...flooredFields('dj_count', counts.djs),
+        reporting_floor: COUNT_FLOOR,
       },
       top_tracks: topTracks.rows,
-      top_tracks_below_floor: topTracks.suppressed_rows,
     },
     links: {
       sponsor_report: `/api/sponsors/${eventId}/report`,

@@ -7,21 +7,34 @@
  * uniform count floor (lib/count-floor.ts — OW facet of OSE-665/683/711):
  *   - DJs stay named — presenters opted into public attribution (the named
  *     pole); listeners are counts only (the boundary in lib/privacy.ts)
- *   - every listener-derived count is floored server-side; sub-K rows are
- *     DROPPED, never marked (a present-but-suppressed row still discloses
- *     "a small cohort was here")
- *   - the total is the sum of SURVIVING hourly buckets, so no published total
- *     can be differenced against the row list the same reader sees (OSE-683)
+ *   - the report cuts the same taps three ways (per DJ, per hour, per track).
+ *     Every cut, total and count of people is built from one set of counted
+ *     taps: those in a group of at least K under all three cuts at once
+ *     (lib/event-attributions.ts, shared with GET /api/events/:id/music). So
+ *     every cut sums to the published total, and a tap in a group under the
+ *     floor changes nothing in the report
+ *   - rows under the floor are left out, never marked, and the report does not
+ *     say how many were left out
+ *   - a count under the floor (0 included) is { <name>: null,
+ *     <name>_suppressed: true }
  */
 
 import type { Env } from '../types';
 import { log } from '../lib/logger';
 import { requireCrossProductToken } from '../lib/cross-product-auth';
-import { applyCountFloor, dropSubFloorRows, sumContributingBuckets } from '../lib/count-floor';
+import { applyCountFloor, dropSubFloorRows, flooredFields, sumContributingBuckets, COUNT_FLOOR } from '../lib/count-floor';
+import {
+  eventAttributionsQuery,
+  summariseEventAttributions,
+  type EventAttributionRow,
+} from '../lib/event-attributions';
+
+/** Length of the top-track list. */
+const TOP_TRACKS = 20;
 
 /**
  * GET /api/sponsors/:eventId/report
- * Public endpoint — sponsors can view their event's engagement data.
+ * Cross-product endpoint (service token) — the sponsor-facing engagement data.
  */
 export async function handleSponsorReport(request: Request, env: Env, eventId: string): Promise<Response> {
   // Cross-product egress gate (OSE-1299): fail closed BEFORE any DB read, so
@@ -31,65 +44,37 @@ export async function handleSponsorReport(request: Request, env: Env, eventId: s
 
   log('SPONSOR_REPORT', { event_id: eventId });
 
-  const [
-    listenersResult,
-    topTracksResult,
-    djBreakdownResult,
-    timelineResult,
-  ] = await env.WKRP_DB.batch([
-    // Unique listeners (floored below before it leaves the building)
-    env.WKRP_DB.prepare(
-      'SELECT COUNT(DISTINCT listener_id) as count FROM attributions WHERE event_id = ? AND listener_id IS NOT NULL'
-    ).bind(eventId),
+  const [attributionsResult] = await env.WKRP_DB.batch([eventAttributionsQuery(env, eventId)]);
+  const counts = summariseEventAttributions((attributionsResult?.results ?? []) as unknown as EventAttributionRow[]);
 
-    // Top discovered tracks
-    env.WKRP_DB.prepare(
-      `SELECT t.name, t.artist, t.genre, COUNT(*) as attribution_count
-       FROM attributions a
-       INNER JOIN tracks t ON a.track_id = t.id
-       WHERE a.event_id = ?
-       GROUP BY t.id ORDER BY attribution_count DESC, t.id ASC LIMIT 20`
-    ).bind(eventId),
+  // Each list is built from the counted taps, so every row already clears the
+  // floor; dropSubFloorRows stays as a second guard.
+  const timeline = dropSubFloorRows(
+    counts.byHour.map((h) => ({ hour: h.hour, count: h.count })),
+    (r) => r.count,
+  );
+  const topTracks = dropSubFloorRows(
+    counts.byTrack.slice(0, TOP_TRACKS).map((t) => ({
+      name: t.track_name,
+      artist: t.artist,
+      genre: t.genre,
+      attribution_count: t.attribution_count,
+    })),
+    (r) => r.attribution_count,
+  );
+  // DJ names are public by design; each DJ's count is a count of taps and
+  // clears the floor. No per-DJ listener count is published: next to the
+  // event's distinct_listeners, two of them would give the number of
+  // listeners who tapped for both DJs, which can be under the floor.
+  const djBreakdown = dropSubFloorRows(
+    counts.byDj.map((d) => ({ dj_name: d.dj_name, dj_id: d.dj_id, attribution_count: d.attribution_count })),
+    (r) => r.attribution_count,
+  );
 
-    // DJ performance breakdown (DJ names are public by design; their
-    // listener-derived counts still take the floor)
-    env.WKRP_DB.prepare(
-      `SELECT c.name as dj_name, c.id as dj_id, COUNT(*) as attribution_count,
-              COUNT(DISTINCT a.listener_id) as distinct_listeners
-       FROM attributions a
-       INNER JOIN contributors c ON a.dj_id = c.id
-       WHERE a.event_id = ?
-       GROUP BY c.id ORDER BY attribution_count DESC, c.id ASC`
-    ).bind(eventId),
-
-    // Hourly timeline (hour granularity mirrors OSE scan_bucket; sub-K hours drop)
-    env.WKRP_DB.prepare(
-      `SELECT strftime('%Y-%m-%d %H:00', attributed_at) as hour, COUNT(*) as count
-       FROM attributions
-       WHERE event_id = ?
-       GROUP BY hour ORDER BY hour ASC`
-    ).bind(eventId),
-  ]);
-
-  const countOf = (r: unknown): number =>
-    Number((r as Record<string, unknown>).attribution_count ?? (r as Record<string, unknown>).count ?? 0);
-
-  // Floor every listener-derived figure before it reaches the response.
-  const distinctListeners = applyCountFloor(countOf(listenersResult.results[0] ?? {}));
-  const timeline = dropSubFloorRows(timelineResult.results as Record<string, unknown>[], countOf);
-  const topTracks = dropSubFloorRows(topTracksResult.results as Record<string, unknown>[], countOf);
-
-  // DJ rows: drop sub-floor presenters (their attribution_count discloses a
-  // small cohort), keep names on survivors, and floor each survivor's per-DJ
-  // distinct-listener count so a named DJ can't leak a tiny listener cohort.
-  const djDropped = dropSubFloorRows(djBreakdownResult.results as Record<string, unknown>[], countOf);
-  const djBreakdown = djDropped.rows.map((r) => ({
-    ...r,
-    distinct_listeners: applyCountFloor(Number(r.distinct_listeners ?? 0)).count,
-  }));
-
-  // Differencing-safe total: sum of surviving hourly buckets only (OSE-683).
-  const totalAttributions = sumContributingBuckets(timelineResult.results as Record<string, unknown>[], countOf);
+  // The total is the sum of the hourly rows that cleared the floor, floored
+  // again; with every row built from the same counted taps it equals the sum
+  // of the DJ rows and of all track rows too.
+  const totalAttributions = applyCountFloor(sumContributingBuckets(timeline.rows, (r) => r.count));
 
   // Get event context from dj_sets if available
   const eventContext = await env.WKRP_DB.prepare(
@@ -106,18 +91,14 @@ export async function handleSponsorReport(request: Request, env: Env, eventId: s
       venue: eventContext?.venue_name ?? null,
       event_date: eventContext?.started_at ?? null,
       summary: {
-        total_attributions: totalAttributions,
-        distinct_listeners: distinctListeners.count,
-        distinct_listeners_suppressed: distinctListeners.suppressed,
-        total_djs: djBreakdown.length,
-        reporting_floor: distinctListeners.floor,
+        ...flooredFields('total_attributions', totalAttributions),
+        ...flooredFields('distinct_listeners', counts.distinctListeners),
+        ...flooredFields('total_djs', counts.djs),
+        reporting_floor: COUNT_FLOOR,
       },
       top_tracks: topTracks.rows,
-      top_tracks_below_floor: topTracks.suppressed_rows,
-      dj_breakdown: djBreakdown,
-      djs_below_floor: djDropped.suppressed_rows,
+      dj_breakdown: djBreakdown.rows,
       timeline: timeline.rows,
-      hours_below_floor: timeline.suppressed_rows,
       generated_at: new Date().toISOString(),
     },
   });

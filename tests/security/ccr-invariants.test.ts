@@ -256,19 +256,25 @@ describe('CCR #8 — Cache-Control no-store on HTML pages', () => {
 // ============================================
 describe('CCR #9 — Music export applies the uniform count floor (T-SEAM)', () => {
   const eventsSource = SRC('handlers/events.ts');
+  const eventLibSource = SRC('lib/event-attributions.ts');
 
   it('imports the count-floor helpers', () => {
     expect(eventsSource).toContain("from '../lib/count-floor'");
-    expect(eventsSource).toContain('applyCountFloor');
+    expect(eventsSource).toContain('flooredFields');
     expect(eventsSource).toContain('dropSubFloorRows');
   });
 
-  it('floors distinct_listeners as one count, and builds total_attributions from floored tracks (OW-160)', () => {
-    expect(eventsSource).toMatch(/applyCountFloor\(Number\(stats\.distinct_listeners/);
-    // Drop before sum: the total is the sum of per-track counts that each clear
-    // the floor, never the raw COUNT(*) floored as one number.
-    expect(eventsSource).toMatch(/applyCountFloor\(\s*sumContributingBuckets\(/);
+  it('builds every count from the taps floored once across DJ, hour and track (OW-160, OW-212)', () => {
+    // The music seam and the sponsor report share one reading of the event.
+    expect(eventsSource).toContain('summariseEventAttributions(');
+    expect(SRC('handlers/sponsor.ts')).toContain('summariseEventAttributions(');
+    expect(eventLibSource).toMatch(/floorAcrossCuts\(raw, \[byDjKey, byHourKey, byTrackKey\]\)/);
+    // Drop before sum: the total is built from per-track parts, never the raw COUNT(*).
+    expect(eventLibSource).toMatch(/floorTotalOfParts\(/);
     expect(eventsSource).not.toMatch(/stats\.total_attributions/);
+    // Every count of people is floored, dj_count included.
+    expect(eventsSource).toContain("flooredFields('distinct_listeners'");
+    expect(eventsSource).toContain("flooredFields('dj_count'");
   });
 
   it('names counts honestly (#27) — no banned "unique_listeners" token on the seam', () => {
@@ -276,9 +282,10 @@ describe('CCR #9 — Music export applies the uniform count floor (T-SEAM)', () 
     expect(eventsSource).toContain('distinct_listeners');
   });
 
-  it('drops sub-floor top-track buckets and reports the suppressed count', () => {
+  it('drops sub-floor top-track buckets and publishes no count of them (OW-212)', () => {
     expect(eventsSource).toContain('dropSubFloorRows(');
-    expect(eventsSource).toContain('top_tracks_below_floor');
+    expect(eventsSource).not.toContain('below_floor');
+    expect(SRC('lib/count-floor.ts')).not.toContain('suppressed_rows');
   });
 
   it('does not publish raw aggregate_only — labels floored aggregates with named DJs', () => {
@@ -288,7 +295,8 @@ describe('CCR #9 — Music export applies the uniform count floor (T-SEAM)', () 
 
   it('keeps DJs named (named pole preserved — names still selected and returned)', () => {
     expect(eventsSource).toContain('c.name as dj_name');
-    expect(eventsSource).toContain('c.name as attributed_dj');
+    expect(eventLibSource).toContain('c.name AS dj_name');
+    expect(eventsSource).toContain('attributed_dj: t.attributed_dj');
     // Sets are coarsened before egress (OSE-1299), not spread raw.
     expect(eventsSource).toContain('coarsenSets(');
     expect(eventsSource).toContain('sets,');

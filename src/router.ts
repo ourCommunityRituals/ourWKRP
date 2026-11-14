@@ -44,6 +44,11 @@
  *   DELETE /api/facets/:id                 → remove a facet
  *   (facets also fold into GET /api/contributors/:id)
  *
+ *   --- Cross-product (OurSharedEvents; service token required) ---
+ *   GET  /api/events/:eventId/music    → an event's sets, top tracks and floored counts
+ *   GET  /api/sponsors/:eventId/report → sponsor report: floored counts per DJ, hour, track
+ *   (both build every count from the same floored taps: lib/event-attributions.ts)
+ *
  *   --- Last.fm Integration ---
  *   GET  /auth/lastfm/start         → redirect to Last.fm auth
  *   GET  /auth/lastfm/callback      → exchange token for session key

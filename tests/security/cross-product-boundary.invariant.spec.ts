@@ -26,35 +26,44 @@ const TOKEN = 'test-ose-integration-token';
 const ABOVE = COUNT_FLOOR + 4;
 const BELOW = COUNT_FLOOR - 1;
 
-/** Env whose WKRP_DB.batch returns the given result sets in order, then .first(). */
-function musicEnv(sets: Row[], attributions: Row[], topTracks: Row[]): Env {
+/** One attribution row as lib/event-attributions.ts reads it. */
+function tap(o: { dj?: string; dj_name?: string; track?: string; listener?: string | null } = {}): Row {
+  return {
+    dj_id: o.dj ?? 'd1',
+    dj_name: o.dj_name ?? 'DJ Nova',
+    listener_id: o.listener ?? null,
+    track_id: o.track ?? 't1',
+    track_name: `Song ${o.track ?? 't1'}`,
+    artist: 'A',
+    album: 'Album',
+    genre: 'house',
+    image_url: null,
+    hour: '2026-09-10 21:00',
+  };
+}
+
+/** n taps on one track; the first `named` from distinct signed-in listeners. */
+const tapsOf = (n: number, o: Parameters<typeof tap>[0] & { named?: number } = {}): Row[] =>
+  Array.from({ length: n }, (_, i) => tap({ ...o, listener: i < (o.named ?? 0) ? `L-${o.track ?? 't1'}-${i}` : null }));
+
+/** Music env: batch returns [sets, every attribution of the event]. */
+function musicEnv(sets: Row[], taps: Row[]): Env {
   return {
     OSE_INTEGRATION_TOKEN: TOKEN,
     WKRP_DB: {
       prepare: () => ({ bind: () => ({}) }),
-      batch: async () => [{ results: sets }, { results: attributions }, { results: topTracks }],
+      batch: async () => [{ results: sets }, { results: taps }],
     },
   } as unknown as Env;
 }
 
-/** Sponsor env: 4-result batch + a .first() for the event context row. */
-function sponsorEnv(
-  listeners: Row[],
-  topTracks: Row[],
-  djBreakdown: Row[],
-  timeline: Row[],
-  context: Row | null,
-): Env {
+/** Sponsor env: batch returns [every attribution of the event], then .first() for the event context row. */
+function sponsorEnv(taps: Row[], context: Row | null): Env {
   return {
     OSE_INTEGRATION_TOKEN: TOKEN,
     WKRP_DB: {
       prepare: () => ({ bind: () => ({ first: async () => context }) }),
-      batch: async () => [
-        { results: listeners },
-        { results: topTracks },
-        { results: djBreakdown },
-        { results: timeline },
-      ],
+      batch: async () => [{ results: taps }],
     },
   } as unknown as Env;
 }
@@ -68,8 +77,7 @@ describe('cross-product boundary (1) — sets are coarsened', () => {
   it('the music seam sets carry NO track_count and NO sub-date timestamp precision', async () => {
     const env = musicEnv(
       [{ id: 's1', dj_id: 'd1', dj_name: 'DJ Nova', track_count: 9, started_at: '2026-09-10T21:30:00Z', ended_at: '2026-09-10T23:59:59Z' }],
-      [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }],
-      [],
+      tapsOf(ABOVE),
     );
     const res = await handleGetEventMusic(authed('https://ourwkrp.com/api/events/evt1/music'), env, 'evt1');
     const body = (await res.json()) as { music: { sets: Row[] } };
@@ -87,29 +95,22 @@ describe('cross-product boundary (1) — sets are coarsened', () => {
 // (2) listener-derived counts cross floored / sub-K suppressed.
 // ===========================================================================
 describe('cross-product boundary (2) — listener counts are floored / suppressed', () => {
-  it('music seam suppresses sub-K distinct_listeners and drops sub-K track rows', async () => {
-    const env = musicEnv(
-      [],
-      [{ total_attributions: ABOVE, distinct_listeners: BELOW, dj_count: 1 }],
-      [
-        { id: 't1', name: 'Popular', attribution_count: ABOVE, attributed_dj: 'DJ Nova' },
-        { id: 't2', name: 'Niche', attribution_count: BELOW, attributed_dj: 'DJ Ember' },
-      ],
-    );
+  it('music seam suppresses sub-K distinct_listeners and drops sub-K track rows, without counting them', async () => {
+    const env = musicEnv([], [
+      ...tapsOf(ABOVE, { track: 't1', named: BELOW }),
+      ...tapsOf(BELOW, { track: 't2', dj: 'd2', dj_name: 'DJ Ember' }),
+    ]);
     const res = await handleGetEventMusic(authed('https://ourwkrp.com/api/events/evt1/music'), env, 'evt1');
-    const body = (await res.json()) as { music: { stats: Row; top_tracks: Row[]; top_tracks_below_floor: number } };
+    const body = (await res.json()) as { music: { stats: Row; top_tracks: Row[] } };
     expect(body.music.stats.distinct_listeners).toBeNull();
     expect(body.music.stats.distinct_listeners_suppressed).toBe(true);
     expect(body.music.top_tracks).toHaveLength(1);
-    expect(body.music.top_tracks_below_floor).toBe(1);
+    expect(body.music).not.toHaveProperty('top_tracks_below_floor');
   });
 
   it('sponsor report suppresses sub-K distinct_listeners', async () => {
     const env = sponsorEnv(
-      [{ count: BELOW }],
-      [],
-      [],
-      [{ hour: '2026-09-10 21:00', count: ABOVE }],
+      tapsOf(ABOVE, { named: BELOW }),
       { venue_name: 'The Hall', started_at: '2026-09-10T21:00:00Z' },
     );
     const res = await handleSponsorReport(authed('https://ourwkrp.com/api/sponsors/evt1/report'), env, 'evt1');
@@ -124,14 +125,14 @@ describe('cross-product boundary (2) — listener counts are floored / suppresse
 // ===========================================================================
 describe('cross-product boundary (3) — the seam requires the service token', () => {
   it('music seam: unauthenticated request is 401 UNAUTHORIZED', async () => {
-    const env = musicEnv([], [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }], []);
+    const env = musicEnv([], tapsOf(ABOVE));
     const res = await handleGetEventMusic(new Request('https://ourwkrp.com/api/events/evt1/music'), env, 'evt1');
     expect(res.status).toBe(401);
     expect((await res.json() as { code: string }).code).toBe('UNAUTHORIZED');
   });
 
   it('sponsor report: unauthenticated request is 401 — no venue/event_date oracle', async () => {
-    const env = sponsorEnv([{ count: ABOVE }], [], [], [], { venue_name: 'The Hall', started_at: '2026-09-10T21:00:00Z' });
+    const env = sponsorEnv(tapsOf(ABOVE), { venue_name: 'The Hall', started_at: '2026-09-10T21:00:00Z' });
     const res = await handleSponsorReport(new Request('https://ourwkrp.com/api/sponsors/evt1/report'), env, 'evt1');
     expect(res.status).toBe(401);
     const body = (await res.json()) as Record<string, unknown>;
@@ -142,12 +143,12 @@ describe('cross-product boundary (3) — the seam requires the service token', (
   });
 
   it('both seams fail closed (401) when OSE_INTEGRATION_TOKEN is unset', async () => {
-    const mEnv = musicEnv([], [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }], []);
+    const mEnv = musicEnv([], tapsOf(ABOVE));
     delete (mEnv as { OSE_INTEGRATION_TOKEN?: string }).OSE_INTEGRATION_TOKEN;
     const mRes = await handleGetEventMusic(authed('https://ourwkrp.com/api/events/evt1/music'), mEnv, 'evt1');
     expect(mRes.status).toBe(401);
 
-    const sEnv = sponsorEnv([{ count: ABOVE }], [], [], [], null);
+    const sEnv = sponsorEnv(tapsOf(ABOVE), null);
     delete (sEnv as { OSE_INTEGRATION_TOKEN?: string }).OSE_INTEGRATION_TOKEN;
     const sRes = await handleSponsorReport(authed('https://ourwkrp.com/api/sponsors/evt1/report'), sEnv, 'evt1');
     expect(sRes.status).toBe(401);
