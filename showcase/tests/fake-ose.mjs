@@ -45,8 +45,6 @@ export function planItem(ev, { brand, now }) {
     where_address: ev.where_address ?? null,
     location: ev.where_address ?? null,
     venue: ev.where_address ?? null,
-    // How the event is held (OSE S13). OSE requires it at create; a row from before the field reads in person.
-    attendance_mode: ev.mode ?? 'in_person',
     // OSE derives an event's cells from the coordinates an admin gives (lib/h3-tagging.ts)
     // and serves the event's place in its public read: lat, lon and the resolution-7 cell.
     lat: ev.lat ?? null,

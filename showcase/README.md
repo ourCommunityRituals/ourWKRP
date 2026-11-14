@@ -72,13 +72,6 @@ someone does. They carry no meaning the system depends on, and they overlap
 - A programme event is held to the slots of the station it lives on, and stands under "On air" there only.
 - Lead shows every station already, so it is never listed in `also`. An event is still linked once.
 
-## Online or in person
-
-Every event says how it is held, as OurSharedEvents states it: online, in
-person, or both. The card carries that. An online event has no place: its card
-reads "Online", and it is not on the map. An event held both ways keeps its
-place. A `programme` event must be held the way its slot says, or the build stops.
-
 ## The where map
 
 A station page maps its in-person events by area, below the events themselves.

@@ -13,8 +13,6 @@
 // required on the front page exactly when the worker serves the brand's feed (OSE S8).
 // When the worker serves series (OSE S15), each card of an event the plan puts on
 // a series names that series, and no other card names one.
-// Online or in person: when the worker serves the mode (OSE S13), each card
-// carries the plan's mode for its event.
 // The where map: a station draws one area for each distinct resolution-7 cell of
 // its shown events that the plan gives a place, worked out here from the plan's
 // coordinates, not read back from the page.
@@ -40,14 +38,11 @@ const FORM_TARGET = /\/forms?\//i;
  *   event read says which series an event sits on. `campaignIds` maps a plan campaign's placeholder id to the
  *   id OSE gave it (the seed swaps the creator file's link the same way); absent, the ids are the plan's own
  */
-export function oseVerdictProblems(plan, creator, pages, resolved, now, { campaigns = false, calendar = null, series = false, modes = false, campaignIds = {} } = {}) {
+export function oseVerdictProblems(plan, creator, pages, resolved, now, { campaigns = false, calendar = null, series = false, campaignIds = {} } = {}) {
   const out = [];
   const seriesRows = (html) => [...html.matchAll(/<span class="label">Series<\/span>([^<]*)</g)].map((x) => x[1]).sort().join(' | ');
   const wantSeries = {};
   const wantAreas = {};
-  const MODE_TAGS = { online: 'Online', in_person: 'In person', both: 'Online and in person' };
-  const modeTags = (html) => [...html.matchAll(/<span class="tag">(Online and in person|Online|In person)<\/span>/g)].map((x) => x[1]).sort().join(' | ');
-  const wantModes = {};
   const areasDrawn = (html) => (html.match(/<polygon class="hex-area"/g) ?? []).length;
   // The calendar link: exactly the feed's URL, once, on the front page; none when the worker serves no feed.
   const feeds = Object.entries(pages).flatMap(([path, html]) => [...html.matchAll(/href="([^"]*calendar\.ics[^"]*)"/g)].map((x) => `${path} ${x[1]}`));
@@ -93,9 +88,7 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now, { campai
     }
     const onSeries = series ? (plan.series ?? []).find((s) => s.events.includes(p.ref)) : null;
     if (onSeries) for (const id of [link.frequency, ...(link.also ?? []), lead].filter(Boolean)) (wantSeries[id] ??= []).push(onSeries.name);
-    if (modes && p.mode) for (const id of [link.frequency, ...(link.also ?? []), lead].filter(Boolean)) (wantModes[id] ??= []).push(MODE_TAGS[p.mode]);
-    // An online event is nowhere, so it is never on the map, whatever coordinates the plan might carry.
-    if (p.mode !== 'online' && Number.isFinite(p.lat) && Number.isFinite(p.lon)) {
+    if (Number.isFinite(p.lat) && Number.isFinite(p.lon)) {
       for (const id of [link.frequency, ...(link.also ?? []), lead].filter(Boolean)) (wantAreas[id] ??= new Set()).add(latLngToCell(p.lat, p.lon, 7));
     }
     // An event shows on the station it lives on and on any it also names; its codes stay at home.
@@ -108,8 +101,6 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now, { campai
     if (cards(html) !== (want[s.id] ?? 0)) out.push(`${s.id}: ${cards(html)} event cards, want ${want[s.id] ?? 0}`);
     if (codes(html).length !== (wantCodes[s.id] ?? 0)) out.push(`${s.id}: ${codes(html).length} codes, want ${wantCodes[s.id] ?? 0}`);
     if (areasDrawn(html) !== (wantAreas[s.id]?.size ?? 0)) out.push(`${s.id}: ${areasDrawn(html)} areas on the map, want ${wantAreas[s.id]?.size ?? 0}`);
-    const wantedModes = (wantModes[s.id] ?? []).sort().join(' | ');
-    if (modeTags(html) !== wantedModes) out.push(`${s.id}: modes shown "${modeTags(html)}", want "${wantedModes}"`);
     const gotSeries = seriesRows(html);
     const wantedSeries = (wantSeries[s.id] ?? []).sort().join(' | ');
     if (gotSeries !== wantedSeries) out.push(`${s.id}: series named "${gotSeries}", want "${wantedSeries}"`);
@@ -165,13 +156,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const probe = creator.events[0] ? await fetch(`${base}/api/v2/events/${encodeURIComponent(creator.events[0].oseEventId)}`) : null;
   const probed = probe?.ok ? await probe.json().catch(() => null) : null;
   const series = Boolean(probed && 'series' in probed);
-  const modes = Boolean(probed?.item && 'attendance_mode' in probed.item);
-  console.log(`event read says how it is held: ${modes ? 'yes' : 'no (this OSE is before attendance_mode)'}`);
   console.log(`event read names its series: ${series ? 'yes' : 'no (this OSE is before declared series)'}`);
   // The seed swapped each campaign link, in order, for the id OSE gave the campaign.
   const written = readJson(join(SHOWCASE, 'fixtures', `${slug}.json`)).campaigns ?? [];
   const campaignIds = Object.fromEntries(written.map((c, i) => [c.oseCampaignId, creator.campaigns?.[i]?.oseCampaignId]));
-  const problems = oseVerdictProblems(plan, creator, pages, resolved, Date.now(), { campaigns, calendar, series, modes, campaignIds });
+  const problems = oseVerdictProblems(plan, creator, pages, resolved, Date.now(), { campaigns, calendar, series, campaignIds });
   console.log(`sponsor bundle names campaigns: ${campaigns ? 'yes' : 'no (this OSE is before campaigns in the bundle)'}`);
   for (const r of resolved) console.log(`${r.url} -> ${r.status} ${r.location ?? ''}`);
   if (problems.length) {

@@ -27,7 +27,7 @@ Public reads only, GET, no key, no cookie (`lib/ose.mjs`):
 | Read | For |
 |---|---|
 | `GET /api/v2/events?brand=<oseBrand>` | Which linked events are public on the creator's brand. Anything else drops off. |
-| `GET /api/v2/events/:id` | Each linked event's When, Where and How: dates, start, timezone, the 5W fields, how it is held (`attendance_mode`), and its area (`h3_res7`; `lat` and `lon` are not kept). Beside the event, the declared series it sits on (label, cadence, weekday, hour), or none. |
+| `GET /api/v2/events/:id` | Each linked event's When, Where and How: dates, start, timezone, the 5W fields, and its area (`h3_res7`; `lat` and `lon` are not kept). Beside the event, the declared series it sits on (label, cadence, weekday, hour), or none. |
 | `GET /api/v2/events/:id/poster-bundle?deployment=<placement>` | Its codes: the showcase placement's `/q` code and the event's `/s` codes. Not read for a past event. |
 | `GET /api/v2/events/:id/sponsor-bundle?surface=public` | Its sponsors, as OSE lists them: both sides accepted and the event has sponsors on. The build keeps a name and, when OSE gives one, the campaign (`id`, `title`); tokens, logo, website and tier are left behind. Not read for a past event. A bundle that cannot be read stops the build. |
 | `GET /brands/<oseBrand>/calendar.ics` | Whether OSE serves the brand's calendar feed. Listed on the creator page only on a 200 that starts `BEGIN:VCALENDAR`; a 404, an edge challenge or any other body leaves it off and fails nothing. Its text is held to the neutral-name rule. |
@@ -115,10 +115,6 @@ JSON file runs in the contract layer.
 
 `overlapProblems` (unit): an event with `also` shows on each station it names and once on Lead; its codes show only on the station it lives on, and elsewhere the card names that station and links to it; its sponsor travels with it; the TV board keeps the codes; the front page lists it once under both stations; a borrowed programme event is not held to the borrowing station's slots and never stands under its On air; a campaign with `also` shows its partner on each station it names; `also` refuses an unknown station, its own station, Lead and a repeat, and an event is still linked once; a station that only borrows events must still state its why. The integration verdict counts a card on every station an event names and its codes on its home station only.
 
-## Online or in person (S13)
-
-`modeProblems` (unit): the build keeps the mode OSE states and nothing for a value that is not a mode; each card carries its mode; an online event reads "Online" under Where and no place of its reaches any page or the map, whatever else its row carries; an event held both ways says so, keeps its place and is on the map; a programme event held another way than its slot stops the build; an OSE from before the field shows no mode and stops nothing. Integration: OSE requires the mode at create, so the seed sends each plan event's mode (and no place for an online one), and `check-ose.mjs` asks the worker whether its event read carries the field and then requires each station's cards to show the plan's modes.
-
 ## The where map
 
 `mapProblems` (unit): the build keeps an event's area and no coordinate; a station draws one see-through hexagon per distinct area, numbered as the list numbers them, with the neighbouring areas as outlines; every outline has six corners inside the frame; the layers run streets, neighbours, areas; the list is always beside the map, names each area's events and links to cards on the page; the map is announced as an image and labelled by text on the page; it sits below the events and never on the front page or the TV board; no cell id or coordinate reaches a page; a cell finer or coarser than resolution 7, or not a cell, is never drawn and its event is listed without an area; two events in one area share it; an online event is not on the map; a station with no in-person area has no map; `sections.map: false` hides it and nothing else. Integration: the seed gives the fixture's in-person events a place, the real worker derives their areas, and `check-ose.mjs` works out the expected areas from the plan's coordinates and requires that many on each station's map.
@@ -157,6 +153,7 @@ The layout and display menu is run pairwise, not in every combination: beside th
 
 | Plan rule | Waits on |
 |---|---|
+| A slot's mode equals each attached event's mode | OSE S13 (`attendance_mode`). The check is built and born red on a stand-in mode; it runs on real events once OSE serves the field. |
 | Promoting a trial never changes its past dates or counts | OSE S15. |
 
 ## Staging layer

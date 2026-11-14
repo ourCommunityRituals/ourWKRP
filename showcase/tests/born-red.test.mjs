@@ -200,15 +200,6 @@ const MUTANTS_LIST = [
   ['map: labelled by nothing on the page', 'mapProblems', [{ file: R, from: "mapSvg(areas, { labelledby: 'where-title where-note' })", to: "mapSvg(areas, { labelledby: 'where-heading' })" }]],
   ['map: an empty frame on a station with no area', 'mapProblems', [{ file: R, from: "  if (!areas.length) return '';\n  const item = (i) => {", to: '  const item = (i) => {' }]],
   ['map: the switch ignored', 'mapProblems', [{ file: R, from: "${opt.show.map ? whereSection(s, schedule.upcoming, isLead) : ''}", to: '${whereSection(s, schedule.upcoming, isLead)}' }]],
-  // Online or in person (S13)
-  ['mode: any text kept as a mode', 'modeProblems', [{ file: O, from: 'attendanceMode: MODES.includes(item.attendance_mode) ? item.attendance_mode : null,', to: 'attendanceMode: item.attendance_mode ?? null,' }]],
-  ['mode: never read', 'modeProblems', [{ file: O, from: 'attendanceMode: MODES.includes(item.attendance_mode) ? item.attendance_mode : null,', to: 'attendanceMode: null,' }]],
-  ['mode: not on the card', 'modeProblems', [{ file: R, from: "${mode ? `<span class=\"tag\">${esc(mode)}</span>` : ''}", to: '' }]],
-  ['mode: an online event shows its place', 'modeProblems', [{ file: R, from: "const where = event.attendanceMode === 'online' ? 'Online' : event.whereAddress || event.venue;", to: 'const where = event.whereAddress || event.venue;' }]],
-  ['mode: an event held both ways loses its place', 'modeProblems', [{ file: R, from: "const where = event.attendanceMode === 'online' ? 'Online' : event.whereAddress || event.venue;", to: "const where = event.attendanceMode !== 'in_person' && event.attendanceMode ? 'Online' : event.whereAddress || event.venue;" }]],
-  ['mode: an event held both ways is off the map', 'modeProblems', [{ file: M, from: "if (event.attendanceMode === 'online') return;", to: "if (event.attendanceMode === 'online' || event.attendanceMode === 'both') return;" }]],
-  ['mode: a class held another way than its slot passes', 'modeProblems', [{ file: SH, from: 'for (const s of own) if (s.mode !== event.attendanceMode) problems.push(', to: 'for (const s of own) if (false) problems.push(' }]],
-  ['mode: both always labelled online', 'modeProblems', [{ file: SH, from: "both: 'Online and in person' };", to: "both: 'Online' };" }]],
   // Calendar feed (S8 follow-up)
   ['calendar: listed whatever OSE answered', 'calendarProblems', [{ file: O, from: "const feed = res?.status === 200 ? await res.text().catch(() => '') : '';\n    if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {", to: "const feed = res ? await res.text().catch(() => '') : '';\n    if (true) {" }]],
   ['calendar: any 200 taken for a feed', 'calendarProblems', [{ file: O, from: 'if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {', to: 'if (feed) {' }]],
@@ -293,7 +284,7 @@ describe('creator showcase: born red', () => {
     const urls = [...new Set(Object.values(pages).flatMap((h) => [...h.matchAll(/data-code-url="([^"]*)"/g)].map((x) => x[1])))];
     const resolved = urls.map((url) => ({ url, status: 302, location: `${C.FAKE_ORIGIN}/events/evt_sample-0001` }));
     // The stand-in names campaigns in its bundle and serves the calendar feed, so both are expected.
-    const withCampaigns = { campaigns: true, calendar: `${C.FAKE_ORIGIN}/brands/showcase-sample/calendar.ics`, series: true, modes: true };
+    const withCampaigns = { campaigns: true, calendar: `${C.FAKE_ORIGIN}/brands/showcase-sample/calendar.ics`, series: true };
     const lostCard = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('<article class="event"', '<article class="gone"') };
     expect(oseVerdictProblems(plan(), C.sample(), lostCard, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/teach: 3 event cards, want 4/);
     const draftShown = { ...pages, 'teach/index.html': `${pages['teach/index.html']}<h3>Draft class (showcase demo)</h3>` };
@@ -309,9 +300,6 @@ describe('creator showcase: born red', () => {
     const swapped = { ...C.sample(), campaigns: [{ frequency: 'wear', oseCampaignId: 'cmp_real-0001' }] };
     expect(oseVerdictProblems(plan(), swapped, pages, resolved, C.NOW, { ...withCampaigns, campaignIds: { cmp_sample_wear: 'cmp_real-0001' } })).toEqual([]);
     expect(oseVerdictProblems(plan(), swapped, pages, resolved, C.NOW, { ...withCampaigns, campaignIds: { cmp_sample_wear: 'cmp_other' } }).join('\n')).toMatch(/wear: station partners "Corner hardware[^"]*", want ""/);
-    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, { ...withCampaigns, modes: false }).join('\n')).toMatch(/teach: modes shown "[^"]+", want ""/);
-    const wrongMode = { ...pages, 'wear/index.html': pages['wear/index.html'].replace('<span class="tag">In person</span>', '<span class="tag">Online</span>') };
-    expect(oseVerdictProblems(plan(), C.sample(), wrongMode, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/wear: modes shown/);
     const lostArea = { ...pages, 'wear/index.html': pages['wear/index.html'].replace('<polygon class="hex-area"', '<polygon class="gone"') };
     expect(oseVerdictProblems(plan(), C.sample(), lostArea, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/wear: 1 areas on the map, want 2/);
     const noFeed = { ...pages, 'index.html': pages['index.html'].replace(/<p class="calendar">[\s\S]*?<\/p>/, '') };

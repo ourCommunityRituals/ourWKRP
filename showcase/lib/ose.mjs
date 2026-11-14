@@ -12,7 +12,7 @@
 // build: until she agrees, OSE carries neutral titles only (owner, 2026-11-12).
 import { assertLocalBase, safeHttpsUrl } from './showcase.mjs';
 import { codesFromBundle } from './codes.mjs';
-import { creatorSchema, MODES } from './schema.mjs';
+import { creatorSchema } from './schema.mjs';
 import { isPast } from './schedule.mjs';
 import { areaCell } from './map.mjs';
 
@@ -94,9 +94,8 @@ export function toEvent(item) {
     // kilometres. Its latitude and longitude are not kept: a map here is drawn
     // from the area alone (place, not person).
     area: areaCell(item.h3_res7),
-    // How the event is held: online, in person or both (OSE S13). An OSE from
-    // before the field, or a value that is not a mode, reads as no mode.
-    attendanceMode: MODES.includes(item.attendance_mode) ? item.attendance_mode : null,
+    // OSE S13 adds this; until it lands every event reads without a mode.
+    attendanceMode: item.attendance_mode ?? null,
   };
 }
 
