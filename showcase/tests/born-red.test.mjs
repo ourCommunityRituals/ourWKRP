@@ -21,6 +21,7 @@ const SC = 'schema.mjs';
 const SH = 'schedule.mjs';
 const CO = 'codes.mjs';
 const O = 'ose.mjs';
+const M = 'map.mjs';
 
 const MUTANTS_LIST = [
   // 0. Security
@@ -164,6 +165,41 @@ const MUTANTS_LIST = [
   ['overlap: an event linked twice accepted', 'overlapProblems', [{ file: SC, from: 'if (seen.has(e.oseEventId)) problems.push(', to: 'if (false) problems.push(' }]],
   ['overlap: campaigns unchecked', 'overlapProblems', [{ file: SC, from: "problems.push(...alsoProblems(`campaigns.${i}`, c));", to: '' }]],
   ['overlap: a borrowing station needs no why', 'overlapProblems', [{ file: SC, from: 'for (const id of e.also ?? []) if (ids.has(id)) onAir.add(id);', to: '' }]],
+  // Declared series (S15 follow-up)
+  ['series: a programme event off every declared series passes', 'seriesProblems', [{ file: SH, from: "if (series === null) problems.push(", to: "if (false) problems.push(" }]],
+  ['series: an OSE that does not say stops the build', 'seriesProblems', [{ file: SH, from: "if (series === null) problems.push(", to: "if (!series) problems.push(" }]],
+  ['series: a series that disagrees with its slot passes', 'seriesProblems', [{ file: SH, from: "if (series) for (const s of own) problems.push(...seriesSlotProblems(series, s)", to: "if (false) for (const s of own) problems.push(...seriesSlotProblems(series, s)" }]],
+  ['series: the weekday counted from Monday', 'seriesProblems', [{ file: SH, from: "const SERIES_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];", to: "const SERIES_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];" }]],
+  ['series: the hour unchecked', 'seriesProblems', [{ file: SH, from: 'series.hourOfDay !== Number(slot.time.slice(0, 2))', to: 'false' }]],
+  ['series: the cadence unchecked', 'seriesProblems', [{ file: SH, from: 'if (series.cadence && series.cadence !== slot.cadence) out.push(', to: 'if (false) out.push(' }]],
+  ['series: a one-off held to a series', 'seriesProblems', [{ file: SH, from: "    // A programme event is held to the slots of the station it lives on, not of one it also shows on.\n    if (link.intent !== 'programme' || isLead || link.frequency !== station.id) continue;", to: "    if (series === null) problems.push(`${where}: a programme event is not on a declared series in OurSharedEvents`);\n    if (link.intent !== 'programme' || isLead || link.frequency !== station.id) continue;" }]],
+  ['series: not shown on the card', 'seriesProblems', [{ file: R, from: "          ${row('Series', series?.name)}\n", to: '' }]],
+  ['series: the whole OSE row kept', 'seriesProblems', [{ file: O, from: "  return {\n    id: s.id,\n    name: String(s.name ?? '').trim(),", to: "  return {\n    ...s,\n    id: s.id,\n    name: String(s.name ?? '').trim()," }]],
+  ['series: a missing answer read as none', 'seriesProblems', [{ file: O, from: "if (!body || !('series' in body)) return undefined;", to: "if (!body || !('series' in body)) return null;" }]],
+  ['series: its name unchecked', 'seriesProblems', [{ file: O, from: "if (series) problems.push(...neutralProblems(", to: "if (false) problems.push(...neutralProblems(" }]],
+  ['escaping: a series name unescaped', 'escapingProblems', [{ file: R, from: "const row = (label, value) => (value ? `<p><span class=\"label\">${label}</span>${esc(value)}</p>` : '');", to: "const row = (label, value) => (value ? `<p><span class=\"label\">${label}</span>${label === 'Series' ? value : esc(value)}</p>` : '');" }]],
+  // The where map
+  ['map: a finer cell drawn', 'mapProblems', [{ file: M, from: 'isValidCell(cell) && getResolution(cell) === MAP_RESOLUTION ? cell : null', to: 'isValidCell(cell) && getResolution(cell) >= MAP_RESOLUTION ? cell : null' }]],
+  ['map: any text kept as a cell', 'mapProblems', [{ file: M, from: "return typeof cell === 'string' && isValidCell(cell) && getResolution(cell) === MAP_RESOLUTION ? cell : null;", to: "return typeof cell === 'string' && (!isValidCell(cell) || getResolution(cell) === MAP_RESOLUTION) ? cell : null;" }]],
+  ['map: the coordinates kept', 'mapProblems', [{ file: O, from: '    area: areaCell(item.h3_res7),', to: '    area: areaCell(item.h3_res7),\n    lat: item.lat ?? null,\n    lon: item.lon ?? null,' }]],
+  ['map: the cell id written into the page', 'mapProblems', [{ file: M, from: '`<polygon class="hex-area" points="${points(ring)}"></polygon>', to: '`<polygon class="hex-area" data-cell="${a.cell}" points="${points(ring)}"></polygon>' }]],
+  ['map: an online event drawn', 'mapProblems', [{ file: M, from: "if (event.attendanceMode === 'online') return;", to: '' }]],
+  ['map: an event with no area dropped from the list', 'mapProblems', [{ file: M, from: 'if (event.whereAddress || event.venue) offMap.push(i);', to: '' }]],
+  ['map: one hexagon per event, not per area', 'mapProblems', [{ file: M, from: 'const seen = areas.find((a) => a.cell === event.area);', to: 'const seen = null;' }]],
+  ['map: no neighbours drawn', 'mapProblems', [{ file: M, from: 'areas.flatMap((a) => gridDisk(a.cell, 1))', to: 'areas.flatMap((a) => gridDisk(a.cell, 0))' }]],
+  ['map: the areas under the street layer', 'mapProblems', [{ file: M, from: '<g class="hex-streets"></g><g class="hex-around">${empty}</g><g class="hex-areas">${filled}</g>', to: '<g class="hex-areas">${filled}</g><g class="hex-around">${empty}</g><g class="hex-streets"></g>' }]],
+  ['map: the areas opaque', 'mapProblems', [{ file: R, from: '.hex-area { fill: var(--accent); fill-opacity: 0.3;', to: '.hex-area { fill: var(--accent); fill-opacity: 0.9;' }]],
+  ['map: drawn outside its frame', 'mapProblems', [{ file: M, from: 'const PAD = 0.1;', to: 'const PAD = -0.4;' }]],
+  ['map: no list beside it', 'mapProblems', [{ file: R, from: '<ol class="areas" aria-label="Events by area">', to: '<ol class="areas-gone" hidden aria-label="Events by area">' }]],
+  ['map: the list links nowhere', 'mapProblems', [{ file: R, from: 'return `<li><a href="#ev-${i}">${esc(event.title)}</a>', to: 'return `<li><a href="#ev-${i + 40}">${esc(event.title)}</a>' }]],
+  ['map: above the events', 'mapProblems', [
+    { file: R, from: "  ${opt.show.map ? whereSection(s, schedule.upcoming, isLead) : ''}\n\n", to: '' },
+    { file: R, from: '  <section aria-labelledby="when-title" id="when">', to: "  ${opt.show.map ? whereSection(s, schedule.upcoming, isLead) : ''}\n  <section aria-labelledby=\"when-title\" id=\"when\">" },
+  ]],
+  ['map: not announced as an image', 'mapProblems', [{ file: M, from: 'viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-labelledby', to: 'viewBox="0 0 ${WIDTH} ${HEIGHT}" aria-labelledby' }]],
+  ['map: labelled by nothing on the page', 'mapProblems', [{ file: R, from: "mapSvg(areas, { labelledby: 'where-title where-note' })", to: "mapSvg(areas, { labelledby: 'where-heading' })" }]],
+  ['map: an empty frame on a station with no area', 'mapProblems', [{ file: R, from: "  if (!areas.length) return '';\n  const item = (i) => {", to: '  const item = (i) => {' }]],
+  ['map: the switch ignored', 'mapProblems', [{ file: R, from: "${opt.show.map ? whereSection(s, schedule.upcoming, isLead) : ''}", to: '${whereSection(s, schedule.upcoming, isLead)}' }]],
   // Calendar feed (S8 follow-up)
   ['calendar: listed whatever OSE answered', 'calendarProblems', [{ file: O, from: "const feed = res?.status === 200 ? await res.text().catch(() => '') : '';\n    if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {", to: "const feed = res ? await res.text().catch(() => '') : '';\n    if (true) {" }]],
   ['calendar: any 200 taken for a feed', 'calendarProblems', [{ file: O, from: 'if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {', to: 'if (feed) {' }]],
@@ -202,7 +238,7 @@ const MUTANTS_LIST = [
   ['intents: a mode unlike its slot accepted', 'intentProblems', [{ file: SH, from: 'if (s.mode !== event.attendanceMode) problems.push(', to: 'if (false) problems.push(' }]],
   ['frequency: every event on every station', 'intentProblems', [{ file: SH, from: 'isLead || onStation(link, station.id)', to: 'true' }]],
   ['order: latest first', 'intentProblems', [{ file: SH, from: '(a, b) => sortKey(a.event).localeCompare(sortKey(b.event));', to: '(a, b) => sortKey(b.event).localeCompare(sortKey(a.event));' }]],
-  ['past: a moved programme blocks the build on past events', 'intentProblems', [{ file: SH, from: 'for (const { link, event } of upcoming) {', to: 'for (const { link, event } of mine) {' }]],
+  ['past: a moved programme blocks the build on past events', 'intentProblems', [{ file: SH, from: 'for (const { link, event, series } of upcoming) {', to: 'for (const { link, event, series } of mine) {' }]],
   ['why: only the next programme event reads its slot purpose', 'slotWhyProblems', [{ file: R, from: 'const slot = byId[link.frequency] ? slotOf(', to: 'const slot = i === 0 && byId[link.frequency] ? slotOf(' }]],
   ['order: the dial sorts date-only events by bare date', 'dialOrderProblems', [{ file: R, from: '    .sort(soonestFirst)\n    .slice(0, 5);', to: '    .sort((a, b) => String(a.event.startsAt || a.event.startDate).localeCompare(String(b.event.startsAt || b.event.startDate)))\n    .slice(0, 5);' }]],
   ['On air: an OSE title in it', 'onAirTextProblems', [{ file: R, from: '`Next: ${esc(whenText(o.next.event, o.next.link))}`', to: '`Next: ${esc(o.next.event.title)}`' }]],
@@ -247,16 +283,24 @@ describe('creator showcase: born red', () => {
     const pages = await C.samplePages(m);
     const urls = [...new Set(Object.values(pages).flatMap((h) => [...h.matchAll(/data-code-url="([^"]*)"/g)].map((x) => x[1])))];
     const resolved = urls.map((url) => ({ url, status: 302, location: `${C.FAKE_ORIGIN}/events/evt_sample-0001` }));
+    // The stand-in names campaigns in its bundle and serves the calendar feed, so both are expected.
+    const withCampaigns = { campaigns: true, calendar: `${C.FAKE_ORIGIN}/brands/showcase-sample/calendar.ics`, series: true };
     const lostCard = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('<article class="event"', '<article class="gone"') };
-    expect(oseVerdictProblems(plan(), C.sample(), lostCard, resolved, C.NOW, { campaigns: true }).join('\n')).toMatch(/teach: 3 event cards, want 4/);
+    expect(oseVerdictProblems(plan(), C.sample(), lostCard, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/teach: 3 event cards, want 4/);
     const draftShown = { ...pages, 'teach/index.html': `${pages['teach/index.html']}<h3>Draft class (showcase demo)</h3>` };
     expect(oseVerdictProblems(plan(), C.sample(), draftShown, resolved, C.NOW).join('\n')).toMatch(/evt_sample-0007: "Draft class/);
     const dead = resolved.map((r, i) => (i === 0 ? { ...r, status: 404 } : r));
     expect(oseVerdictProblems(plan(), C.sample(), pages, dead, C.NOW).join('\n')).toMatch(/answered 404/);
-    // The fake names campaigns in its bundle, so the wear partner is expected.
-    const withCampaigns = { campaigns: true };
     expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, withCampaigns)).toEqual([]);
-    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW).join('\n')).toMatch(/wear: station partners "Corner hardware \(showcase demo\)", want ""/);
+    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, { campaigns: true, series: true }).join('\n')).toMatch(/calendar links "index\.html [^"]*calendar\.ics", want ""/);
+    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, { ...withCampaigns, series: false }).join('\n')).toMatch(/teach: series named "Thursday evening class[^"]*", want ""/);
+    const lostSeries = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('<span class="label">Series</span>', '<span class="label">Gone</span>') };
+    expect(oseVerdictProblems(plan(), C.sample(), lostSeries, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/teach: series named/);
+    const lostArea = { ...pages, 'wear/index.html': pages['wear/index.html'].replace('<polygon class="hex-area"', '<polygon class="gone"') };
+    expect(oseVerdictProblems(plan(), C.sample(), lostArea, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/wear: 1 areas on the map, want 2/);
+    const noFeed = { ...pages, 'index.html': pages['index.html'].replace(/<p class="calendar">[\s\S]*?<\/p>/, '') };
+    expect(oseVerdictProblems(plan(), C.sample(), noFeed, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/calendar links "", want "index\.html/);
+    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, { calendar: withCampaigns.calendar, series: true }).join('\n')).toMatch(/wear: station partners "Corner hardware \(showcase demo\)", want ""/);
     const oneSided = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('Print shop (showcase demo)</span>', 'Print shop (showcase demo)</span>, <span class="backer">Waiting cafe (showcase demo)</span>') };
     expect(oseVerdictProblems(plan(), C.sample(), oneSided, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/sponsor "Waiting cafe \(showcase demo\)" reached a page/);
     const lostStrip = { ...pages, 'wear/index.html': pages['wear/index.html'].replace('<p class="backers">', '<p class="gone">') };

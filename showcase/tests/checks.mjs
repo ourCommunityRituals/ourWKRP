@@ -1,6 +1,7 @@
 // Every showcase check as a function over the lib modules, returning problems.
 // The layer tests call them on the real lib and expect none; born-red.test.mjs
 // calls them on mutated copies and expects each to catch its planted fault.
+import { cellToParent, gridDisk, latLngToCell } from 'h3-js';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -72,9 +73,11 @@ export function inlineHandlerProblems(html) {
 
 // A link between the creator's own pages: ../index.html, teach/index.html, ../wear/index.html.
 const OWN_PAGE = /^(\.\.\/)?([a-z0-9]+(-[a-z0-9]+)*\/)?index\.html$/;
+const OWN_ANCHOR = /^#ev-\d+$/;
 const OWN_IMAGE = /^(\.\.\/)?img\/[a-z0-9-]+\.(jpg|png)$/;
 /**
  * Every href / src / srcset is https:, one of the creator's own pages or images,
+ * an event card on the same page,
  * or, on `origin` (the OSE the build read), a /q or /s code or the brand's
  * calendar feed.
  */
@@ -85,6 +88,8 @@ export function urlProblems(html, origin = null) {
     for (const [, attr, value] of t.matchAll(/\s(href|src|srcset)\s*=\s*"([^"]*)"/gi)) {
       const v = value.trim();
       if (/^https:\/\//.test(v) || OWN_PAGE.test(v) || OWN_IMAGE.test(v) || (code && code.test(v))) continue;
+      // The where map's list links to an event card on the same page.
+      if (attr.toLowerCase() === 'href' && OWN_ANCHOR.test(v)) continue;
       out.push(`${attr}="${value.slice(0, 60)}"`);
     }
   }
@@ -121,6 +126,7 @@ export async function escapingProblems(m) {
     creator: sample(),
     edit: (kind, body) => {
       if (kind === 'event') for (const k of ['title', 'name', 'what_short', 'who_host', 'why_purpose', 'how_details', 'where_address', 'venue']) body.item[k] = `x${PAYLOADS[n.i++ % 4]}`;
+      if (kind === 'event' && body.series) body.series.name = `x${PAYLOADS[n.i++ % 4]}`;
       if (kind === 'bundle') for (const s of body.slots) { s.word = `x${PAYLOADS[n.i++ % 4]}`; s.label = s.word; }
       if (kind === 'sponsors') {
         for (const s of body.bundle.sponsors) {
@@ -133,6 +139,7 @@ export async function escapingProblems(m) {
   });
   const out = [];
   if (!ose.linked.some((x) => x.sponsors.some((sp) => sp.campaign))) out.push('the hostile build has no campaign partner to check');
+  if (!ose.linked.some((x) => x.series)) out.push('the hostile build has no series to check');
   // Every layout's markup and the TV board, not only the default page set.
   for (const layout of ['dial', 'list', 'grid']) {
     const pages = m.render.renderPages({ creator: { ...creator, layout, display: 'tv' }, catalog: catalog().categories, reports, theme: '', ose, now: NOW });
@@ -1291,5 +1298,166 @@ export async function overlapProblems(m) {
   refused((c) => { c.campaigns[0].also = ['nowhere']; }, /campaigns\.0: also "nowhere"/, 'a campaign also on an unknown station');
   // A station that only borrows events still has to say why it is on air.
   refused((c) => { c.events = [{ frequency: 'wear', also: ['teach'], oseEventId: 'evt_sample-0006', intent: 'one-off' }]; c.schedule.rows = c.schedule.rows.filter((r) => r.length < 5 || r[4] === 'evt_sample-0006'); delete c.stations[0].why; delete c.stations[0].programme; }, /stations\.teach: a frequency with events or a programme needs its why/, 'a station with only borrowed events and no why');
+  return out;
+}
+
+// ── Declared series (S15 follow-up) ──────────────────────────────────────────
+/**
+ * A programme is something the organizer declared in OSE, not only a row in the
+ * creator file: an upcoming programme event sits on a declared series, and that
+ * series agrees with the slot it stands on. The page shows the series by name.
+ */
+export async function seriesProblems(m) {
+  const out = [];
+  const NAME = 'Thursday evening class (showcase demo)';
+  const render = (ose, creator = sample()) => m.render.renderPages({ creator, catalog: catalog().categories, reports: seededReports(), theme: '', ose, now: NOW });
+  const onEvent = (id, change) => ({ edit: (k, b, eid) => { if (k === 'event' && eid === id) change(b); return b; } });
+  const built = async (opts, creator = sample()) => {
+    try {
+      return { pages: render(await sampleOse(m, { creator, ...opts }), creator) };
+    } catch (e) {
+      return { error: e.message };
+    }
+  };
+
+  // What the build keeps: five fields, by name; none for an event on no series.
+  const ose = await sampleOse(m);
+  const of = (id) => ose.linked.find((x) => x.link.oseEventId === id)?.series;
+  const kept = of('evt_sample-0001');
+  if (JSON.stringify(kept) !== JSON.stringify({ id: 'ser_sample-0001', name: NAME, cadence: 'weekly', dayOfWeek: 4, hourOfDay: 18 })) out.push(`the build kept ${JSON.stringify(kept)} of the series`);
+  if (of('evt_sample-0003') !== null) out.push(`the trial, on no series, reads ${JSON.stringify(of('evt_sample-0003'))}`);
+
+  // The card names the series; an event on none has no such row.
+  const base = await built({});
+  if (base.error) return [...out, `the fixture did not build: ${base.error.split('\n')[1] ?? base.error}`];
+  const teach = cardsOf(base.pages['teach/index.html']);
+  const row = (card) => card.match(/<span class="label">Series<\/span>([^<]*)</)?.[1] ?? null;
+  const classes = teach.filter((c) => c.includes('>Evening class (showcase demo)<'));
+  if (classes.length !== 2 || classes.some((c) => row(c) !== NAME)) out.push(`the programme cards read ${classes.map(row).join(' / ')}, want the series name on both`);
+  const trial = teach.find((c) => c.includes('Data class trial'));
+  if (!trial || row(trial) !== null) out.push('a card for an event on no series names one');
+
+  // A programme event OSE says is on no series stops the build.
+  const none = await built(onEvent('evt_sample-0001', (b) => { b.series = null; }));
+  if (!/evt_sample-0001: a programme event is not on a declared series/.test(none.error ?? '')) out.push(`a programme event on no declared series built (${none.error ?? 'no error'})`);
+  // An OSE that does not say either way is not held to it, and shows no series.
+  const silent = await built({ edit: (k, b) => { if (k === 'event') delete b.series; return b; } });
+  if (silent.error) out.push(`an OSE that serves no series stopped the build: ${silent.error.split('\n')[1] ?? silent.error}`);
+  else if (/<span class="label">Series<\/span>/.test(Object.values(silent.pages).join(''))) out.push('a series shows though OSE served none');
+  // A one-off, pop-up or trial needs no series.
+  const loose = await built({ edit: (k, b, id) => { if (k === 'event' && !['evt_sample-0001', 'evt_sample-0002', 'evt_sample-0004'].includes(id)) b.series = null; return b; } });
+  if (loose.error) out.push(`an event that is not a programme was held to a series: ${loose.error.split('\n')[1] ?? loose.error}`);
+
+  // The series and the slot state the same programme.
+  for (const [what, change, want] of [
+    ['another cadence', (b) => { b.series.cadence = 'biweekly'; }, /its series is biweekly but its slot is weekly/],
+    ['another weekday', (b) => { b.series.day_of_week = 2; }, /its series is on tuesday but its slot is on thursday/],
+    ['another hour', (b) => { b.series.hour_of_day = 19; }, /its series starts at 19:00 but its slot at 18:00/],
+  ]) {
+    const r = await built(onEvent('evt_sample-0001', change));
+    if (!want.test(r.error ?? '')) out.push(`a series with ${what} than its slot built (${(r.error ?? 'no error').split('\n')[1] ?? 'no error'})`);
+  }
+  // A series that names no day or hour (as OSE allows) does not disagree with a slot that does.
+  const open = await built(onEvent('evt_sample-0001', (b) => { b.series.day_of_week = null; b.series.hour_of_day = null; }));
+  if (open.error) out.push(`a series that names no day or hour stopped the build: ${open.error.split('\n')[1] ?? open.error}`);
+
+  // A series named after the creator stops the build.
+  const named = await stopped(() => sampleOse(m, onEvent('evt_sample-0001', (b) => { b.series.name = 'Evenings with Sam Sample'; })), /series names/);
+  if (named) out.push(`the build read a series named after her without stopping (${named})`);
+  return out;
+}
+
+// ── The where map ────────────────────────────────────────────────────────────
+/**
+ * A station's in-person events by area: resolution-7 cells only, drawn from the
+ * cell and nothing finer, see-through and above a street layer, with the same
+ * events always listed beside it, below the events and their sponsors.
+ */
+export async function mapProblems(m) {
+  const out = [];
+  const A1 = latLngToCell(39.7817, -89.6501, 7);
+  const A2 = latLngToCell(39.84, -89.6, 7);
+  const render = (ose, creator = sample()) => m.render.renderPages({ creator: { ...creator, display: 'tv' }, catalog: catalog().categories, reports: seededReports(), theme: '', ose, now: NOW });
+  const onEvent = (id, change) => ({ edit: (k, b, eid) => { if (k === 'event' && eid === id) change(b); return b; } });
+  const section = (html) => html.match(/<section aria-labelledby="where-title"[\s\S]*?<\/section>/)?.[0] ?? '';
+  const count = (html, re) => (html.match(re) ?? []).length;
+
+  // What the build keeps of an event's place: the area, and no coordinate.
+  const ose = await sampleOse(m);
+  const ev = (id, o = ose) => o.linked.find((x) => x.link.oseEventId === id)?.event ?? {};
+  if (ev('evt_sample-0005').area !== A1 || ev('evt_sample-0006').area !== A2) out.push(`the build kept areas ${ev('evt_sample-0005').area} and ${ev('evt_sample-0006').area}`);
+  for (const x of ose.linked) for (const k of Object.keys(x.event)) if (/^(lat|lon|lng|latitude|longitude|h3_res9)$/i.test(k)) out.push(`the build kept an event's ${k}`);
+  if (ev('evt_sample-0001').area !== null) out.push('an event with no place has an area');
+
+  const pages = render(ose);
+  const wear = section(pages['wear/index.html']);
+  const all = Object.values(pages).join('\n');
+
+  // Two areas, numbered as the list numbers them; the neighbours are outlines only.
+  if (count(wear, /<polygon class="hex-area"/g) !== 2) out.push(`wear draws ${count(wear, /<polygon class="hex-area"/g)} areas, want 2`);
+  const numbers = [...wear.matchAll(/<text class="hex-number"[^>]*>([^<]*)<\/text>/g)].map((x) => x[1]).join(',');
+  if (numbers !== '1,2') out.push(`the areas are numbered "${numbers}", want 1,2`);
+  const around = new Set([...gridDisk(A1, 1), ...gridDisk(A2, 1)].filter((c) => c !== A1 && c !== A2)).size;
+  if (count(wear, /<polygon class="hex-empty"/g) !== around) out.push(`wear outlines ${count(wear, /<polygon class="hex-empty"/g)} neighbouring areas, want ${around}`);
+  // Every outline is a hexagon inside the frame.
+  for (const [, pts] of wear.matchAll(/<polygon class="hex-(?:area|empty)" points="([^"]*)"/g)) {
+    const xy = pts.split(' ').map((p) => p.split(',').map(Number));
+    if (xy.length !== 6) out.push(`an area is drawn with ${xy.length} corners`);
+    if (xy.some(([x, y]) => !(x >= 0 && x <= 640 && y >= 0 && y <= 360))) out.push('an area is drawn outside the map');
+  }
+  // Layers from the ground up: streets, neighbours, areas. The areas are see-through.
+  const order = ['<g class="hex-streets">', '<g class="hex-around">', '<g class="hex-areas">'].map((g) => wear.indexOf(g));
+  if (order.some((i) => i < 0) || order[0] > order[1] || order[1] > order[2]) out.push('the map layers are not streets, then neighbours, then areas');
+  const css = pages['wear/index.html'].match(/\.hex-area \{[^}]*\}/)?.[0] ?? '';
+  const opacity = Number(css.match(/fill-opacity: ([0-9.]+)/)?.[1] ?? 1);
+  if (!(opacity > 0 && opacity <= 0.5)) out.push(`an area's fill opacity is ${opacity}: a street layer under it would not read through`);
+
+  // The list is always there, says the same thing, and links to cards on the page.
+  const items = [...wear.matchAll(/<li><b>Area (\d+)<\/b><ul>([\s\S]*?)<\/ul><\/li>/g)];
+  if (items.length !== 2) out.push(`the list has ${items.length} areas, want 2`);
+  if (!/Table at a weekend market/.test(items[0]?.[2] ?? '') || !/Launch evening/.test(items[1]?.[2] ?? '')) out.push('the list does not name each area\'s event');
+  for (const [, id] of wear.matchAll(/<a href="#(ev-\d+)">/g)) if (!pages['wear/index.html'].includes(`id="${id}"`)) out.push(`the list links to #${id}, which is not on the page`);
+  for (const [path, html] of Object.entries(pages)) {
+    if (/<svg class="hex-map"/.test(html) && !/<ol class="areas"/.test(html)) out.push(`${path}: a map with no list beside it`);
+    const svg = html.match(/<svg class="hex-map"[^>]*>/)?.[0];
+    if (svg) {
+      if (!/role="img"/.test(svg)) out.push(`${path}: the map is not announced as an image`);
+      for (const id of (svg.match(/aria-labelledby="([^"]*)"/)?.[1] ?? '').split(' ')) if (!id || !html.includes(`id="${id}"`)) out.push(`${path}: the map is labelled by "${id}", which is not on the page`);
+    }
+  }
+  // Below the events (and so below every title, date and sponsor strip); never on the front page or the TV board.
+  const page = pages['wear/index.html'];
+  if (page.indexOf('id="where"') < page.lastIndexOf('<article class="event"')) out.push('the map sits above the events');
+  for (const p of ['index.html', 'tv/index.html']) if (/hex-map/.test(pages[p].replace(/<style>[\s\S]*?<\/style>/g, ''))) out.push(`${p} carries a map`);
+  // Nothing finer than the area reaches a page: no cell id, no coordinate.
+  for (const [what, re] of [['a cell id', new RegExp(`${A1}|${A2}`)], ['a latitude', /39\.78|39\.84/], ['a longitude', /-89\.6/]]) if (re.test(all)) out.push(`${what} reached a page`);
+  if (/<image|xlink:href|<script/.test(wear)) out.push('the map loads something or runs a script');
+
+  // A cell finer than the area, or not a cell at all, is never drawn: the event is listed without an area.
+  for (const [what, cell] of [['a resolution-9 cell', latLngToCell(39.7817, -89.6501, 9)], ['a resolution-5 cell', cellToParent(A1, 5)], ['a made-up cell', 'not-a-cell']]) {
+    const o = await sampleOse(m, onEvent('evt_sample-0005', (b) => { b.item.h3_res7 = cell; }));
+    if (ev('evt_sample-0005', o).area !== null) out.push(`${what} was kept as an area`);
+    const w = section(render(o)['wear/index.html']);
+    if (count(w, /<polygon class="hex-area"/g) !== 1) out.push(`${what} was drawn`);
+    if (!/with no area on the map yet[\s\S]*Table at a weekend market/.test(w)) out.push(`an event given ${what} is not listed beside the map`);
+  }
+  // Two events in one area share it.
+  const shared = await sampleOse(m, onEvent('evt_sample-0006', (b) => { b.item.h3_res7 = A1; }));
+  const one = section(render(shared)['wear/index.html']);
+  if (count(one, /<polygon class="hex-area"/g) !== 1 || count(one, /<li><a href="#ev-/g) !== 2) out.push('two events in one area are not drawn as one area with both listed');
+  // An online event is nowhere.
+  const online = await sampleOse(m, onEvent('evt_sample-0005', (b) => { b.item.attendance_mode = 'online'; }));
+  const noOnline = section(render(online)['wear/index.html']);
+  if (count(noOnline, /<polygon class="hex-area"/g) !== 1 || /Table at a weekend market/.test(noOnline)) out.push('an online event is on the map');
+
+  // No in-person area, no map: not an empty frame.
+  const apart = sample();
+  delete apart.events[5].also;
+  const teach = render(await sampleOse(m, { creator: apart }), apart)['teach/index.html'];
+  if (/id="where"|<svg class="hex-map"/.test(teach)) out.push('a station with no in-person area shows a map');
+  // The switch hides it everywhere and nothing else.
+  const off = render(ose, { ...sample(), sections: { map: false } });
+  if (Object.values(off).some((h) => /id="where"/.test(h))) out.push('the map is switched off and still shows');
+  if (!cardsOf(off['wear/index.html']).length) out.push('the events went with the map');
   return out;
 }

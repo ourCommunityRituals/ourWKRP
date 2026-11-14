@@ -70,6 +70,8 @@ const dayOffset = (days) => new Date(Date.now() + days * 86_400_000).toISOString
 const RESET_TABLES = ['event_codes', 'export_manifest', 'report_access_log', 'scan_aggregates', 'scan_cell_aggregates',
   'scan_node_returns', 'scan_placement_events', 'share_opens_daily', 'shortlinks', 'sponsor_displays', 'sponsor_placement',
   'poster_deployments', 'sponsor_business', 'campaigns'];
+// event_series points at its anchor event, and events point at their series, so
+// the links are cleared before either table is emptied.
 
 /**
  * The plan's upcoming events, on the creator's brand (or the plan entry's own,
@@ -125,6 +127,8 @@ async function seedPlan(pickType) {
       timezone: p.timezone,
       is_published: true,
       ...(p.where_address ? { location: p.where_address, where_address: p.where_address } : {}),
+      // An admin gives a place as coordinates; OSE keeps them to derive the event's area (its H3 cells).
+      ...(Number.isFinite(p.lat) && Number.isFinite(p.lon) ? { lat: p.lat, lon: p.lon } : {}),
       ...Object.fromEntries(['what_short', 'who_host', 'why_purpose', 'how_details'].filter((k) => p[k]).map((k) => [k, p[k]])),
     });
     await api('PUT', `/api/v2/admin/events/${ev.id}`, { status: 'ready', start_time: p.time, event_type_id: pickType(cat?.eventKinds[0] ?? 'class') });
@@ -142,6 +146,20 @@ async function seedPlan(pickType) {
     }
     console.log(`plan ${p.ref}: ${ev.id} on ${p.brand ?? creator.oseBrand}, ${day} ${p.time}${p.state === 'draft' ? ' (draft)' : ''}`);
   }
+  // The plan's series, declared the way an organizer declares one: anchored on
+  // its first event, with the others joining it (OSE ADR-029).
+  for (const s of plan.series ?? []) {
+    const [anchor, ...rest] = s.events.map((ref) => ids[ref]);
+    if (!anchor || rest.some((id) => !id)) throw new Error(`plan: series ${s.ref} names an event the plan does not create`);
+    await api('POST', `/api/v2/admin/events/${anchor}/series`, {
+      name: s.name,
+      cadence: s.cadence,
+      ...(s.day_of_week !== undefined ? { day_of_week: s.day_of_week } : {}),
+      ...(s.hour_of_day !== undefined ? { hour_of_day: s.hour_of_day } : {}),
+      event_ids: rest,
+    });
+    console.log(`plan ${s.ref}: declared on ${anchor} with ${rest.length} more`);
+  }
   const swap = (v) => ids[v] ?? v;
   const resolved = {
     ...creator,
@@ -156,6 +174,8 @@ async function seedPlan(pickType) {
 
 async function main() {
   for (const t of RESET_TABLES) await d1(`DELETE FROM ${t}`);
+  await d1('UPDATE events SET series_id = NULL');
+  await d1('DELETE FROM event_series');
   await d1('DELETE FROM events');
 
   const types = await api('GET', '/api/v2/admin/event-types');

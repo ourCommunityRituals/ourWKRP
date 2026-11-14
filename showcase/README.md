@@ -72,6 +72,31 @@ someone does. They carry no meaning the system depends on, and they overlap
 - A programme event is held to the slots of the station it lives on, and stands under "On air" there only.
 - Lead shows every station already, so it is never listed in `also`. An event is still linked once.
 
+## The where map
+
+A station page maps its in-person events by area, below the events themselves.
+It follows the way OurSharedEvents draws its own maps:
+
+- An area is the event's H3 cell at resolution 7, about 5 square kilometres. Nothing finer is kept or drawn: the build reads the area OSE publishes and leaves the event's coordinates behind.
+- The map shows where events are, never where people are, so it carries no count of people.
+- It is drawn at build time as inline SVG. There is no script and no request to a map company; the page is as static as before.
+- The areas are see-through and sit above an empty street layer. The showcase has no streets of its own: that group is where OurSharedEvents' drawn streets go once it offers them to an outside reader.
+- The map is never the only route. The same events are listed below it, each linked to its card, and an in-person event with no area yet is listed too.
+
+An online event is nowhere, so it is not on the map. `sections.map: false` hides the map. Building needs `h3-js`, the library OSE uses for the same cells (a dev dependency: nothing is added to the Worker).
+
+## A programme is declared in OurSharedEvents
+
+A `programme` slot in the creator file says when a station is on air. The
+organizer also declares that programme in OurSharedEvents as a series. The
+build holds the two together:
+
+- an upcoming `programme` event must sit on a declared series;
+- the series and the slot must state the same cadence, weekday and hour (a series that names no day or hour agrees with any);
+- the event's card names the series.
+
+A one-off, a pop-up or a trial needs no series. A trial joins one when the organizer promotes it.
+
 ## Partners and the calendar feed
 
 A sponsor reaches a page only from OurSharedEvents' public sponsor bundle, where

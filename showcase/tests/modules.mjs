@@ -6,7 +6,7 @@ import { SHOWCASE } from './checks.mjs';
 
 const LIB = join(SHOWCASE, 'lib');
 export const MUTANTS = join(LIB, '.mutants');
-const NAMES = ['showcase', 'render', 'build', 'schema', 'schedule', 'codes', 'ose', 'plan'];
+const NAMES = ['showcase', 'render', 'build', 'schema', 'schedule', 'codes', 'ose', 'plan', 'map'];
 
 async function load(dir, bust = '') {
   const out = {};

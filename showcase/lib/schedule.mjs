@@ -137,6 +137,23 @@ export function whenText(ev, link) {
  * @param {{link: object, event: object}[]} linked  every public OSE event the creator links
  * @param {Date|number} now
  */
+// OSE counts a series' weekday from Sunday (0); a slot names its day.
+const SERIES_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+/**
+ * Why a programme event's declared series (OSE) and the slot it stands on
+ * disagree, as a list. They state the same programme twice, once where the
+ * organizer declared it and once in the creator file, so a page never shows a
+ * schedule the organizer did not declare.
+ */
+export function seriesSlotProblems(series, slot) {
+  const out = [];
+  if (series.cadence && series.cadence !== slot.cadence) out.push(`its series is ${series.cadence} but its slot is ${slot.cadence}`);
+  if (series.dayOfWeek !== null && slot.day && SERIES_DAYS[series.dayOfWeek] !== slot.day) out.push(`its series is on ${SERIES_DAYS[series.dayOfWeek]} but its slot is on ${slot.day}`);
+  if (series.hourOfDay !== null && slot.time && series.hourOfDay !== Number(slot.time.slice(0, 2))) out.push(`its series starts at ${String(series.hourOfDay).padStart(2, '0')}:00 but its slot at ${slot.time}`);
+  return out;
+}
+
 /** Whether a link shows on a station: it lives there, or lists it in `also`. */
 export const onStation = (link, id) => link.frequency === id || (link.also ?? []).includes(id);
 
@@ -148,7 +165,7 @@ export function stationSchedule(station, linked, now, { isLead = false } = {}) {
 
   // Only what will show is held to the programme: a past event is not on the
   // page, so a programme that has since moved never stops a later build.
-  for (const { link, event } of upcoming) {
+  for (const { link, event, series } of upcoming) {
     const where = `${link.frequency}: ${link.oseEventId}`;
     if (link.intent === 'pop-up' && !eventWhen(event)?.time) problems.push(`${where}: a pop-up needs a start time on its OSE event`);
     // A programme event is held to the slots of the station it lives on, not of one it also shows on.
@@ -158,6 +175,10 @@ export function stationSchedule(station, linked, now, { isLead = false } = {}) {
     if (event.attendanceMode) {
       for (const s of own) if (s.mode !== event.attendanceMode) problems.push(`${where}: its mode (${event.attendanceMode}) differs from its slot's (${s.mode})`);
     }
+    // A programme is something the organizer declared in OSE, not only a row in
+    // the creator file. An OSE that does not say (series undefined) is not held to it.
+    if (series === null) problems.push(`${where}: a programme event is not on a declared series in OurSharedEvents`);
+    if (series) for (const s of own) problems.push(...seriesSlotProblems(series, s).map((p) => `${where}: ${p}`));
   }
 
   const onAir = slots.map((slot) => {

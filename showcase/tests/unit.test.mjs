@@ -57,6 +57,12 @@ describe('creator showcase: unit', () => {
   it('overlap: an event or campaign shows on more than one station, with one home, one set of codes and one slot', async () => {
     expect(await C.overlapProblems(m)).toEqual([]);
   });
+  it('declared series: a programme event sits on a series the organizer declared in OSE, and the series agrees with its slot', async () => {
+    expect(await C.seriesProblems(m)).toEqual([]);
+  });
+  it('where map: in-person events by area, at the 5 km grain and nothing finer, see-through, with the list beside it', async () => {
+    expect(await C.mapProblems(m)).toEqual([]);
+  });
   it('dates read as day, short month, year', () => {
     expect(C.dateProblems(m)).toEqual([]);
   });

@@ -1,5 +1,12 @@
 {
   "about": "The OSE events the fictional fixture links, by day rather than date (lib/plan.mjs). seed-local.mjs creates them on a LOCAL OSE worker and writes work/sample-creator/creator.json with the real ids; the tests stand them in for OSE. Every text is neutral: no name or link from the creator file.",
+  "series": [
+    {
+      "ref": "ser_sample-0001", "name": "Thursday evening class (showcase demo)",
+      "cadence": "weekly", "day_of_week": 4, "hour_of_day": 18,
+      "events": ["evt_sample-0001", "evt_sample-0002", "evt_sample-0004"]
+    }
+  ],
   "events": [
     {
       "ref": "evt_sample-0001", "placementRef": "pd_sample0001",
@@ -33,14 +40,14 @@
     {
       "ref": "evt_sample-0005", "placementRef": "pd_sample0005",
       "title": "Table at a weekend market (showcase demo)", "on": { "weekday": "saturday", "weeks": 1 }, "time": "12:00", "timezone": "America/Chicago",
-      "what_short": "Made goods on a table for the afternoon.", "where_address": "100 Market Street, Springfield",
+      "what_short": "Made goods on a table for the afternoon.", "where_address": "100 Market Street, Springfield", "lat": 39.7817, "lon": -89.6501,
       "codes": [{ "kind": "tickets", "target_url": "https://example.net/table" }, { "kind": "sponsor", "target_url": "https://example.net/partners" }],
       "sponsors": [{ "id": "sb_sample01", "name": "Corner hardware (showcase demo)", "campaign": { "id": "cmp_sample_wear", "title": "Winter tables (showcase demo)" } }]
     },
     {
       "ref": "evt_sample-0006",
       "title": "Launch evening (showcase demo)", "on": { "weekday": "friday", "weeks": 2 }, "time": "19:00", "timezone": "America/Chicago",
-      "what_short": "One evening to launch a new range.", "where_address": "200 Main Street, Springfield",
+      "what_short": "One evening to launch a new range.", "where_address": "200 Main Street, Springfield", "lat": 39.84, "lon": -89.6,
       "sponsors": [{ "id": "sb_sample01", "name": "Corner hardware (showcase demo)", "campaign": { "id": "cmp_sample_wear", "title": "Winter tables (showcase demo)" } }]
     },
     {

@@ -9,13 +9,20 @@
 // Sponsors (S9): a card names exactly the plan's sponsors that both sides
 // accepted; one side's yes, a pending answer and a past event's sponsor reach no
 // page. A campaign partner is expected at the top of its station only when the
-// worker's sponsor bundle carries campaigns (OSE S14).
+// worker's sponsor bundle carries campaigns (OSE S14). The calendar feed link is
+// required on the front page exactly when the worker serves the brand's feed (OSE S8).
+// When the worker serves series (OSE S15), each card of an event the plan puts on
+// a series names that series, and no other card names one.
+// The where map: a station draws one area for each distinct resolution-7 cell of
+// its shown events that the plan gives a place, worked out here from the plan's
+// coordinates, not read back from the page.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { assertLocalBase } from '../../lib/showcase.mjs';
 import { SHOWCASE, readJson } from '../../lib/build.mjs';
 import { FORM_KINDS } from '../../lib/codes.mjs';
+import { latLngToCell } from 'h3-js';
 import { planDate } from '../../lib/plan.mjs';
 
 const FORM_TARGET = /\/forms?\//i;
@@ -26,10 +33,20 @@ const FORM_TARGET = /\/forms?\//i;
  * @param {Record<string,string>} pages  path → html of the built folder
  * @param {{url: string, status: number, location: string|null}[]} resolved  each code, fetched once
  * @param {number} now
- * @param {{campaigns?: boolean}} [worker]  whether the worker's sponsor bundle names campaigns
+ * @param {{campaigns?: boolean, calendar?: string|null, series?: boolean}} [worker]  whether the worker's sponsor
+ *   bundle names campaigns, the feed URL when the worker serves the brand's calendar feed, and whether its
+ *   event read says which series an event sits on
  */
-export function oseVerdictProblems(plan, creator, pages, resolved, now, { campaigns = false } = {}) {
+export function oseVerdictProblems(plan, creator, pages, resolved, now, { campaigns = false, calendar = null, series = false } = {}) {
   const out = [];
+  const seriesRows = (html) => [...html.matchAll(/<span class="label">Series<\/span>([^<]*)</g)].map((x) => x[1]).sort().join(' | ');
+  const wantSeries = {};
+  const wantAreas = {};
+  const areasDrawn = (html) => (html.match(/<polygon class="hex-area"/g) ?? []).length;
+  // The calendar link: exactly the feed's URL, once, on the front page; none when the worker serves no feed.
+  const feeds = Object.entries(pages).flatMap(([path, html]) => [...html.matchAll(/href="([^"]*calendar\.ics[^"]*)"/g)].map((x) => `${path} ${x[1]}`));
+  const wantFeeds = calendar ? [`index.html ${calendar}`] : [];
+  if (feeds.join(' | ') !== wantFeeds.join(' | ')) out.push(`calendar links "${feeds.join(' | ')}", want "${wantFeeds.join(' | ')}"`);
   const onShow = (sp) => sp.sponsorAccepted !== false && sp.organizerAccepted !== false;
   const strips = (html) => (html.match(/<p class="backers">[\s\S]*?<\/p>/g) ?? []).map((p) => [...p.matchAll(/<span class="backer">([^<]*)<\/span>/g)].map((x) => x[1]).sort().join(' + '));
   const wantStrips = {};
@@ -68,6 +85,11 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now, { campai
         }
       }
     }
+    const onSeries = series ? (plan.series ?? []).find((s) => s.events.includes(p.ref)) : null;
+    if (onSeries) for (const id of [link.frequency, ...(link.also ?? []), lead].filter(Boolean)) (wantSeries[id] ??= []).push(onSeries.name);
+    if (Number.isFinite(p.lat) && Number.isFinite(p.lon)) {
+      for (const id of [link.frequency, ...(link.also ?? []), lead].filter(Boolean)) (wantAreas[id] ??= new Set()).add(latLngToCell(p.lat, p.lon, 7));
+    }
     // An event shows on the station it lives on and on any it also names; its codes stay at home.
     for (const id of [link.frequency, ...(link.also ?? [])]) want[id] = (want[id] ?? 0) + 1;
     if (lead) want[lead] = (want[lead] ?? 0) + 1;
@@ -77,6 +99,10 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now, { campai
     const html = pages[`${s.id}/index.html`] ?? '';
     if (cards(html) !== (want[s.id] ?? 0)) out.push(`${s.id}: ${cards(html)} event cards, want ${want[s.id] ?? 0}`);
     if (codes(html).length !== (wantCodes[s.id] ?? 0)) out.push(`${s.id}: ${codes(html).length} codes, want ${wantCodes[s.id] ?? 0}`);
+    if (areasDrawn(html) !== (wantAreas[s.id]?.size ?? 0)) out.push(`${s.id}: ${areasDrawn(html)} areas on the map, want ${wantAreas[s.id]?.size ?? 0}`);
+    const gotSeries = seriesRows(html);
+    const wantedSeries = (wantSeries[s.id] ?? []).sort().join(' | ');
+    if (gotSeries !== wantedSeries) out.push(`${s.id}: series named "${gotSeries}", want "${wantedSeries}"`);
     const got = strips(html).sort().join(' | ');
     const wanted = (wantStrips[s.id] ?? []).sort().join(' | ');
     if (got !== wanted) out.push(`${s.id}: sponsor strips "${got}", want "${wanted}"`);
@@ -120,7 +146,17 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     const body = res.ok ? await res.json().catch(() => null) : null;
     if ((body?.bundle?.sponsors ?? []).some((sp) => sp.campaign)) campaigns = true;
   }
-  const problems = oseVerdictProblems(plan, creator, pages, resolved, Date.now(), { campaigns });
+  // Does this worker serve the brand's calendar feed? Asked of the worker itself.
+  const feedUrl = `${base}/brands/${encodeURIComponent(creator.oseBrand)}/calendar.ics`;
+  const feedRes = await fetch(feedUrl, { headers: { Accept: 'text/calendar' } });
+  const calendar = feedRes.status === 200 && (await feedRes.text()).startsWith('BEGIN:VCALENDAR') ? feedUrl : null;
+  console.log(`brand calendar feed: ${calendar ? 'served' : `not served (${feedRes.status})`}`);
+  // Does this worker's event read say which series an event sits on?
+  const probe = creator.events[0] ? await fetch(`${base}/api/v2/events/${encodeURIComponent(creator.events[0].oseEventId)}`) : null;
+  const probed = probe?.ok ? await probe.json().catch(() => null) : null;
+  const series = Boolean(probed && 'series' in probed);
+  console.log(`event read names its series: ${series ? 'yes' : 'no (this OSE is before declared series)'}`);
+  const problems = oseVerdictProblems(plan, creator, pages, resolved, Date.now(), { campaigns, calendar, series });
   console.log(`sponsor bundle names campaigns: ${campaigns ? 'yes' : 'no (this OSE is before campaigns in the bundle)'}`);
   for (const r of resolved) console.log(`${r.url} -> ${r.status} ${r.location ?? ''}`);
   if (problems.length) {
