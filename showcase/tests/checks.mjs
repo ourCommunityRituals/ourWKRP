@@ -1461,3 +1461,71 @@ export async function mapProblems(m) {
   if (!cardsOf(off['wear/index.html']).length) out.push('the events went with the map');
   return out;
 }
+
+// ── Online or in person (S13) ────────────────────────────────────────────────
+/**
+ * Every event says how it is held, as OSE states it: the card carries the mode,
+ * an online event has no place on the page, an event held both ways keeps its
+ * place, and a programme event's mode is its slot's.
+ */
+export async function modeProblems(m) {
+  const out = [];
+  const render = (ose, creator = sample()) => m.render.renderPages({ creator, catalog: catalog().categories, reports: seededReports(), theme: '', ose, now: NOW });
+  const onEvent = (id, change) => ({ edit: (k, b, eid) => { if (k === 'event' && eid === id) change(b); return b; } });
+  const tagsOf = (card) => [...(card.match(/<p class="tags">[\s\S]*?<\/p>/)?.[0] ?? '').matchAll(/<span class="tag[^"]*">([^<]*)<\/span>/g)].map((x) => x[1]);
+  const whereOf = (card) => card.match(/<span class="label">Where<\/span>([^<]*)</)?.[1] ?? null;
+  const card = (pages, page, title) => cardsOf(pages[page]).find((c) => c.includes(`>${title}<`)) ?? '';
+
+  // What the build keeps: the mode OSE states, and nothing for a value that is not a mode.
+  const ose = await sampleOse(m);
+  const modeOf = (id, o = ose) => o.linked.find((x) => x.link.oseEventId === id)?.event.attendanceMode;
+  if (modeOf('evt_sample-0001') !== 'online' || modeOf('evt_sample-0005') !== 'in_person') out.push(`the build read modes ${modeOf('evt_sample-0001')} and ${modeOf('evt_sample-0005')}, want online and in_person`);
+  const odd = await sampleOse(m, onEvent('evt_sample-0003', (b) => { b.item.attendance_mode = 'hybrid-ish'; }));
+  if (modeOf('evt_sample-0003', odd) !== null) out.push('a value that is not a mode was kept as one');
+
+  // The card says how the event is held.
+  const pages = render(ose);
+  const klass = card(pages, 'teach/index.html', 'Evening class (showcase demo)');
+  const stall = card(pages, 'wear/index.html', 'Table at a weekend market (showcase demo)');
+  if (!tagsOf(klass).includes('Online')) out.push(`the online class is tagged ${tagsOf(klass).join(', ')}`);
+  if (!tagsOf(stall).includes('In person')) out.push(`the in-person stall is tagged ${tagsOf(stall).join(', ')}`);
+  if (whereOf(klass) !== 'Online') out.push(`the online class reads Where: ${whereOf(klass)}`);
+  if (whereOf(stall) !== '100 Market Street, Springfield') out.push(`the stall reads Where: ${whereOf(stall)}`);
+
+  // An online event has no place on any page, whatever else the row carries.
+  const leaky = await sampleOse(m, onEvent('evt_sample-0001', (b) => { b.item.where_address = '9 Hidden Lane, Springfield'; b.item.venue = '9 Hidden Lane, Springfield'; b.item.location = '9 Hidden Lane, Springfield'; b.item.h3_res7 = latLngToCell(39.7817, -89.6501, 7); }));
+  const leakyPages = render(leaky);
+  if (Object.values(leakyPages).join('').includes('Hidden Lane')) out.push('an online event\'s place reached a page');
+  if ((leakyPages['teach/index.html'].match(/<polygon class="hex-area"/g) ?? []).length !== 1) out.push('an online event was put on the map');
+
+  // Held both ways: it says so, keeps its place, and is on the map.
+  const both = await sampleOse(m, onEvent('evt_sample-0005', (b) => { b.item.attendance_mode = 'both'; }));
+  const bothPages = render(both);
+  const bothCard = card(bothPages, 'wear/index.html', 'Table at a weekend market (showcase demo)');
+  if (!tagsOf(bothCard).includes('Online and in person')) out.push(`an event held both ways is tagged ${tagsOf(bothCard).join(', ')}`);
+  if (whereOf(bothCard) !== '100 Market Street, Springfield') out.push('an event held both ways lost its place');
+  if ((bothPages['wear/index.html'].match(/<polygon class="hex-area"/g) ?? []).length !== 2) out.push('an event held both ways is off the map');
+
+  // A programme event's mode is its slot's: the weekly class is online, so an in-person one stops the build.
+  let stoppedBy = null;
+  try {
+    render(await sampleOse(m, onEvent('evt_sample-0001', (b) => { b.item.attendance_mode = 'in_person'; b.item.where_address = '1 Class Road, Springfield'; })));
+  } catch (e) {
+    stoppedBy = e.message;
+  }
+  if (!/evt_sample-0001: its mode \(in_person\) differs from its slot's \(online\)/.test(stoppedBy ?? '')) out.push(`a programme event held another way than its slot built (${(stoppedBy ?? 'no error').split('\n')[1] ?? 'no error'})`);
+
+  // An OSE from before the field: no mode shown, nothing stopped, and the place still reads.
+  let old = null;
+  try {
+    old = render(await sampleOse(m, { edit: (k, b) => { if (k === 'event') delete b.item.attendance_mode; return b; } }));
+  } catch (e) {
+    out.push(`an OSE that serves no mode stopped the build: ${e.message.split('\n')[1] ?? e.message}`);
+  }
+  if (old) {
+    const oldStall = card(old, 'wear/index.html', 'Table at a weekend market (showcase demo)');
+    if (tagsOf(oldStall).some((t) => ['Online', 'In person', 'Online and in person'].includes(t))) out.push('a mode shows though OSE served none');
+    if (whereOf(oldStall) !== '100 Market Street, Springfield') out.push('with no mode served, the place went');
+  }
+  return out;
+}
