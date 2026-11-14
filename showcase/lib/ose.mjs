@@ -14,6 +14,7 @@ import { assertLocalBase, safeHttpsUrl } from './showcase.mjs';
 import { codesFromBundle } from './codes.mjs';
 import { creatorSchema } from './schema.mjs';
 import { isPast } from './schedule.mjs';
+import { areaCell } from './map.mjs';
 
 /** OSE staging. Production is closed, so a build never reads it. */
 export const OSE_STAGING = 'https://stg.oursharedevents.com';
@@ -89,6 +90,10 @@ export function toEvent(item) {
     endDate: item.end_date ?? null,
     timezone: item.timezone ?? null,
     startsAt: item.starts_at ?? null,
+    // The area the event is in: OSE's resolution-7 cell, about 5 square
+    // kilometres. Its latitude and longitude are not kept: a map here is drawn
+    // from the area alone (place, not person).
+    area: areaCell(item.h3_res7),
     // OSE S13 adds this; until it lands every event reads without a mode.
     attendanceMode: item.attendance_mode ?? null,
   };

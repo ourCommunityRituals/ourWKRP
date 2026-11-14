@@ -10,6 +10,7 @@ import { esc, fmtDate, floorText, mergeStations, safeHttpsUrl, FLOOR } from './s
 import { onStation, INTENT_LABELS, MODE_LABELS, isPast, slotOf, soonestFirst, stationSchedule, todayIn, whenText } from './schedule.mjs';
 import { qrSvg } from './codes.mjs';
 import { SECTIONS } from './schema.mjs';
+import { mapSvg, whereAreas } from './map.mjs';
 
 const isLeadStation = (s) => (s.category ?? s.id) === 'lead';
 
@@ -160,6 +161,18 @@ td.num.w { color: var(--text-muted); }
 .backers a, .partners a { display: inline-flex; align-items: center; min-height: 44px; margin-left: 8px; }
 .partners { list-style: none; padding: 0; margin: 20px 0 0; display: grid; gap: 4px; }
 .partners .label { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-right: 6px; }
+/* The where map: areas as hexagons, the list beside it. Colours are the map tokens.
+   An area is see-through, as OurSharedEvents draws its own, so a street layer
+   under it reads through; its number keeps a halo so it reads over anything. */
+.where-map { margin: 16px 0 0; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--map-ground); }
+.hex-map { display: block; width: 100%; height: auto; max-height: 360px; }
+.hex-empty { fill: none; stroke: var(--map-cell-line); stroke-width: 1.5; }
+.hex-area { fill: var(--accent); fill-opacity: 0.3; stroke: var(--accent); stroke-width: 2; }
+.hex-number { font-family: var(--font-mono); font-weight: 700; font-size: 26px; fill: var(--text); paint-order: stroke; stroke: var(--map-ground); stroke-width: 5px; stroke-linejoin: round; }
+.areas { margin: 16px 0 0; padding-left: 0; list-style: none; display: grid; gap: 10px; }
+.areas > li { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.areas ul { margin: 6px 0 0; padding-left: 18px; }
+.areas a { display: inline-flex; align-items: center; min-height: 44px; }
 .empty { padding: 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); margin-top: 16px; }
 .copied-note { margin-top: 12px; font-size: 0.9375rem; color: var(--text-muted); }
 footer { border-top: 1px solid var(--border); padding-block: 36px 56px; font-size: 0.875rem; color: var(--text-muted); }
@@ -315,6 +328,26 @@ const CALENDAR_URL = /^https?:\/\/[^/?#\s"]+\/brands\/[a-z0-9]+(-[a-z0-9]+)*\/ca
 function calendarLine(calendar) {
   if (!calendar || !CALENDAR_URL.test(calendar)) return '';
   return `<p class="calendar"><a href="${esc(calendar)}">Every date as a calendar feed</a> <span class="muted">From OurSharedEvents. This page counts nothing on it.</span></p>`;
+}
+
+// The where map (owner, 2026-11-13: "incorporate the map template where
+// appropriate"). It sits below the events, so every title, date and sponsor
+// strip comes before it. Drawn only when an in-person event has an area.
+function whereSection(s, upcoming, isLead) {
+  const { areas, offMap } = whereAreas(upcoming);
+  if (!areas.length) return '';
+  const item = (i) => {
+    const { event, link } = upcoming[i];
+    return `<li><a href="#ev-${i}">${esc(event.title)}</a> · ${esc(whenText(event, link))}${event.whereAddress || event.venue ? ` · ${esc(event.whereAddress || event.venue)}` : ''}</li>`;
+  };
+  return `<section aria-labelledby="where-title" id="where">
+    <span class="eyebrow">Where</span>
+    <h2 id="where-title" style="margin-top:12px">${isLead ? 'Every frequency, in person, by area.' : `${esc(s.name)} in person, by area.`}</h2>
+    <p class="muted" id="where-note" style="margin-top:12px">Each numbered area is about 5 square kilometres, the size OurSharedEvents maps at. The map shows where events are. It never shows where people are. The same events are listed below it.</p>
+    <figure class="where-map">${mapSvg(areas, { labelledby: 'where-title where-note' })}</figure>
+    <ol class="areas" aria-label="Events by area">${areas.map((a, n) => `<li><b>Area ${n + 1}</b><ul>${a.at.map(item).join('')}</ul></li>`).join('')}</ol>
+    ${offMap.length ? `<p class="muted" style="margin-top:12px">Also in person, with no area on the map yet:</p><ul class="areas-off">${offMap.map(item).join('')}</ul>` : ''}
+  </section>`;
 }
 
 function footer(c, built) {
@@ -617,6 +650,8 @@ function stationPage({ c, s, stations, schedule, theme, built, byId, opt }) {
         : `<p class="empty">Nothing is scheduled on this frequency yet.</p>`
     }
   </section>
+
+  ${opt.show.map ? whereSection(s, schedule.upcoming, isLead) : ''}
 
   <section aria-labelledby="report-title" class="station-report">
     <span class="eyebrow">The real report for this station</span>

@@ -10,6 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { latLngToCell } from 'h3-js';
 import { planDate, zonedInstant } from '../lib/plan.mjs';
 
 const SHOWCASE = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,6 +45,11 @@ export function planItem(ev, { brand, now }) {
     where_address: ev.where_address ?? null,
     location: ev.where_address ?? null,
     venue: ev.where_address ?? null,
+    // OSE derives an event's cells from the coordinates an admin gives (lib/h3-tagging.ts)
+    // and serves the event's place in its public read: lat, lon and the resolution-7 cell.
+    lat: ev.lat ?? null,
+    lon: ev.lon ?? null,
+    h3_res7: Number.isFinite(ev.lat) && Number.isFinite(ev.lon) ? latLngToCell(ev.lat, ev.lon, 7) : null,
   };
 }
 

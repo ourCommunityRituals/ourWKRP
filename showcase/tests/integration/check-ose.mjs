@@ -13,12 +13,16 @@
 // required on the front page exactly when the worker serves the brand's feed (OSE S8).
 // When the worker serves series (OSE S15), each card of an event the plan puts on
 // a series names that series, and no other card names one.
+// The where map: a station draws one area for each distinct resolution-7 cell of
+// its shown events that the plan gives a place, worked out here from the plan's
+// coordinates, not read back from the page.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { assertLocalBase } from '../../lib/showcase.mjs';
 import { SHOWCASE, readJson } from '../../lib/build.mjs';
 import { FORM_KINDS } from '../../lib/codes.mjs';
+import { latLngToCell } from 'h3-js';
 import { planDate } from '../../lib/plan.mjs';
 
 const FORM_TARGET = /\/forms?\//i;
@@ -37,6 +41,8 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now, { campai
   const out = [];
   const seriesRows = (html) => [...html.matchAll(/<span class="label">Series<\/span>([^<]*)</g)].map((x) => x[1]).sort().join(' | ');
   const wantSeries = {};
+  const wantAreas = {};
+  const areasDrawn = (html) => (html.match(/<polygon class="hex-area"/g) ?? []).length;
   // The calendar link: exactly the feed's URL, once, on the front page; none when the worker serves no feed.
   const feeds = Object.entries(pages).flatMap(([path, html]) => [...html.matchAll(/href="([^"]*calendar\.ics[^"]*)"/g)].map((x) => `${path} ${x[1]}`));
   const wantFeeds = calendar ? [`index.html ${calendar}`] : [];
@@ -81,6 +87,9 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now, { campai
     }
     const onSeries = series ? (plan.series ?? []).find((s) => s.events.includes(p.ref)) : null;
     if (onSeries) for (const id of [link.frequency, ...(link.also ?? []), lead].filter(Boolean)) (wantSeries[id] ??= []).push(onSeries.name);
+    if (Number.isFinite(p.lat) && Number.isFinite(p.lon)) {
+      for (const id of [link.frequency, ...(link.also ?? []), lead].filter(Boolean)) (wantAreas[id] ??= new Set()).add(latLngToCell(p.lat, p.lon, 7));
+    }
     // An event shows on the station it lives on and on any it also names; its codes stay at home.
     for (const id of [link.frequency, ...(link.also ?? [])]) want[id] = (want[id] ?? 0) + 1;
     if (lead) want[lead] = (want[lead] ?? 0) + 1;
@@ -90,6 +99,7 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now, { campai
     const html = pages[`${s.id}/index.html`] ?? '';
     if (cards(html) !== (want[s.id] ?? 0)) out.push(`${s.id}: ${cards(html)} event cards, want ${want[s.id] ?? 0}`);
     if (codes(html).length !== (wantCodes[s.id] ?? 0)) out.push(`${s.id}: ${codes(html).length} codes, want ${wantCodes[s.id] ?? 0}`);
+    if (areasDrawn(html) !== (wantAreas[s.id]?.size ?? 0)) out.push(`${s.id}: ${areasDrawn(html)} areas on the map, want ${wantAreas[s.id]?.size ?? 0}`);
     const gotSeries = seriesRows(html);
     const wantedSeries = (wantSeries[s.id] ?? []).sort().join(' | ');
     if (gotSeries !== wantedSeries) out.push(`${s.id}: series named "${gotSeries}", want "${wantedSeries}"`);

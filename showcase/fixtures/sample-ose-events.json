@@ -40,14 +40,14 @@
     {
       "ref": "evt_sample-0005", "placementRef": "pd_sample0005",
       "title": "Table at a weekend market (showcase demo)", "on": { "weekday": "saturday", "weeks": 1 }, "time": "12:00", "timezone": "America/Chicago",
-      "what_short": "Made goods on a table for the afternoon.", "where_address": "100 Market Street, Springfield",
+      "what_short": "Made goods on a table for the afternoon.", "where_address": "100 Market Street, Springfield", "lat": 39.7817, "lon": -89.6501,
       "codes": [{ "kind": "tickets", "target_url": "https://example.net/table" }, { "kind": "sponsor", "target_url": "https://example.net/partners" }],
       "sponsors": [{ "id": "sb_sample01", "name": "Corner hardware (showcase demo)", "campaign": { "id": "cmp_sample_wear", "title": "Winter tables (showcase demo)" } }]
     },
     {
       "ref": "evt_sample-0006",
       "title": "Launch evening (showcase demo)", "on": { "weekday": "friday", "weeks": 2 }, "time": "19:00", "timezone": "America/Chicago",
-      "what_short": "One evening to launch a new range.", "where_address": "200 Main Street, Springfield",
+      "what_short": "One evening to launch a new range.", "where_address": "200 Main Street, Springfield", "lat": 39.84, "lon": -89.6,
       "sponsors": [{ "id": "sb_sample01", "name": "Corner hardware (showcase demo)", "campaign": { "id": "cmp_sample_wear", "title": "Winter tables (showcase demo)" } }]
     },
     {

@@ -21,6 +21,7 @@ const SC = 'schema.mjs';
 const SH = 'schedule.mjs';
 const CO = 'codes.mjs';
 const O = 'ose.mjs';
+const M = 'map.mjs';
 
 const MUTANTS_LIST = [
   // 0. Security
@@ -177,6 +178,28 @@ const MUTANTS_LIST = [
   ['series: a missing answer read as none', 'seriesProblems', [{ file: O, from: "if (!body || !('series' in body)) return undefined;", to: "if (!body || !('series' in body)) return null;" }]],
   ['series: its name unchecked', 'seriesProblems', [{ file: O, from: "if (series) problems.push(...neutralProblems(", to: "if (false) problems.push(...neutralProblems(" }]],
   ['escaping: a series name unescaped', 'escapingProblems', [{ file: R, from: "const row = (label, value) => (value ? `<p><span class=\"label\">${label}</span>${esc(value)}</p>` : '');", to: "const row = (label, value) => (value ? `<p><span class=\"label\">${label}</span>${label === 'Series' ? value : esc(value)}</p>` : '');" }]],
+  // The where map
+  ['map: a finer cell drawn', 'mapProblems', [{ file: M, from: 'isValidCell(cell) && getResolution(cell) === MAP_RESOLUTION ? cell : null', to: 'isValidCell(cell) && getResolution(cell) >= MAP_RESOLUTION ? cell : null' }]],
+  ['map: any text kept as a cell', 'mapProblems', [{ file: M, from: "return typeof cell === 'string' && isValidCell(cell) && getResolution(cell) === MAP_RESOLUTION ? cell : null;", to: "return typeof cell === 'string' && (!isValidCell(cell) || getResolution(cell) === MAP_RESOLUTION) ? cell : null;" }]],
+  ['map: the coordinates kept', 'mapProblems', [{ file: O, from: '    area: areaCell(item.h3_res7),', to: '    area: areaCell(item.h3_res7),\n    lat: item.lat ?? null,\n    lon: item.lon ?? null,' }]],
+  ['map: the cell id written into the page', 'mapProblems', [{ file: M, from: '`<polygon class="hex-area" points="${points(ring)}"></polygon>', to: '`<polygon class="hex-area" data-cell="${a.cell}" points="${points(ring)}"></polygon>' }]],
+  ['map: an online event drawn', 'mapProblems', [{ file: M, from: "if (event.attendanceMode === 'online') return;", to: '' }]],
+  ['map: an event with no area dropped from the list', 'mapProblems', [{ file: M, from: 'if (event.whereAddress || event.venue) offMap.push(i);', to: '' }]],
+  ['map: one hexagon per event, not per area', 'mapProblems', [{ file: M, from: 'const seen = areas.find((a) => a.cell === event.area);', to: 'const seen = null;' }]],
+  ['map: no neighbours drawn', 'mapProblems', [{ file: M, from: 'areas.flatMap((a) => gridDisk(a.cell, 1))', to: 'areas.flatMap((a) => gridDisk(a.cell, 0))' }]],
+  ['map: the areas under the street layer', 'mapProblems', [{ file: M, from: '<g class="hex-streets"></g><g class="hex-around">${empty}</g><g class="hex-areas">${filled}</g>', to: '<g class="hex-areas">${filled}</g><g class="hex-around">${empty}</g><g class="hex-streets"></g>' }]],
+  ['map: the areas opaque', 'mapProblems', [{ file: R, from: '.hex-area { fill: var(--accent); fill-opacity: 0.3;', to: '.hex-area { fill: var(--accent); fill-opacity: 0.9;' }]],
+  ['map: drawn outside its frame', 'mapProblems', [{ file: M, from: 'const PAD = 0.1;', to: 'const PAD = -0.4;' }]],
+  ['map: no list beside it', 'mapProblems', [{ file: R, from: '<ol class="areas" aria-label="Events by area">', to: '<ol class="areas-gone" hidden aria-label="Events by area">' }]],
+  ['map: the list links nowhere', 'mapProblems', [{ file: R, from: 'return `<li><a href="#ev-${i}">${esc(event.title)}</a>', to: 'return `<li><a href="#ev-${i + 40}">${esc(event.title)}</a>' }]],
+  ['map: above the events', 'mapProblems', [
+    { file: R, from: "  ${opt.show.map ? whereSection(s, schedule.upcoming, isLead) : ''}\n\n", to: '' },
+    { file: R, from: '  <section aria-labelledby="when-title" id="when">', to: "  ${opt.show.map ? whereSection(s, schedule.upcoming, isLead) : ''}\n  <section aria-labelledby=\"when-title\" id=\"when\">" },
+  ]],
+  ['map: not announced as an image', 'mapProblems', [{ file: M, from: 'viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-labelledby', to: 'viewBox="0 0 ${WIDTH} ${HEIGHT}" aria-labelledby' }]],
+  ['map: labelled by nothing on the page', 'mapProblems', [{ file: R, from: "mapSvg(areas, { labelledby: 'where-title where-note' })", to: "mapSvg(areas, { labelledby: 'where-heading' })" }]],
+  ['map: an empty frame on a station with no area', 'mapProblems', [{ file: R, from: "  if (!areas.length) return '';\n  const item = (i) => {", to: '  const item = (i) => {' }]],
+  ['map: the switch ignored', 'mapProblems', [{ file: R, from: "${opt.show.map ? whereSection(s, schedule.upcoming, isLead) : ''}", to: '${whereSection(s, schedule.upcoming, isLead)}' }]],
   // Calendar feed (S8 follow-up)
   ['calendar: listed whatever OSE answered', 'calendarProblems', [{ file: O, from: "const feed = res?.status === 200 ? await res.text().catch(() => '') : '';\n    if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {", to: "const feed = res ? await res.text().catch(() => '') : '';\n    if (true) {" }]],
   ['calendar: any 200 taken for a feed', 'calendarProblems', [{ file: O, from: 'if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {', to: 'if (feed) {' }]],
@@ -273,6 +296,8 @@ describe('creator showcase: born red', () => {
     expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, { ...withCampaigns, series: false }).join('\n')).toMatch(/teach: series named "Thursday evening class[^"]*", want ""/);
     const lostSeries = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('<span class="label">Series</span>', '<span class="label">Gone</span>') };
     expect(oseVerdictProblems(plan(), C.sample(), lostSeries, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/teach: series named/);
+    const lostArea = { ...pages, 'wear/index.html': pages['wear/index.html'].replace('<polygon class="hex-area"', '<polygon class="gone"') };
+    expect(oseVerdictProblems(plan(), C.sample(), lostArea, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/wear: 1 areas on the map, want 2/);
     const noFeed = { ...pages, 'index.html': pages['index.html'].replace(/<p class="calendar">[\s\S]*?<\/p>/, '') };
     expect(oseVerdictProblems(plan(), C.sample(), noFeed, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/calendar links "", want "index\.html/);
     expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, { calendar: withCampaigns.calendar, series: true }).join('\n')).toMatch(/wear: station partners "Corner hardware \(showcase demo\)", want ""/);

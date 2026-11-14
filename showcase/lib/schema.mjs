@@ -40,7 +40,7 @@ export const WEEKS = ['first', 'second', 'third', 'fourth', 'last'];
 export const LAYOUTS = ['dial', 'list', 'grid'];
 export const STATION_ORDERS = ['file', 'next-event'];
 export const DISPLAYS = ['page', 'tv'];
-export const SECTIONS = ['values', 'scatter', 'reports', 'schedule', 'sources'];
+export const SECTIONS = ['values', 'scatter', 'reports', 'schedule', 'map', 'sources'];
 
 const event = z
   .object({

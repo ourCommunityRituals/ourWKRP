@@ -155,6 +155,18 @@ test('a programme event names the series the organizer declared; a trial names n
   await expect(page.locator('article.event', { hasText: 'Data class trial' })).not.toContainText('Series');
 });
 
+test('a station maps its in-person events by area, with the same events listed and linked below', async ({ page }) => {
+  await open(page, '/wear/index.html');
+  const where = page.locator('#where');
+  await expect(where.getByRole('img')).toBeVisible();
+  await expect(where.locator('polygon.hex-area')).toHaveCount(2);
+  const areas = where.getByRole('list', { name: 'Events by area' });
+  await expect(areas.locator('> li')).toHaveCount(2);
+  await areas.getByRole('link', { name: 'Launch evening (showcase demo)' }).click();
+  await expect(page).toHaveURL(/#ev-\d+$/);
+  await expect(page.locator('article.event:target, article.event:has(:target)')).toContainText('Launch evening (showcase demo)');
+});
+
 test('the creator page links the calendar feed as a plain link', async ({ page }) => {
   await open(page, '/index.html');
   await expect(page.getByRole('link', { name: 'Every date as a calendar feed' })).toHaveAttribute('href', /\/brands\/showcase-sample\/calendar\.ics$/);

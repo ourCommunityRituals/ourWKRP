@@ -127,6 +127,8 @@ async function seedPlan(pickType) {
       timezone: p.timezone,
       is_published: true,
       ...(p.where_address ? { location: p.where_address, where_address: p.where_address } : {}),
+      // An admin gives a place as coordinates; OSE keeps them to derive the event's area (its H3 cells).
+      ...(Number.isFinite(p.lat) && Number.isFinite(p.lon) ? { lat: p.lat, lon: p.lon } : {}),
       ...Object.fromEntries(['what_short', 'who_host', 'why_purpose', 'how_details'].filter((k) => p[k]).map((k) => [k, p[k]])),
     });
     await api('PUT', `/api/v2/admin/events/${ev.id}`, { status: 'ready', start_time: p.time, event_type_id: pickType(cat?.eventKinds[0] ?? 'class') });
