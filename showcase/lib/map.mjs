@@ -117,10 +117,14 @@ export function streetLayer(streets) {
   if (typeof svg !== 'string' || typeof css !== 'string' || typeof credit !== 'string') return null;
   if (svg.length > STREET_SVG_MAX || css.length > STREET_CSS_MAX || credit.length > CREDIT_MAX) return null;
   if (!/^<g[ >]/.test(svg) || !svg.endsWith('</g>')) return null;
-  const tags = svg.match(/<[^<>]*>/g) ?? [];
-  if (tags.some((t) => !STREET_TAG.test(t)) || /[<>]/.test(svg.replace(/<[^<>]*>/g, ''))) return null;
+  // Every bracket in the layer is read: a whole tag, or a bracket on its own, which is never a tag.
+  const tags = svg.match(/<[^<>]*>|[<>]/g) ?? [];
+  if (tags.some((t) => !STREET_TAG.test(t))) return null;
   if (!STREET_CSS.test(css) || /url\s*\(|expression|import|javascript/i.test(css)) return null;
-  if (!CREDIT.test(credit) || !credit.includes('https://www.openstreetmap.org/')) return null;
+  if (!CREDIT.test(credit)) return null;
+  // It must credit OpenStreetMap by a link whose host is exactly OpenStreetMap's.
+  const hosts = [...credit.matchAll(/<a href="([^"]*)">/g)].map(([, href]) => new URL(href).hostname);
+  if (!hosts.includes('www.openstreetmap.org')) return null;
   return { svg, css, credit };
 }
 
