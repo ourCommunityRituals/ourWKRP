@@ -127,6 +127,8 @@ async function seedPlan(pickType) {
     const day = planDate(p.on, Date.now(), p.timezone);
     const ev = await api('POST', '/api/v2/admin/events', {
       title: p.title,
+      // OSE requires how the event is held. Online takes no place; in person needs one.
+      attendance_mode: p.mode,
       brand_id: p.brand ?? creator.oseBrand,
       start_date: day,
       end_date: day,
@@ -206,6 +208,7 @@ async function main() {
     offset += 2;
     const ev = await api('POST', '/api/v2/admin/events', {
       title: st.event.title,
+      attendance_mode: 'in_person',
       start_date: day,
       end_date: day,
       location: st.event.location ?? `${creator.name}: ${st.title}`,
