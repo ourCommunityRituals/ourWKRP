@@ -107,8 +107,14 @@ async function seedPlan(pickType) {
       if (sp.sponsorAccepted !== false) await d1('UPDATE sponsor_placement SET sponsor_accepted = 1 WHERE id = ?', [placement]);
       await d1(`UPDATE sponsor_placement SET organizer_accepted = ${sp.organizerAccepted === false ? 0 : 1} WHERE id = ?`, [placement]);
       if (sp.campaign) {
-        await d1("INSERT OR IGNORE INTO campaigns (id, brand_id, title, status) VALUES (?, ?, ?, 'active')", [sp.campaign.id, brand, sp.campaign.title]);
-        await d1('UPDATE sponsor_placement SET campaign_id = ? WHERE id = ?', [sp.campaign.id, placement]);
+        // An organizer makes the campaign and puts the placement in it (OSE S14).
+        // OSE names the campaign; the creator file's link is swapped to that id below.
+        if (!ids[sp.campaign.id]) {
+          const made = await api('POST', '/api/v2/admin/campaigns', { title: sp.campaign.title, brand_id: brand });
+          if (typeof made.id !== 'string') throw new Error(`contract: campaigns returned no id for ${sp.campaign.id}`);
+          ids[sp.campaign.id] = made.id;
+        }
+        await api('PUT', `/api/v2/admin/campaigns/${ids[sp.campaign.id]}/placements/${placement}`);
       }
     }
   }
@@ -164,6 +170,7 @@ async function seedPlan(pickType) {
   const resolved = {
     ...creator,
     events: (creator.events ?? []).map((e) => ({ ...e, oseEventId: swap(e.oseEventId), ...(e.placement ? { placement: swap(e.placement) } : {}) })),
+    ...(creator.campaigns ? { campaigns: creator.campaigns.map((c) => ({ ...c, oseCampaignId: swap(c.oseCampaignId) })) } : {}),
     ...(creator.schedule ? { schedule: { ...creator.schedule, rows: creator.schedule.rows.map((r) => (r.length === 5 ? [...r.slice(0, 4), swap(r[4])] : r)) } } : {}),
   };
   const dir = join(SHOWCASE, 'work', creator.slug);
