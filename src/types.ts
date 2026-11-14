@@ -156,7 +156,9 @@ export interface CursorPage<T> {
 
 export interface CatalogStats {
   total_tracks: number;
-  total_contributors: number;
+  total_contributors: number | null;
+  total_contributors_suppressed: boolean;
+  reporting_floor: number;
   total_playlists: number;
   top_genres: Array<{ genre: string; count: number }>;
   top_decades: Array<{ decade: number; count: number }>;

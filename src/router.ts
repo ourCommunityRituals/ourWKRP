@@ -25,8 +25,8 @@
  *   GET  /c/:slug                     → same profile page via vanity slug (OW-122)
  *   POST /api/profile/slug            → claim/change own vanity slug (OW-122)
  *   GET  /api/playlists/:id         → contributor playlists (by contributor) or single playlist (by UUID)
- *   GET  /api/stats                 → catalog statistics
- *   GET  /api/brands                → all brands with counts
+ *   GET  /api/stats                 → catalog statistics (contributor count floored, K = 5)
+ *   GET  /api/brands                → all brands with counts (both counts floored, K = 5)
  *
  *   --- Playlist Builder (WKRP-7 MVP) ---
  *   POST   /api/playlists              → create curated playlist

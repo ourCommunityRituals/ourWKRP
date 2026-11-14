@@ -65,7 +65,11 @@ interface StatsResponse {
   ok: boolean;
   stats: {
     total_tracks: number;
-    total_contributors: number;
+    // A count of people: under the floor (0 included) it is null with
+    // total_contributors_suppressed: true (OW-212).
+    total_contributors: number | null;
+    total_contributors_suppressed: boolean;
+    reporting_floor: number;
     total_playlists: number;
     top_genres: Array<{ genre: string; count: number }>;
     top_decades: Array<{ decade: number; count: number }>;
@@ -119,9 +123,14 @@ interface BrandsResponse {
     subdomain: string;
     primary_color: string;
     accent_color: string;
-    contributor_count: number;
-    track_count: number;
+    // Both are counts of people or of their actions: null with
+    // <name>_suppressed: true under the floor (OW-212).
+    contributor_count: number | null;
+    contributor_count_suppressed: boolean;
+    track_count: number | null;
+    track_count_suppressed: boolean;
   }>;
+  reporting_floor: number;
 }
 
 // --- Tests ---
@@ -295,6 +304,8 @@ describe('Catalog API Contracts', () => {
         stats: {
           total_tracks: 5000,
           total_contributors: 12,
+          total_contributors_suppressed: false,
+          reporting_floor: 5,
           total_playlists: 45,
           top_genres: [
             { genre: 'hip-hop', count: 1200 },
@@ -312,6 +323,23 @@ describe('Catalog API Contracts', () => {
       expect(response.stats.top_genres).toBeInstanceOf(Array);
       expect(response.stats.top_decades).toBeInstanceOf(Array);
       expect(typeof response.stats.has_audio_features).toBe('boolean');
+    });
+
+    it('a withheld total_contributors is null with its _suppressed flag, never 0', async () => {
+      const { handleGetStats } = await import('../../src/handlers/catalog');
+      const counts = [1, 3, 0, 0, 0, 0]; // tracks, contributors, playlists, genres, decades, audio
+      const env = {
+        WKRP_DB: {
+          prepare: () => ({ bind: () => ({}) }),
+          batch: async () => counts.map((n, i) => ({ results: i === 3 || i === 4 ? [] : [{ count: n }] })),
+        },
+      };
+      const res = await handleGetStats(new Request('https://ourwkrp.com/api/stats'), env as never);
+      const body = (await res.json()) as StatsResponse;
+      expect(body.stats.total_contributors).toBeNull();
+      expect(body.stats.total_contributors_suppressed).toBe(true);
+      expect(body.stats.reporting_floor).toBe(5);
+      expect(body.stats.total_tracks).toBe(1);
     });
   });
 
@@ -380,13 +408,41 @@ describe('Catalog API Contracts', () => {
             primary_color: '#1DB954',
             accent_color: '#191414',
             contributor_count: 5,
-            track_count: 3000,
+            contributor_count_suppressed: false,
+            track_count: null,
+            track_count_suppressed: true,
           },
         ],
+        reporting_floor: 5,
       };
 
       expect(response.brands[0].primary_color).toMatch(/^#[0-9A-Fa-f]{6}$/);
-      expect(response.brands[0].contributor_count).toBeGreaterThanOrEqual(0);
+      expect(response.brands[0].contributor_count).toBeGreaterThanOrEqual(response.reporting_floor);
+      expect(response.brands[0].track_count).toBeNull();
+    });
+
+    it('the handler returns the floored shape for each brand', async () => {
+      const { handleGetBrands } = await import('../../src/handlers/catalog');
+      const env = {
+        WKRP_DB: {
+          prepare: () => ({
+            all: async () => ({
+              results: [
+                { id: 'wkrp', name: 'WKRP', subdomain: 'wkrp', primary_color: '#1DB954', accent_color: '#191414', logo_url: null, contributor_count: 4, track_count: 7 },
+              ],
+            }),
+          }),
+        },
+      };
+      const res = await handleGetBrands(new Request('https://ourwkrp.com/api/brands'), env as never);
+      const body = (await res.json()) as BrandsResponse;
+      expect(body.reporting_floor).toBe(5);
+      expect(body.brands[0]).toMatchObject({
+        contributor_count: null,
+        contributor_count_suppressed: true,
+        track_count: 7,
+        track_count_suppressed: false,
+      });
     });
   });
 

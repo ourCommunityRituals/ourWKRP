@@ -11,6 +11,7 @@ import type { Env } from '../types';
 import { extractBrandId } from '../lib/brand';
 import { encodeCursor, decodeCursor, parsePaginationParams } from '../lib/cursor';
 import { log } from '../lib/logger';
+import { applyCountFloor, flooredFields, COUNT_FLOOR } from '../lib/count-floor';
 
 /**
  * GET /api/tracks
@@ -228,6 +229,11 @@ export async function handleGetContributorPlaylists(request: Request, env: Env, 
 
 /**
  * GET /api/stats
+ *
+ * total_contributors is a count of people, so it takes the uniform floor
+ * (lib/count-floor.ts): under 5, 0 included, it is { total_contributors: null,
+ * total_contributors_suppressed: true }. total_tracks, top_genres, top_decades
+ * count distinct catalog tracks, not people or their actions, and stay exact.
  */
 export async function handleGetStats(request: Request, env: Env): Promise<Response> {
   const brandId = extractBrandId(request);
@@ -288,7 +294,7 @@ export async function handleGetStats(request: Request, env: Env): Promise<Respon
     ]);
 
   const totalTracks = (tracksResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
-  const totalContributors = (contributorsResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
+  const totalContributors = applyCountFloor(Number((contributorsResult.results[0] as Record<string, unknown>)?.count ?? 0));
   const totalPlaylists = (playlistsResult.results[0] as Record<string, unknown>)?.count as number ?? 0;
   const hasAudioFeatures = ((audioFeaturesResult.results[0] as Record<string, unknown>)?.count as number ?? 0) > 0;
 
@@ -296,11 +302,12 @@ export async function handleGetStats(request: Request, env: Env): Promise<Respon
     ok: true,
     stats: {
       total_tracks: totalTracks,
-      total_contributors: totalContributors,
+      ...flooredFields('total_contributors', totalContributors),
       total_playlists: totalPlaylists,
       top_genres: genresResult.results,
       top_decades: decadesResult.results,
       has_audio_features: hasAudioFeatures,
+      reporting_floor: COUNT_FLOOR,
     },
   });
   } catch (error) {
@@ -311,6 +318,12 @@ export async function handleGetStats(request: Request, env: Env): Promise<Respon
 
 /**
  * GET /api/brands
+ *
+ * Both counts per brand take the uniform floor (lib/count-floor.ts):
+ *   - contributor_count counts people;
+ *   - track_count counts contribution rows (one per person per track brought
+ *     in), so it counts people's actions, not distinct catalog tracks.
+ * Under 5, 0 included, each is { <name>: null, <name>_suppressed: true }.
  */
 export async function handleGetBrands(_request: Request, env: Env): Promise<Response> {
   const result = await env.WKRP_DB.prepare(`
@@ -325,9 +338,19 @@ export async function handleGetBrands(_request: Request, env: Env): Promise<Resp
     ORDER BY b.name ASC, b.id ASC
   `).all();
 
+  const brands = (result.results as Array<Record<string, unknown>>).map((b) => {
+    const { contributor_count, track_count, ...rest } = b;
+    return {
+      ...rest,
+      ...flooredFields('contributor_count', applyCountFloor(Number(contributor_count ?? 0))),
+      ...flooredFields('track_count', applyCountFloor(Number(track_count ?? 0))),
+    };
+  });
+
   return Response.json({
     ok: true,
-    brands: result.results,
+    brands,
+    reporting_floor: COUNT_FLOOR,
   });
 }
 
