@@ -4,7 +4,8 @@
 // handlers/events.ts, handlers/poster-bundle.ts and handlers/sponsors.ts at the
 // .ose-ref commit). One of them is ahead of that commit, as OSE's open work
 // defines it: a sponsor's `campaign: { id, title }` in the sponsor bundle. The
-// brand calendar feed at /brands/<brand>/calendar.ics is served at that commit.
+// brand calendar feed at /brands/<brand>/calendar.ics is served at that commit,
+// and so is the declared series beside each event (`series`, OSE ADR-029).
 // The integration layer runs the same build against a real local worker.
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -74,8 +75,13 @@ const onShow = (sp) => sp.sponsorAccepted !== false && sp.organizerAccepted !== 
  * before it is sent, and `fail(kind, id)` may return a status to answer with
  * instead, for tests that plant a fault in what OSE returns.
  */
-export function fakeOse({ brand = 'showcase-sample', now = NOW, origin = FAKE_ORIGIN, calls = [], edit = (_k, b) => b, fail = () => null, events = plan().events } = {}) {
+export function fakeOse({ brand = 'showcase-sample', now = NOW, origin = FAKE_ORIGIN, calls = [], edit = (_k, b) => b, fail = () => null, events = plan().events, series = plan().series ?? [] } = {}) {
   const items = events.map((ev) => [ev, planItem(ev, { brand, now })]);
+  // The confirmed series an event sits on, as OSE's public read shows it: five fields.
+  const seriesOf = (ref) => {
+    const s = series.find((x) => x.events.includes(ref));
+    return s ? { id: s.ref, name: s.name, cadence: s.cadence, day_of_week: s.day_of_week ?? null, hour_of_day: s.hour_of_day ?? null } : null;
+  };
   const json = (status, body) => new globalThis.Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   return async (url, init = {}) => {
     calls.push({ url: String(url), init });
@@ -83,7 +89,9 @@ export function fakeOse({ brand = 'showcase-sample', now = NOW, origin = FAKE_OR
     if (u.origin !== origin) throw new Error(`fake OSE: unexpected origin ${u.origin}`);
     if (u.pathname === '/api/v2/events') {
       const b = u.searchParams.get('brand') || 'root';
-      return json(200, edit('list', { ok: true, status: 200, items: items.filter(([, i]) => i.brand_id === b && i.status === 'active').map(([, i]) => i), sponsor_titles: {} }));
+      const shown = items.filter(([, i]) => i.brand_id === b && i.status === 'active').map(([, i]) => i);
+      const onSeries = Object.fromEntries(shown.map((i) => [i.id, seriesOf(i.id)]).filter(([, s]) => s));
+      return json(200, edit('list', { ok: true, status: 200, items: shown, sponsor_titles: {}, series: onSeries }));
     }
     const feed = u.pathname.match(/^\/brands\/([^/]+)\/calendar\.ics$/);
     if (feed) {
@@ -104,7 +112,7 @@ export function fakeOse({ brand = 'showcase-sample', now = NOW, origin = FAKE_OR
     if (item.status !== 'active') return json(403, { ok: false, status: 403, code: 'NOT_RENDERABLE' });
     const failed = fail(bundle ? 'bundle' : backing ? 'sponsors' : 'event', id);
     if (failed) return json(failed, { ok: false, status: failed, error: 'planted failure' });
-    if (one) return json(200, edit('event', { ok: true, status: 200, item }));
+    if (one) return json(200, edit('event', { ok: true, status: 200, item, series: seriesOf(id) }, id));
     if (backing) {
       const rows = (ev.sponsors ?? []).filter(onShow).map((sp) => sponsorRow(sp, id));
       return json(200, edit('sponsors', { ok: true, status: 200, bundle: { sponsors: rows, surface_sponsors: { posterTop: rows, tvTop: rows, tvSide: rows, mobileBanner: rows }, rotation_config: { sponsorSlots: Math.max(rows.length, 1), rotationMs: 5000 } } }, id));

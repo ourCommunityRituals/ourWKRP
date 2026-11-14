@@ -147,6 +147,14 @@ test('an event on two stations shows on both: its codes at home, a link to them 
   await expect(page).toHaveURL(/\/wear\/index\.html$/);
 });
 
+test('a programme event names the series the organizer declared; a trial names none', async ({ page }) => {
+  await open(page, '/teach/index.html');
+  const classes = page.locator('article.event', { hasText: 'Evening class (showcase demo)' });
+  await expect(classes).toHaveCount(2);
+  for (const card of await classes.all()) await expect(card).toContainText('SeriesThursday evening class (showcase demo)');
+  await expect(page.locator('article.event', { hasText: 'Data class trial' })).not.toContainText('Series');
+});
+
 test('the creator page links the calendar feed as a plain link', async ({ page }) => {
   await open(page, '/index.html');
   await expect(page.getByRole('link', { name: 'Every date as a calendar feed' })).toHaveAttribute('href', /\/brands\/showcase-sample\/calendar\.ics$/);

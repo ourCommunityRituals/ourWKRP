@@ -1,5 +1,12 @@
 {
   "about": "The OSE events the fictional fixture links, by day rather than date (lib/plan.mjs). seed-local.mjs creates them on a LOCAL OSE worker and writes work/sample-creator/creator.json with the real ids; the tests stand them in for OSE. Every text is neutral: no name or link from the creator file.",
+  "series": [
+    {
+      "ref": "ser_sample-0001", "name": "Thursday evening class (showcase demo)",
+      "cadence": "weekly", "day_of_week": 4, "hour_of_day": 18,
+      "events": ["evt_sample-0001", "evt_sample-0002", "evt_sample-0004"]
+    }
+  ],
   "events": [
     {
       "ref": "evt_sample-0001", "placementRef": "pd_sample0001",

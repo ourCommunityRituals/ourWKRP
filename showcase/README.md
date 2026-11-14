@@ -72,6 +72,18 @@ someone does. They carry no meaning the system depends on, and they overlap
 - A programme event is held to the slots of the station it lives on, and stands under "On air" there only.
 - Lead shows every station already, so it is never listed in `also`. An event is still linked once.
 
+## A programme is declared in OurSharedEvents
+
+A `programme` slot in the creator file says when a station is on air. The
+organizer also declares that programme in OurSharedEvents as a series. The
+build holds the two together:
+
+- an upcoming `programme` event must sit on a declared series;
+- the series and the slot must state the same cadence, weekday and hour (a series that names no day or hour agrees with any);
+- the event's card names the series.
+
+A one-off, a pop-up or a trial needs no series. A trial joins one when the organizer promotes it.
+
 ## Partners and the calendar feed
 
 A sponsor reaches a page only from OurSharedEvents' public sponsor bundle, where

@@ -2,7 +2,7 @@
 // OSE's public API only: no key, no cookie, GET only.
 //
 //   GET /api/v2/events?brand=<brand>           which events are public on the brand
-//   GET /api/v2/events/:id                     each linked event (When, Where, How)
+//   GET /api/v2/events/:id                     each linked event (When, Where, How), and the series it sits on
 //   GET /api/v2/events/:id/poster-bundle[?deployment=<placement>]   its codes
 //   GET /api/v2/events/:id/sponsor-bundle?surface=public            its consented sponsors
 //   GET /brands/<brand>/calendar.ics                                the brand's calendar feed, where OSE serves one
@@ -116,12 +116,33 @@ export function sponsorsFromBundle(bundle) {
   return out;
 }
 
+/**
+ * The declared series an event sits on, from the `series` beside `item` in
+ * OSE's public event read (OSE ADR-029): its label and its schedule. OSE shows
+ * only a series the organizer declared or confirmed. Returns the series, null
+ * when OSE says the event sits on none, or undefined when this OSE does not
+ * say either way (a build of OSE from before it served series).
+ */
+export function seriesFromRead(body) {
+  if (!body || !('series' in body)) return undefined;
+  const s = body.series;
+  if (!s || typeof s.id !== 'string' || !s.id) return null;
+  const whole = (n, lo, hi) => (Number.isInteger(n) && n >= lo && n <= hi ? n : null);
+  return {
+    id: s.id,
+    name: String(s.name ?? '').trim(),
+    cadence: typeof s.cadence === 'string' ? s.cadence : null,
+    dayOfWeek: whole(s.day_of_week, 0, 6),
+    hourOfDay: whole(s.hour_of_day, 0, 23),
+  };
+}
+
 /** Where OSE serves a brand's calendar feed. */
 export const calendarPath = (brand) => `/brands/${encodeURIComponent(brand)}/calendar.ics`;
 
 /**
  * Read every linked event. Returns `{ origin, linked, dropped, calendar }`:
- * `linked` is `[{ link, event, codes, sponsors }]` for each public event on the
+ * `linked` is `[{ link, event, codes, sponsors, series }]` for each public event on the
  * brand, and `calendar` is the brand feed's URL when OSE serves one, else null.
  *
  * @param {{ base: string, creator: object, fetch?: typeof fetch, now?: Date|number, paced?: () => Promise<void> }} o
@@ -170,6 +191,8 @@ export async function readOse({ base, creator, fetch: f = globalThis.fetch, now 
     }
     for (const k of EVENT_TEXT) problems.push(...neutralProblems(`${link.oseEventId} ${k}`, item[k], terms));
     const event = toEvent(item);
+    const series = seriesFromRead(one.body);
+    if (series) problems.push(...neutralProblems(`${link.oseEventId} series`, series.name, terms));
 
     // A past event shows no code and no sponsor, so neither bundle is read.
     let codes = [];
@@ -198,7 +221,7 @@ export async function readOse({ base, creator, fetch: f = globalThis.fetch, now 
         for (const s of sponsors) problems.push(...neutralProblems(`${link.oseEventId} sponsor`, `${s.title} ${s.campaign?.title ?? ''}`, terms));
       }
     }
-    linked.push({ link, event, codes, sponsors });
+    linked.push({ link, event, codes, sponsors, series });
   }
 
   // The brand's calendar feed is listed only where OSE serves one: a missing

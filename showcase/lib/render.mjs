@@ -538,7 +538,7 @@ ${footer(c, built)}
 `;
 }
 
-function eventCard({ link, event, codes, sponsors }, i, { isLead, byId, here = null }) {
+function eventCard({ link, event, codes, sponsors, series }, i, { isLead, byId, here = null }) {
   // Away from the station it lives on (Lead, or a station it also shows on), a
   // card names its home station and sends codes there: one event, one set of codes.
   const away = isLead || (here !== null && link.frequency !== here);
@@ -553,6 +553,7 @@ function eventCard({ link, event, codes, sponsors }, i, { isLead, byId, here = n
           <h3 id="ev-${i}">${esc(event.title)}</h3>
           ${row('When', whenText(event, link))}
           ${sponsorStrip(sponsors, codes)}
+          ${row('Series', series?.name)}
           ${row('Where', where)}
           ${row('What', event.whatShort)}
           ${row('Host', event.whoHost)}

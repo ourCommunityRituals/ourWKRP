@@ -121,6 +121,7 @@ export async function escapingProblems(m) {
     creator: sample(),
     edit: (kind, body) => {
       if (kind === 'event') for (const k of ['title', 'name', 'what_short', 'who_host', 'why_purpose', 'how_details', 'where_address', 'venue']) body.item[k] = `x${PAYLOADS[n.i++ % 4]}`;
+      if (kind === 'event' && body.series) body.series.name = `x${PAYLOADS[n.i++ % 4]}`;
       if (kind === 'bundle') for (const s of body.slots) { s.word = `x${PAYLOADS[n.i++ % 4]}`; s.label = s.word; }
       if (kind === 'sponsors') {
         for (const s of body.bundle.sponsors) {
@@ -133,6 +134,7 @@ export async function escapingProblems(m) {
   });
   const out = [];
   if (!ose.linked.some((x) => x.sponsors.some((sp) => sp.campaign))) out.push('the hostile build has no campaign partner to check');
+  if (!ose.linked.some((x) => x.series)) out.push('the hostile build has no series to check');
   // Every layout's markup and the TV board, not only the default page set.
   for (const layout of ['dial', 'list', 'grid']) {
     const pages = m.render.renderPages({ creator: { ...creator, layout, display: 'tv' }, catalog: catalog().categories, reports, theme: '', ose, now: NOW });
@@ -1291,5 +1293,71 @@ export async function overlapProblems(m) {
   refused((c) => { c.campaigns[0].also = ['nowhere']; }, /campaigns\.0: also "nowhere"/, 'a campaign also on an unknown station');
   // A station that only borrows events still has to say why it is on air.
   refused((c) => { c.events = [{ frequency: 'wear', also: ['teach'], oseEventId: 'evt_sample-0006', intent: 'one-off' }]; c.schedule.rows = c.schedule.rows.filter((r) => r.length < 5 || r[4] === 'evt_sample-0006'); delete c.stations[0].why; delete c.stations[0].programme; }, /stations\.teach: a frequency with events or a programme needs its why/, 'a station with only borrowed events and no why');
+  return out;
+}
+
+// ── Declared series (S15 follow-up) ──────────────────────────────────────────
+/**
+ * A programme is something the organizer declared in OSE, not only a row in the
+ * creator file: an upcoming programme event sits on a declared series, and that
+ * series agrees with the slot it stands on. The page shows the series by name.
+ */
+export async function seriesProblems(m) {
+  const out = [];
+  const NAME = 'Thursday evening class (showcase demo)';
+  const render = (ose, creator = sample()) => m.render.renderPages({ creator, catalog: catalog().categories, reports: seededReports(), theme: '', ose, now: NOW });
+  const onEvent = (id, change) => ({ edit: (k, b, eid) => { if (k === 'event' && eid === id) change(b); return b; } });
+  const built = async (opts, creator = sample()) => {
+    try {
+      return { pages: render(await sampleOse(m, { creator, ...opts }), creator) };
+    } catch (e) {
+      return { error: e.message };
+    }
+  };
+
+  // What the build keeps: five fields, by name; none for an event on no series.
+  const ose = await sampleOse(m);
+  const of = (id) => ose.linked.find((x) => x.link.oseEventId === id)?.series;
+  const kept = of('evt_sample-0001');
+  if (JSON.stringify(kept) !== JSON.stringify({ id: 'ser_sample-0001', name: NAME, cadence: 'weekly', dayOfWeek: 4, hourOfDay: 18 })) out.push(`the build kept ${JSON.stringify(kept)} of the series`);
+  if (of('evt_sample-0003') !== null) out.push(`the trial, on no series, reads ${JSON.stringify(of('evt_sample-0003'))}`);
+
+  // The card names the series; an event on none has no such row.
+  const base = await built({});
+  if (base.error) return [...out, `the fixture did not build: ${base.error.split('\n')[1] ?? base.error}`];
+  const teach = cardsOf(base.pages['teach/index.html']);
+  const row = (card) => card.match(/<span class="label">Series<\/span>([^<]*)</)?.[1] ?? null;
+  const classes = teach.filter((c) => c.includes('>Evening class (showcase demo)<'));
+  if (classes.length !== 2 || classes.some((c) => row(c) !== NAME)) out.push(`the programme cards read ${classes.map(row).join(' / ')}, want the series name on both`);
+  const trial = teach.find((c) => c.includes('Data class trial'));
+  if (!trial || row(trial) !== null) out.push('a card for an event on no series names one');
+
+  // A programme event OSE says is on no series stops the build.
+  const none = await built(onEvent('evt_sample-0001', (b) => { b.series = null; }));
+  if (!/evt_sample-0001: a programme event is not on a declared series/.test(none.error ?? '')) out.push(`a programme event on no declared series built (${none.error ?? 'no error'})`);
+  // An OSE that does not say either way is not held to it, and shows no series.
+  const silent = await built({ edit: (k, b) => { if (k === 'event') delete b.series; return b; } });
+  if (silent.error) out.push(`an OSE that serves no series stopped the build: ${silent.error.split('\n')[1] ?? silent.error}`);
+  else if (/<span class="label">Series<\/span>/.test(Object.values(silent.pages).join(''))) out.push('a series shows though OSE served none');
+  // A one-off, pop-up or trial needs no series.
+  const loose = await built({ edit: (k, b, id) => { if (k === 'event' && !['evt_sample-0001', 'evt_sample-0002', 'evt_sample-0004'].includes(id)) b.series = null; return b; } });
+  if (loose.error) out.push(`an event that is not a programme was held to a series: ${loose.error.split('\n')[1] ?? loose.error}`);
+
+  // The series and the slot state the same programme.
+  for (const [what, change, want] of [
+    ['another cadence', (b) => { b.series.cadence = 'biweekly'; }, /its series is biweekly but its slot is weekly/],
+    ['another weekday', (b) => { b.series.day_of_week = 2; }, /its series is on tuesday but its slot is on thursday/],
+    ['another hour', (b) => { b.series.hour_of_day = 19; }, /its series starts at 19:00 but its slot at 18:00/],
+  ]) {
+    const r = await built(onEvent('evt_sample-0001', change));
+    if (!want.test(r.error ?? '')) out.push(`a series with ${what} than its slot built (${(r.error ?? 'no error').split('\n')[1] ?? 'no error'})`);
+  }
+  // A series that names no day or hour (as OSE allows) does not disagree with a slot that does.
+  const open = await built(onEvent('evt_sample-0001', (b) => { b.series.day_of_week = null; b.series.hour_of_day = null; }));
+  if (open.error) out.push(`a series that names no day or hour stopped the build: ${open.error.split('\n')[1] ?? open.error}`);
+
+  // A series named after the creator stops the build.
+  const named = await stopped(() => sampleOse(m, onEvent('evt_sample-0001', (b) => { b.series.name = 'Evenings with Sam Sample'; })), /series names/);
+  if (named) out.push(`the build read a series named after her without stopping (${named})`);
   return out;
 }

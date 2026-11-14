@@ -27,7 +27,7 @@ Public reads only, GET, no key, no cookie (`lib/ose.mjs`):
 | Read | For |
 |---|---|
 | `GET /api/v2/events?brand=<oseBrand>` | Which linked events are public on the creator's brand. Anything else drops off. |
-| `GET /api/v2/events/:id` | Each linked event's When, Where and How: dates, start, timezone, the 5W fields. |
+| `GET /api/v2/events/:id` | Each linked event's When, Where and How: dates, start, timezone, the 5W fields. Beside the event, the declared series it sits on (label, cadence, weekday, hour), or none. |
 | `GET /api/v2/events/:id/poster-bundle?deployment=<placement>` | Its codes: the showcase placement's `/q` code and the event's `/s` codes. Not read for a past event. |
 | `GET /api/v2/events/:id/sponsor-bundle?surface=public` | Its sponsors, as OSE lists them: both sides accepted and the event has sponsors on. The build keeps a name and, when OSE gives one, the campaign (`id`, `title`); tokens, logo, website and tier are left behind. Not read for a past event. A bundle that cannot be read stops the build. |
 | `GET /brands/<oseBrand>/calendar.ics` | Whether OSE serves the brand's calendar feed. Listed on the creator page only on a 200 that starts `BEGIN:VCALENDAR`; a 404, an edge challenge or any other body leaves it off and fails nothing. Its text is held to the neutral-name rule. |
@@ -115,6 +115,10 @@ JSON file runs in the contract layer.
 
 `overlapProblems` (unit): an event with `also` shows on each station it names and once on Lead; its codes show only on the station it lives on, and elsewhere the card names that station and links to it; its sponsor travels with it; the TV board keeps the codes; the front page lists it once under both stations; a borrowed programme event is not held to the borrowing station's slots and never stands under its On air; a campaign with `also` shows its partner on each station it names; `also` refuses an unknown station, its own station, Lead and a repeat, and an event is still linked once; a station that only borrows events must still state its why. The integration verdict counts a card on every station an event names and its codes on its home station only.
 
+## Declared series (S15)
+
+`seriesProblems` (unit): the build keeps five fields of an event's series (id, name, cadence, weekday, hour) from the `series` beside `item` in OSE's public event read; an upcoming programme event that OSE says sits on no declared series stops the build; a series that states another cadence, weekday or hour than the slot stops it too, while a series that names no day or hour does not; a one-off, pop-up or trial needs none; an OSE that does not say either way is not held to the rule and shows no series; the card names the series; a series named after the creator stops the build. Integration: the seed declares the fixture's series on the real worker the way an organizer does, and `check-ose.mjs` requires each card on that series to name it and no other card to.
+
 ## Partners (S9)
 
 - **Sponsor strip** (`sponsorProblems`, security): on an event card, below the title and date and above everything else; only the sponsors OSE's public bundle lists (one side's yes, a pending answer and a past event's sponsor reach no page); a name and nothing else of the row; the one link is the event's own SPONSOR `/s/` code, and there is none without that code; no `/impression` or `/click` request; a sponsor name is never in or on a control; a bundle that fails, has no list, or names the creator stops the build.
@@ -145,7 +149,6 @@ The layout and display menu is run pairwise, not in every combination: beside th
 | Plan rule | Waits on |
 |---|---|
 | A slot's mode equals each attached event's mode | OSE S13 (`attendance_mode`). The check is built and born red on a stand-in mode; it runs on real events once OSE serves the field. |
-| A `programme` event sits on a declared series | OSE S15. Today the build requires it to match a slot. |
 | A campaign partner at the top of its station, against a real worker | OSE S14 (campaigns in the public sponsor bundle). Built and born red on the stand-in. The integration seed already attaches the fixture's placements to a campaign, and `check-ose.mjs` asks the worker whether its bundle names campaigns: once `.ose-ref` moves past S14 it expects the partner with no further change. |
 | Promoting a trial never changes its past dates or counts | OSE S15. |
 
