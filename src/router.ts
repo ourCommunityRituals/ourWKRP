@@ -25,8 +25,8 @@
  *   GET  /c/:slug                     → same profile page via vanity slug (OW-122)
  *   POST /api/profile/slug            → claim/change own vanity slug (OW-122)
  *   GET  /api/playlists/:id         → contributor playlists (by contributor) or single playlist (by UUID)
- *   GET  /api/stats                 → catalog statistics
- *   GET  /api/brands                → all brands with counts
+ *   GET  /api/stats                 → catalog statistics (contributor count floored, K = 5)
+ *   GET  /api/brands                → all brands with counts (both counts floored, K = 5)
  *
  *   --- Playlist Builder (WKRP-7 MVP) ---
  *   POST   /api/playlists              → create curated playlist
@@ -43,6 +43,11 @@
  *   POST   /api/facets                     → declare (or re-depth) a (domain, depth) facet
  *   DELETE /api/facets/:id                 → remove a facet
  *   (facets also fold into GET /api/contributors/:id)
+ *
+ *   --- Cross-product (OurSharedEvents; service token required) ---
+ *   GET  /api/events/:eventId/music    → an event's sets, top tracks and floored counts
+ *   GET  /api/sponsors/:eventId/report → sponsor report: floored counts per DJ, hour, track
+ *   (both build every count from the same floored taps: lib/event-attributions.ts)
  *
  *   --- Last.fm Integration ---
  *   GET  /auth/lastfm/start         → redirect to Last.fm auth

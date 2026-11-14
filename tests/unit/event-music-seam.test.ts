@@ -11,6 +11,10 @@
  * Before the fix the handler returned distinct_listeners / attribution_count raw
  * under privacy:'aggregate_only' — the leak. These tests were born red on
  * distinct_listeners suppression, top-track drop, and the privacy label.
+ *
+ * OW-212: the handler now reads every attribution of the event and floors
+ * them once across DJ, hour and track (lib/event-attributions.ts, shared with
+ * the sponsor report), so the mock below returns tap rows, not counts.
  */
 import { describe, it, expect } from 'vitest';
 import { handleGetEventMusic } from '../../src/handlers/events';
@@ -21,22 +25,36 @@ type Row = Record<string, unknown>;
 
 const TOKEN = 'test-ose-integration-token';
 
-/**
- * Mock WKRP_DB.batch: returns the result sets the handler destructures, in
- * order. `trackCounts` is the per-track count over every track of the event
- * (no LIMIT), which the total is built from (OW-160).
- */
-function makeEnv(sets: Row[], attributions: Row[], topTracks: Row[], trackCounts: Row[] = []): Env {
+/** One attribution row as eventAttributionsQuery returns it. */
+function tap(o: { dj?: string; dj_name?: string; track?: string; track_name?: string; listener?: string | null; hour?: string } = {}): Row {
+  return {
+    dj_id: o.dj ?? 'd1',
+    dj_name: o.dj_name ?? 'DJ Nova',
+    listener_id: o.listener ?? null,
+    track_id: o.track ?? 't1',
+    track_name: o.track_name ?? `Song ${o.track ?? 't1'}`,
+    artist: 'A',
+    album: 'Album',
+    genre: 'house',
+    image_url: null,
+    hour: o.hour ?? '2026-09-10 21:00',
+  };
+}
+
+/** n taps on one track by one DJ in one hour; the first `named` from distinct listeners. */
+function tapsOf(n: number, o: Parameters<typeof tap>[0] & { named?: number } = {}): Row[] {
+  return Array.from({ length: n }, (_, i) =>
+    tap({ ...o, listener: i < (o.named ?? 0) ? `L-${o.dj ?? 'd1'}-${o.track ?? 't1'}-${i}` : null })
+  );
+}
+
+/** Mock WKRP_DB.batch: [sets, every attribution of the event]. */
+function makeEnv(sets: Row[], taps: Row[]): Env {
   return {
     OSE_INTEGRATION_TOKEN: TOKEN,
     WKRP_DB: {
       prepare: () => ({ bind: () => ({}) }),
-      batch: async () => [
-        { results: sets },
-        { results: attributions },
-        { results: topTracks },
-        { results: trackCounts },
-      ],
+      batch: async () => [{ results: sets }, { results: taps }],
     },
   } as unknown as Env;
 }
@@ -61,8 +79,7 @@ describe('T-SEAM music export — named pole preserved', () => {
   it('keeps dj_name + set identity on sets (DJs are the named pole)', async () => {
     const env = makeEnv(
       [{ id: 's1', dj_id: 'd1', dj_name: 'DJ Nova', venue_name: 'The Hall', track_count: 12, started_at: '2026-09-10T21:30:00Z', ended_at: '2026-09-10T23:45:00Z' }],
-      [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }],
-      [],
+      tapsOf(ABOVE, { named: ABOVE }),
     );
     const { music } = await musicOf(env);
     const sets = music.sets as Row[];
@@ -72,21 +89,27 @@ describe('T-SEAM music export — named pole preserved', () => {
   });
 
   it('keeps attributed_dj on surviving top tracks', async () => {
-    const env = makeEnv(
-      [],
-      [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }],
-      [{ id: 't1', name: 'Song', artist: 'A', attribution_count: ABOVE, attributed_dj: 'DJ Nova' }],
-    );
+    const env = makeEnv([], tapsOf(ABOVE, { track: 't1', named: ABOVE }));
     const { music } = await musicOf(env);
     const tracks = music.top_tracks as Row[];
     expect(tracks).toHaveLength(1);
+    expect(tracks[0].id).toBe('t1');
     expect(tracks[0].attributed_dj).toBe('DJ Nova');
+  });
+
+  it('names the DJ with the most counted taps on a track', async () => {
+    const env = makeEnv([], [
+      ...tapsOf(ABOVE, { dj: 'd1', dj_name: 'DJ Nova', track: 't1' }),
+      ...tapsOf(ABOVE + 2, { dj: 'd2', dj_name: 'DJ Ember', track: 't1' }),
+    ]);
+    const { music } = await musicOf(env);
+    expect((music.top_tracks as Row[])[0].attributed_dj).toBe('DJ Ember');
   });
 });
 
 describe('T-SEAM music export — listener-derived counts floored', () => {
   it('suppresses distinct_listeners below the floor', async () => {
-    const env = makeEnv([], [{ total_attributions: ABOVE, distinct_listeners: BELOW, dj_count: 1 }], []);
+    const env = makeEnv([], tapsOf(ABOVE, { named: BELOW }));
     const { music } = await musicOf(env);
     const stats = music.stats as Row;
     expect(stats.distinct_listeners).toBeNull();
@@ -95,7 +118,7 @@ describe('T-SEAM music export — listener-derived counts floored', () => {
   });
 
   it('publishes distinct_listeners at/above the floor exactly', async () => {
-    const env = makeEnv([], [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }], []);
+    const env = makeEnv([], tapsOf(ABOVE, { named: ABOVE }));
     const { music } = await musicOf(env);
     const stats = music.stats as Row;
     expect(stats.distinct_listeners).toBe(ABOVE);
@@ -103,52 +126,56 @@ describe('T-SEAM music export — listener-derived counts floored', () => {
   });
 
   it('suppresses total_attributions below the floor', async () => {
-    const env = makeEnv([], [{ total_attributions: BELOW, distinct_listeners: BELOW, dj_count: 1 }], []);
+    const env = makeEnv([], tapsOf(BELOW, { named: BELOW }));
     const { music } = await musicOf(env);
     const stats = music.stats as Row;
     expect(stats.total_attributions).toBeNull();
     expect(stats.total_attributions_suppressed).toBe(true);
   });
 
-  it('drops sub-floor top-track rows and reports the count without naming them', async () => {
-    const env = makeEnv(
-      [],
-      [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }],
-      [
-        { id: 't1', name: 'Popular', attribution_count: ABOVE, attributed_dj: 'DJ Nova' },
-        { id: 't2', name: 'Niche', attribution_count: BELOW, attributed_dj: 'DJ Ember' },
-      ],
-    );
+  it('floors dj_count like every other count of people (OW-212)', async () => {
+    const one = (await musicOf(makeEnv([], tapsOf(ABOVE)))).music.stats as Row;
+    expect(one.dj_count).toBeNull();
+    expect(one.dj_count_suppressed).toBe(true);
+
+    const five = Array.from({ length: COUNT_FLOOR }, (_, d) => tapsOf(COUNT_FLOOR, { dj: `d${d}` })).flat();
+    const many = (await musicOf(makeEnv([], five))).music.stats as Row;
+    expect(many.dj_count).toBe(COUNT_FLOOR);
+    expect(many.dj_count_suppressed).toBe(false);
+  });
+
+  it('drops sub-floor top-track rows and publishes no count of them (OW-212)', async () => {
+    const env = makeEnv([], [
+      ...tapsOf(ABOVE, { track: 't1', dj_name: 'DJ Nova' }),
+      ...tapsOf(BELOW, { track: 't2', dj: 'd2', dj_name: 'DJ Ember' }),
+    ]);
     const { music } = await musicOf(env);
     const tracks = music.top_tracks as Row[];
     expect(tracks).toHaveLength(1);
     expect(tracks[0].id).toBe('t1');
-    expect(music.top_tracks_below_floor).toBe(1);
+    expect(music).not.toHaveProperty('top_tracks_below_floor');
   });
 });
 
 describe('T-SEAM music export — labels and listener PII', () => {
   it('labels the response as floored aggregates with named DJs', async () => {
-    const env = makeEnv([], [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 0 }], []);
+    const env = makeEnv([], tapsOf(ABOVE));
     const body = await musicOf(env);
     expect(body.privacy).toBe('floored_aggregate_listeners_named_djs');
   });
 
-  it('never leaks listener identity fields that slip into a track row', async () => {
-    const env = makeEnv(
-      [],
-      [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }],
-      [{ id: 't1', name: 'Song', attribution_count: ABOVE, attributed_dj: 'DJ Nova', listener_id: 'L-secret' }],
-    );
-    const { music } = await musicOf(env);
-    const tracks = music.top_tracks as Row[];
-    expect(tracks[0]).not.toHaveProperty('listener_id');
+  it('never leaks listener identity fields', async () => {
+    const env = makeEnv([], tapsOf(ABOVE, { named: ABOVE }));
+    const res = await handleGetEventMusic(req(), env, 'evt1');
+    const text = await res.text();
+    expect(text).not.toContain('listener_id');
+    expect(text).not.toContain('L-d1-t1-0');
   });
 });
 
 // ===========================================================================
 // OSE-1299 FIX 1 — sets[] are coarsened (differencing vector against the
-// sibling sponsor attendance timeline).
+// sibling sponsor timeline).
 // ===========================================================================
 describe('T-SEAM music export — sets are coarsened before egress (OSE-1299)', () => {
   const oneSet = (over: Row = {}): Row[] => [
@@ -165,14 +192,14 @@ describe('T-SEAM music export — sets are coarsened before egress (OSE-1299)', 
   ];
 
   it('drops track_count entirely (per-set small-integer fingerprint)', async () => {
-    const env = makeEnv(oneSet(), [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }], []);
+    const env = makeEnv(oneSet(), tapsOf(ABOVE));
     const { music } = await musicOf(env);
     const sets = music.sets as Row[];
     expect(sets[0]).not.toHaveProperty('track_count');
   });
 
   it('coarsens started_at/ended_at to date granularity (no sub-date precision)', async () => {
-    const env = makeEnv(oneSet(), [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }], []);
+    const env = makeEnv(oneSet(), tapsOf(ABOVE));
     const { music } = await musicOf(env);
     const sets = music.sets as Row[];
     // Exactly YYYY-MM-DD — no time component survives.
@@ -184,7 +211,7 @@ describe('T-SEAM music export — sets are coarsened before egress (OSE-1299)', 
   });
 
   it('nulls a missing timestamp rather than widening precision', async () => {
-    const env = makeEnv(oneSet({ ended_at: null }), [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }], []);
+    const env = makeEnv(oneSet({ ended_at: null }), tapsOf(ABOVE));
     const { music } = await musicOf(env);
     const sets = music.sets as Row[];
     expect(sets[0].ended_at).toBeNull();
@@ -198,8 +225,7 @@ describe('T-SEAM music export — requires the cross-product service token (OSE-
   const dbEnv = () =>
     makeEnv(
       [{ id: 's1', dj_id: 'd1', dj_name: 'DJ Nova', track_count: 3, started_at: '2026-09-10T21:00:00Z', ended_at: '2026-09-10T22:00:00Z' }],
-      [{ total_attributions: ABOVE, distinct_listeners: ABOVE, dj_count: 1 }],
-      [],
+      tapsOf(ABOVE),
     );
 
   it('401 UNAUTHORIZED when no token is presented', async () => {
@@ -261,28 +287,20 @@ describe('T-SEAM music export — requires the cross-product service token (OSE-
  * /dj/:id/stats and OSE applies with floorTotalOfParts.
  */
 describe('T-SEAM music export — total is the sum of floored tracks (OW-160)', () => {
-  const tracksOf = (...counts: number[]) =>
-    counts.map((n, i) => ({ id: `t${i}`, name: `Song ${i}`, artist: 'A', attribution_count: n, attributed_dj: 'DJ Nova' }));
-  const perTrack = (...counts: number[]) => counts.map((n, i) => ({ track_id: `t${i}`, attribution_count: n }));
-  const envFor = (...counts: number[]) => {
-    const raw = counts.reduce((a, b) => a + b, 0);
-    return makeEnv([], [{ total_attributions: raw, distinct_listeners: ABOVE, dj_count: 1 }], tracksOf(...counts), perTrack(...counts));
-  };
-  const publishedOf = async (env: Env) => {
-    const { music } = await musicOf(env);
-    return { stats: music.stats, top_tracks: music.top_tracks, below: music.top_tracks_below_floor };
-  };
+  /** One DJ, one hour, track i gets counts[i] taps. */
+  const envFor = (...counts: number[]) =>
+    makeEnv([], counts.flatMap((n, i) => tapsOf(n, { track: `t${i}` })));
 
   it('neighbours one attribution apart on a sub-floor track publish the same thing', async () => {
-    const a = await publishedOf(envFor(ABOVE, BELOW - 1));
-    const b = await publishedOf(envFor(ABOVE, BELOW));
+    const a = await musicOf(envFor(ABOVE, BELOW - 1));
+    const b = await musicOf(envFor(ABOVE, BELOW));
     expect(b).toEqual(a);
   });
 
   it('control: one attribution more on a track above the floor changes the total', async () => {
-    const a = await publishedOf(envFor(ABOVE, BELOW));
-    const b = await publishedOf(envFor(ABOVE + 1, BELOW));
-    expect((b.stats as Row).total_attributions).toBe((a.stats as Row).total_attributions as number + 1);
+    const a = await musicOf(envFor(ABOVE, BELOW));
+    const b = await musicOf(envFor(ABOVE + 1, BELOW));
+    expect((b.music.stats as Row).total_attributions).toBe(((a.music.stats as Row).total_attributions as number) + 1);
   });
 
   it('total minus the listed tracks never gives a dropped track back', async () => {
@@ -294,13 +312,8 @@ describe('T-SEAM music export — total is the sum of floored tracks (OW-160)', 
 
   it('counts tracks beyond the top-25 list that clear the floor', async () => {
     const counts = Array.from({ length: 26 }, () => ABOVE);
-    const env = makeEnv(
-      [],
-      [{ total_attributions: 26 * ABOVE, distinct_listeners: ABOVE, dj_count: 1 }],
-      tracksOf(...counts.slice(0, 25)),
-      perTrack(...counts),
-    );
-    const { music } = await musicOf(env);
+    const { music } = await musicOf(envFor(...counts));
+    expect(music.top_tracks as Row[]).toHaveLength(25);
     expect((music.stats as Row).total_attributions).toBe(26 * ABOVE);
   });
 

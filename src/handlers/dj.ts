@@ -18,7 +18,7 @@ import { startSetBodySchema, addSetTrackBodySchema, createAttributionBodySchema 
 import { validateBody } from '../lib/validate';
 import { recordAudit } from '../lib/audit';
 import { log } from '../lib/logger';
-import { applyCountFloor, dropSubFloorRows, sumContributingBuckets } from '../lib/count-floor';
+import { applyCountFloor, dropSubFloorRows, sumContributingBuckets, COUNT_FLOOR } from '../lib/count-floor';
 
 /**
  * POST /api/sets
@@ -245,7 +245,9 @@ export async function handleCreateAttribution(request: Request, env: Env): Promi
  * (lib/count-floor.ts, K = 5, the same rule OSE applies). The DJ is the named
  * pole; listeners are counts, never individuals. "None" and "1 to 4" read the
  * same: null with `_suppressed: true`.
- *   - unique_listeners: one count of people, floored.
+ *   - unique_listeners: one count of people, floored, over the taps on tracks
+ *     that clear the floor only (the same taps as the total), so a listener
+ *     who tapped only a track under the floor changes nothing.
  *   - top tracks: a track under the floor is dropped, never shown as "3".
  *   - total_attributions: the sum of the tracks that each clear the floor
  *     (drop before sum), so the total minus the listed tracks never gives a
@@ -255,8 +257,13 @@ export async function handleCreateAttribution(request: Request, env: Env): Promi
 export async function handleGetDjStats(_request: Request, env: Env, djId: string): Promise<Response> {
   const [listenersResult, tracksResult, setsResult] = await env.WKRP_DB.batch([
     env.WKRP_DB.prepare(
-      'SELECT COUNT(DISTINCT listener_id) as count FROM attributions WHERE dj_id = ? AND listener_id IS NOT NULL'
-    ).bind(djId),
+      `SELECT COUNT(DISTINCT listener_id) as count FROM attributions
+       WHERE dj_id = ? AND listener_id IS NOT NULL
+         AND track_id IN (
+           SELECT track_id FROM attributions WHERE dj_id = ?
+           GROUP BY track_id HAVING COUNT(*) >= ?
+         )`
+    ).bind(djId, djId, COUNT_FLOOR),
     env.WKRP_DB.prepare(
       `SELECT t.id, t.name, t.artist, COUNT(*) as attribution_count
        FROM attributions a

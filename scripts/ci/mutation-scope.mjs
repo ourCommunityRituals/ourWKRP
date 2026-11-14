@@ -50,6 +50,7 @@ const SCHEMAS_STRYKER_CONFIG = 'stryker.schemas.conf.mjs';
 export const MUTATION_PATHS = Object.freeze([
   // The mutated sources (stryker.conf.mjs `mutate`).
   'src/lib/count-floor.ts',
+  'src/lib/event-attributions.ts',
   'src/lib/session.ts',
   'src/lib/session-cookie.ts',
   'src/lib/require-session.ts',
@@ -76,13 +77,16 @@ export const MUTATION_PATHS = Object.freeze([
   'tests/integration/session-lifecycle.test.ts',
   'tests/security/ccr-invariants.test.ts',
   'tests/security/cors-policy.test.ts',
+  'tests/security/count-floor-routes.test.ts',
   'tests/security/cross-product-boundary.invariant.spec.ts',
   'tests/security/security-headers.test.ts',
   'tests/security/vanity-slug-security.test.ts',
   'tests/unit/admin-auth.test.ts',
+  'tests/unit/count-floor.test.ts',
   'tests/unit/crypto.test.ts',
   'tests/unit/cursor.test.ts',
   'tests/unit/erasure.test.ts',
+  'tests/unit/event-attributions.test.ts',
   'tests/unit/event-id-validation.test.ts',
   'tests/unit/event-music-seam.test.ts',
   'tests/unit/facet-schema.test.ts',
@@ -97,6 +101,7 @@ export const MUTATION_PATHS = Object.freeze([
   'tests/unit/session.test.ts',
   'tests/unit/slug.test.ts',
   'tests/unit/validation.test.ts',
+  'tests/unit/withheld-count-pages.test.ts',
   // What the run is built from: the Stryker config, the Vitest projects, the
   // mutation-only setup, the dependencies.
   STRYKER_CONFIG,

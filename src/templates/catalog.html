@@ -163,9 +163,15 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
               if (data.ok) {
+                // A contributor count under the floor arrives as null with
+                // total_contributors_suppressed; it reads in words, never 0.
+                var contributors = data.stats.total_contributors;
+                var contributorsText = (data.stats.total_contributors_suppressed === true || typeof contributors !== 'number' || !isFinite(contributors))
+                  ? '__COUNT_WITHHELD_TEXT__'
+                  : contributors.toLocaleString();
                 document.getElementById('sync-status').textContent =
                   data.stats.total_tracks + ' tracks \u00B7 ' +
-                  data.stats.total_contributors + ' contributors';
+                  contributorsText + ' contributors';
                 // Only offer audio-feature filters when the catalog actually
                 // has audio features to filter on.
                 applyAudioFeatureGate(data.stats.has_audio_features === true);

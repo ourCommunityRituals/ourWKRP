@@ -24,6 +24,7 @@ import { UUID_RE } from '../lib/route-path';
 import { SAFE_ID_RE } from '../lib/ids';
 import { log } from '../lib/logger';
 import { qrSvg } from '../lib/qr';
+import { withheldText } from '../lib/count-floor';
 
 // HTML templates imported as text via wrangler.toml [[rules]]
 import connectHtml from '../templates/connect.html';
@@ -136,6 +137,9 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
   // template alone is both sufficient and safe.
   const nonce = crypto.randomUUID().replace(/-/g, '');
   html = html.replaceAll('__CSP_NONCE__', nonce);
+  // The words a withheld count reads as ("Fewer than 5"), from the one place
+  // the floor is defined, so no template writes its own copy of K.
+  html = html.replaceAll('__COUNT_WITHHELD_TEXT__', () => withheldText());
 
   html = injectBrandStyles(html, brand);
 

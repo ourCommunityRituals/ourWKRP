@@ -10,6 +10,8 @@
 // TARGETS are OW's security and privacy guards, chosen by what they protect,
 // not by convenience:
 //   count-floor        the under-5 floor (never who, only how many)
+//   event-attributions one floored reading of an event's taps, shared by the
+//                      music route and the sponsor report
 //   session, session-cookie, require-session, roles, admin-auth
 //                      who may do what, and for how long
 //   origin-check, cors, cross-product-auth
@@ -38,6 +40,7 @@ export default {
   vitest: { configFile: 'vitest.mutation.config.ts' },
   mutate: [
     'src/lib/count-floor.ts',
+    'src/lib/event-attributions.ts',
     'src/lib/session.ts',
     'src/lib/session-cookie.ts',
     'src/lib/require-session.ts',

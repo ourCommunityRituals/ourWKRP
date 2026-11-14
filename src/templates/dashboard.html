@@ -31,9 +31,9 @@
     <div class="content">
       <!-- Influence Stats -->
       <div class="stats-row" data-testid="stats-row">
-        <div class="stat-card"><div class="stat-value" id="stat-attributions">0</div><div class="stat-label">Attributions</div></div>
-        <div class="stat-card"><div class="stat-value" id="stat-listeners">0</div><div class="stat-label">Listeners</div></div>
-        <div class="stat-card"><div class="stat-value" id="stat-sets">0</div><div class="stat-label">Sets</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-attributions">—</div><div class="stat-label">Attributions</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-listeners">—</div><div class="stat-label">Listeners</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-sets">—</div><div class="stat-label">Sets</div></div>
       </div>
 
       <!-- Set Controls -->
@@ -266,7 +266,7 @@
         } catch (e) {}
       }
 
-      function floored(n) { return typeof n === 'number' ? String(n) : 'Fewer than 5'; }
+      function floored(n) { return typeof n === 'number' && isFinite(n) ? String(n) : '__COUNT_WITHHELD_TEXT__'; }
       // textContent encodes & < >; the quotes are added because the output also goes inside a double-quoted data-id attribute.
       function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
     })();

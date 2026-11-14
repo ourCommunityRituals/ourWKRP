@@ -37,17 +37,18 @@ export function applyCountFloor(raw: number, floor: number = COUNT_FLOOR): Floor
 }
 
 /**
- * Drop sub-K rows from a bucket list (OSE-683/711 pattern) and report how many
- * were suppressed so the surface can say "N below the reporting floor" without
- * saying which.
+ * Drop sub-K rows from a bucket list (OSE-683/711 pattern).
+ *
+ * It returns only the rows that clear the floor. It does not say how many rows
+ * were dropped: that number is itself a count of small groups, and the rule is
+ * that no count under the floor is published.
  */
 export function dropSubFloorRows<T>(
   rows: T[],
   countOf: (row: T) => number,
   floor: number = COUNT_FLOOR
-): { rows: T[]; suppressed_rows: number; floor: number } {
-  const kept = rows.filter((r) => countOf(r) >= floor);
-  return { rows: kept, suppressed_rows: rows.length - kept.length, floor };
+): { rows: T[]; floor: number } {
+  return { rows: rows.filter((r) => countOf(r) >= floor), floor };
 }
 
 /** Sum of surviving buckets only — the differencing-safe total (OSE-683). */
@@ -60,4 +61,93 @@ export function sumContributingBuckets<T>(
     const n = countOf(r);
     return n >= floor ? sum + n : sum;
   }, 0);
+}
+
+/**
+ * Floor a total published beside its parts (drop before sum, OSE-683; the same
+ * rule as OSE's floorTotalOfParts).
+ *
+ * Each part is floored first and a part under the floor adds nothing; the sum
+ * of the parts that cleared is then floored again. With parts 6 and 3 the total
+ * is 6, never 9, so the total minus the listed parts cannot give back the 3.
+ * Parts that are each under the floor never add up to a published total
+ * (3 + 3 is withheld, not 6).
+ */
+export function floorTotalOfParts(
+  parts: readonly (number | null | undefined)[],
+  floor: number = COUNT_FLOOR
+): FlooredCount {
+  let sum = 0;
+  for (const part of parts) sum += applyCountFloor(part ?? 0, floor).count ?? 0;
+  return applyCountFloor(sum, floor);
+}
+
+/**
+ * Keep only the rows that sit in a group of at least `floor` rows under EVERY
+ * cut, after the rows that do not have been taken away.
+ *
+ * A report that publishes several cuts of the same rows (per DJ, per hour, per
+ * track) cannot floor each cut on its own: a row dropped from one cut still
+ * counts in another, so the per-hour sum minus the per-DJ sum would give back
+ * the dropped DJ's count. So the rows are peeled until every group under every
+ * cut holds `floor` rows or none, and every cut and every total is then built
+ * from the rows that are left.
+ *
+ * What is left is the largest set of rows in which every group clears the
+ * floor (the union of two such sets is another one, so there is one largest).
+ * A row in a group under the floor can never be part of it, so adding,
+ * removing or changing rows inside such a group leaves the result unchanged.
+ */
+export function floorAcrossCuts<T>(
+  rows: readonly T[],
+  cuts: ReadonlyArray<(row: T) => string>,
+  floor: number = COUNT_FLOOR
+): T[] {
+  let kept = rows.slice();
+  for (;;) {
+    const sizes = cuts.map((key) => groupSizes(kept, key));
+    const next = kept.filter((row) => cuts.every((key, i) => (sizes[i].get(key(row)) ?? 0) >= floor));
+    if (next.length === kept.length) return next;
+    kept = next;
+  }
+}
+
+/** Number of rows per group key. */
+export function groupSizes<T>(rows: readonly T[], key: (row: T) => string): Map<string, number> {
+  const sizes = new Map<string, number>();
+  for (const row of rows) {
+    const k = key(row);
+    sizes.set(k, (sizes.get(k) ?? 0) + 1);
+  }
+  return sizes;
+}
+
+/**
+ * The wire shape of one floored count: `{ <name>: n, <name>_suppressed: false }`
+ * at or above the floor, `{ <name>: null, <name>_suppressed: true }` under it
+ * (0 included). Every route uses this shape for a count of people or of
+ * people's actions.
+ */
+export function flooredFields<N extends string>(
+  name: N,
+  value: FlooredCount
+): Record<N, number | null> & Record<`${N}_suppressed`, boolean> {
+  return { [name]: value.count, [`${name}_suppressed`]: value.suppressed } as Record<N, number | null> &
+    Record<`${N}_suppressed`, boolean>;
+}
+
+/** The words a withheld count reads as: "Fewer than 5". */
+export function withheldText(floor: number = COUNT_FLOOR): string {
+  return `Fewer than ${floor}`;
+}
+
+/**
+ * Text for one published count. A withheld count, a missing value, or any
+ * number under the floor reads in words ("Fewer than 5"); never 0, never
+ * blank, never the true number.
+ */
+export function countText(value: FlooredCount | number | null | undefined, floor: number = COUNT_FLOOR): string {
+  const n = typeof value === 'object' && value !== null ? (value.suppressed ? null : value.count) : value;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n < floor) return withheldText(floor);
+  return String(Math.floor(n));
 }
