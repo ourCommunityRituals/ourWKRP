@@ -60,8 +60,14 @@ describe('creator showcase: unit', () => {
   it('declared series: a programme event sits on a series the organizer declared in OSE, and the series agrees with its slot', async () => {
     expect(await C.seriesProblems(m)).toEqual([]);
   });
-  it('where map: in-person events by area, at the 5 km grain and nothing finer, see-through, with the list beside it', async () => {
+  it('where map: in-person events by area, drawn as OurSharedEvents draws them, at the 5 km grain and nothing finer, see-through, with the list beside it', async () => {
     expect(await C.mapProblems(m)).toEqual([]);
+  });
+  it('where map: a read that fails, is refused, is rate-limited or never answers leaves the list and stops nothing', async () => {
+    expect(await C.mapFailSoftProblems(m)).toEqual([]);
+  });
+  it('where map: a build of many stations reads under 6 maps a second', async () => {
+    expect(await C.mapSpacingProblems(m)).toEqual([]);
   });
   it('online or in person: the card says how an event is held, an online event has no place, and a class is held as its slot says', async () => {
     expect(await C.modeProblems(m)).toEqual([]);

@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import jsQR from 'jsqr';
-import { fakeOse, FAKE_ORIGIN, NOW, plan } from './fake-ose.mjs';
+import { fakeOse, fakeStreets, mapAreasAnswer, FAKE_ORIGIN, NOW, plan } from './fake-ose.mjs';
 
 export const SHOWCASE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const json = (p) => JSON.parse(readFileSync(join(SHOWCASE, p), 'utf8'));
@@ -51,7 +51,9 @@ export const seededReports = () => ({
 
 /** What the build reads from (stand-in) OSE for the fixture, through the module under test. */
 export async function sampleOse(m, { creator = sample(), now = NOW, edit, fail, events, calls } = {}) {
-  return m.ose.readOse({ base: FAKE_ORIGIN, creator, fetch: fakeOse({ now, edit, fail, events, calls }), now });
+  // The stand-in answers at once, so the wait between two map reads is skipped
+  // here. mapSpacingProblems drives it with its own clock.
+  return m.ose.readOse({ base: FAKE_ORIGIN, creator, fetch: fakeOse({ now, edit, fail, events, calls }), now, sleep: async () => {} });
 }
 
 /** Render every page of the fixture with its OSE data. */
@@ -299,6 +301,9 @@ const READS = [
   /^\/api\/v2\/events\/[^/?]+\/poster-bundle(\?deployment=[^&]+)?$/,
   /^\/api\/v2\/events\/[^/?]+\/sponsor-bundle\?surface=public$/,
   /^\/brands\/[a-z0-9-]+\/calendar\.ics$/,
+  // The where map: 1 to 12 resolution-7 cells and their neighbours, and nothing
+  // else. A coordinate, a finer cell or any other parameter is not this read.
+  /^\/api\/v2\/map\/areas\?cells=87[0-9a-f]{13}(,87[0-9a-f]{13}){0,11}&around=1$/,
 ];
 
 /** The build's OSE reads are public reads: GET, no credential, no cookie. */
@@ -315,6 +320,7 @@ export async function readOnlyProblems(m) {
     const path = url.slice(FAKE_ORIGIN.length);
     if (!READS.some((r) => r.test(path))) out.push(`unexpected read ${url}`);
   }
+  if (!calls.some(({ url }) => url.includes('/api/v2/map/areas'))) out.push('no where map was read');
   return out;
 }
 
@@ -1383,7 +1389,8 @@ export async function mapProblems(m) {
   const count = (html, re) => (html.match(re) ?? []).length;
 
   // What the build keeps of an event's place: the area, and no coordinate.
-  const ose = await sampleOse(m);
+  const calls = [];
+  const ose = await sampleOse(m, { calls });
   const ev = (id, o = ose) => o.linked.find((x) => x.link.oseEventId === id)?.event ?? {};
   if (ev('evt_sample-0005').area !== A1 || ev('evt_sample-0006').area !== A2) out.push(`the build kept areas ${ev('evt_sample-0005').area} and ${ev('evt_sample-0006').area}`);
   for (const x of ose.linked) for (const k of Object.keys(x.event)) if (/^(lat|lon|lng|latitude|longitude|h3_res9)$/i.test(k)) out.push(`the build kept an event's ${k}`);
@@ -1393,6 +1400,10 @@ export async function mapProblems(m) {
   const wear = section(pages['wear/index.html']);
   const all = Object.values(pages).join('\n');
 
+  // The heading opens with Where and then names the station: a station called "Wear" must not read as a misspelt "Where" (owner, 2026-11-14).
+  const title = (html) => html.match(/<h2 id="where-title"[^>]*>([^<]*)<\/h2>/)?.[1] ?? '';
+  if (title(wear) !== 'Where Wear meets in person, by area.') out.push(`the wear map is headed "${title(wear)}"`);
+  if (title(section(pages['lead/index.html'])) !== 'Where every frequency meets in person, by area.') out.push(`the lead map is headed "${title(section(pages['lead/index.html']))}"`);
   // Two areas, numbered as the list numbers them; the neighbours are outlines only.
   if (count(wear, /<polygon class="hex-area"/g) !== 2) out.push(`wear draws ${count(wear, /<polygon class="hex-area"/g)} areas, want 2`);
   const numbers = [...wear.matchAll(/<text class="hex-number"[^>]*>([^<]*)<\/text>/g)].map((x) => x[1]).join(',');
@@ -1403,8 +1414,21 @@ export async function mapProblems(m) {
   for (const [, pts] of wear.matchAll(/<polygon class="hex-(?:area|empty)" points="([^"]*)"/g)) {
     const xy = pts.split(' ').map((p) => p.split(',').map(Number));
     if (xy.length !== 6) out.push(`an area is drawn with ${xy.length} corners`);
-    if (xy.some(([x, y]) => !(x >= 0 && x <= 640 && y >= 0 && y <= 360))) out.push('an area is drawn outside the map');
+    if (xy.some(([x, y]) => !(x >= 0 && x <= 600 && y >= 0 && y <= 360))) out.push('an area is drawn outside the map');
   }
+  // The drawing is OurSharedEvents': its frame, its outlines and its centres,
+  // for the cells in the order the list numbers them. Nothing is projected here.
+  const asked = calls.filter(({ url }) => url.includes('/api/v2/map/areas')).map(({ url }) => url.slice(FAKE_ORIGIN.length));
+  if (!asked.includes(`/api/v2/map/areas?cells=${A1},${A2}&around=1`)) out.push(`the wear map was not asked for as its list numbers it (asked: ${asked.join(' ') || 'nothing'})`);
+  if (new Set(asked).size !== asked.length) out.push('one map was read twice');
+  const drawn = mapAreasAnswer(new globalThis.URLSearchParams({ cells: `${A1},${A2}`, around: '1' })).body;
+  if (!/viewBox="0 0 600 360"/.test(wear.match(/<svg class="hex-map"[^>]*>/)?.[0] ?? '')) out.push('the map is not in the frame OurSharedEvents gave');
+  const outlines = [...wear.matchAll(/<polygon class="hex-area" points="([^"]*)"/g)].map((x) => x[1]).join('|');
+  if (outlines !== drawn.areas.map((a) => a.points).join('|')) out.push('the areas are not the outlines OurSharedEvents drew');
+  const neighbours = [...wear.matchAll(/<polygon class="hex-empty" points="([^"]*)"/g)].map((x) => x[1]).join('|');
+  if (neighbours !== drawn.around.map((a) => a.points).join('|')) out.push('the neighbouring areas are not the outlines OurSharedEvents drew');
+  const at = [...wear.matchAll(/<text class="hex-number" x="([^"]*)" y="([^"]*)"/g)].map((x) => `${x[1]},${x[2]}`).join('|');
+  if (at !== drawn.areas.map((a) => a.centre.join(',')).join('|')) out.push('a number is not where OurSharedEvents put its area\'s centre');
   // Layers from the ground up: streets, neighbours, areas. The areas are see-through.
   const order = ['<g class="hex-streets">', '<g class="hex-around">', '<g class="hex-areas">'].map((g) => wear.indexOf(g));
   if (order.some((i) => i < 0) || order[0] > order[1] || order[1] > order[2]) out.push('the map layers are not streets, then neighbours, then areas');
@@ -1432,6 +1456,41 @@ export async function mapProblems(m) {
   // Nothing finer than the area reaches a page: no cell id, no coordinate.
   for (const [what, re] of [['a cell id', new RegExp(`${A1}|${A2}`)], ['a latitude', /39\.78|39\.84/], ['a longitude', /-89\.6/]]) if (re.test(all)) out.push(`${what} reached a page`);
   if (/<image|xlink:href|<script/.test(wear)) out.push('the map loads something or runs a script');
+  for (const map of Object.values(ose.maps ?? {})) if (/"cell"/.test(JSON.stringify(map))) out.push('the build kept a cell id with a map');
+
+  // No streets in the answer (OSE staging today): hexagons only, and no credit, because there is nothing to credit.
+  if (!wear.includes('<g class="hex-streets"></g>')) out.push('a street layer is drawn though OurSharedEvents gave none');
+  if (/amap-credit|where-credit|OpenStreetMap/.test(all.replace(/<style>[\s\S]*?<\/style>/g, ''))) out.push('a street credit shows with no streets');
+  if (all.includes('.as-l{')) out.push('street rules are in a stylesheet with no streets');
+
+  // Streets in the answer: the layer under the areas, its rules in the page's
+  // stylesheet, and OpenStreetMap's credit beside the map. Only where a map is.
+  const streets = fakeStreets();
+  const paved = render(await sampleOse(m, { edit: (k, b) => { if (k === 'map') b.streets = fakeStreets(); return b; } }));
+  const pavedWear = section(paved['wear/index.html']);
+  if (!pavedWear.includes(`<g class="hex-streets">${streets.svg}</g><g class="hex-around">`)) out.push('the street layer OurSharedEvents gave is not under the areas');
+  const sheets = (html) => (html.match(/<style>[\s\S]*?<\/style>/g) ?? []).join('');
+  if (count(sheets(paved['wear/index.html']), /\.as-l\{/g) !== 1 || !sheets(paved['wear/index.html']).includes(streets.css)) out.push('the street rules are not in the page\'s stylesheet, once');
+  if (pavedWear.split(streets.credit.html).length !== 2) out.push('OpenStreetMap\'s credit is not beside the map, once');
+  if (pavedWear.indexOf(streets.credit.html) < pavedWear.indexOf('</figure>') || pavedWear.indexOf(streets.credit.html) > pavedWear.indexOf('<ol class="areas"')) out.push('the credit is not between the map and its list');
+  for (const p of ['index.html', 'tv/index.html', 'play/index.html']) {
+    if (paved[p] && /amap-credit|\.as-l\{|amap-s/.test(paved[p])) out.push(`${p} has no map and carries street rules or a credit`);
+  }
+  for (const [what, re] of [['a cell id', new RegExp(`${A1}|${A2}`)], ['a latitude', /39\.78|39\.84/], ['a longitude', /-89\.6/]]) if (re.test(Object.values(paved).join('\n'))) out.push(`${what} reached a page with streets`);
+
+  // More areas than one map holds: the first 12 are drawn and numbered, the rest are still listed.
+  const stall = ose.linked.find((x) => x.link.oseEventId === 'evt_sample-0006');
+  const cells = gridDisk(A1, 2).slice(0, 14);
+  const many = cells.map((cell, i) => ({ ...stall, link: { frequency: 'wear', intent: 'one-off', oseEventId: `evt_many-${i}` }, event: { ...stall.event, id: `evt_many-${i}`, title: `Stall ${i + 1} (showcase demo)`, area: cell, startDate: `2027-01-${String(i + 1).padStart(2, '0')}`, endDate: `2027-01-${String(i + 1).padStart(2, '0')}`, startsAt: null }, codes: [], sponsors: [] }));
+  const lists = m.ose.mapLists(sample(), many, NOW);
+  if (lists.some((l) => l.length > 12)) out.push(`a map of ${Math.max(...lists.map((l) => l.length))} areas would be asked for: OurSharedEvents frames 12`);
+  const manyCalls = [];
+  const read = await m.ose.readMaps({ origin: FAKE_ORIGIN, lists, fetch: fakeOse({ calls: manyCalls }), sleep: async () => {} });
+  const crowded = section(render({ ...ose, linked: many, maps: read.maps })['wear/index.html']);
+  if (count(crowded, /<polygon class="hex-area"/g) !== 12) out.push(`14 areas drew ${count(crowded, /<polygon class="hex-area"/g)} hexagons, want the first 12`);
+  if (count(crowded, /<li><b>Area \d+<\/b>/g) !== 12) out.push(`14 areas list ${count(crowded, /<li><b>Area \d+<\/b>/g)} numbered areas, want 12`);
+  const later = crowded.match(/beyond the 12 one map shows:<\/p><ul class="areas-off">([\s\S]*?)<\/ul>/)?.[1] ?? '';
+  if (!/Stall 13 /.test(later) || !/Stall 14 /.test(later) || count(later, /<li>/g) !== 2) out.push('the events in the 13th and 14th areas are not listed beside the map');
 
   // A cell finer than the area, or not a cell at all, is never drawn: the event is listed without an area.
   for (const [what, cell] of [['a resolution-9 cell', latLngToCell(39.7817, -89.6501, 9)], ['a resolution-5 cell', cellToParent(A1, 5)], ['a made-up cell', 'not-a-cell']]) {
@@ -1458,7 +1517,237 @@ export async function mapProblems(m) {
   // The switch hides it everywhere and nothing else.
   const off = render(ose, { ...sample(), sections: { map: false } });
   if (Object.values(off).some((h) => /id="where"/.test(h))) out.push('the map is switched off and still shows');
+  const offCalls = [];
+  await sampleOse(m, { creator: { ...sample(), sections: { map: false } }, calls: offCalls });
+  if (offCalls.some(({ url }) => url.includes('/api/v2/map/areas'))) out.push('the map is switched off and was still read');
   if (!cardsOf(off['wear/index.html']).length) out.push('the events went with the map');
+  return out;
+}
+
+// ── The where map is OurSharedEvents' answer (OW-217) ────────────────────────
+const isMapRead = (url) => String(url).includes('/api/v2/map/areas');
+const whereOf = (html) => html.match(/<section aria-labelledby="where-title"[\s\S]*?<\/section>/)?.[0] ?? '';
+const renderAll = (m, ose, creator = sample()) => m.render.renderPages({ creator, catalog: catalog().categories, reports: seededReports(), theme: '', ose, now: NOW });
+
+/**
+ * Security: the answer is another service's text and goes into the page as
+ * markup, so nothing of it is trusted. A street layer that is anything but
+ * streets is left out and the hexagons stay; an outline, a centre or a frame
+ * that is anything but plain numbers, or an answer for other cells, means no
+ * map at all. In no case does a planted string reach a page.
+ */
+export async function mapAnswerProblems(m) {
+  const out = [];
+  const good = fakeStreets();
+  const hostile = '"><script>PLANTED()</script>';
+  // Each case: [what, plant, whether the hexagons should still be drawn].
+  const streetCases = [
+    ['a script in the street layer', (b) => { b.streets.svg = good.svg.replace('</g>', '<script>PLANTED()</script></g>'); }],
+    ['a handler on the street layer', (b) => { b.streets.svg = good.svg.replace('<g class="amap-s"', '<g onload="PLANTED()" class="amap-s"'); }],
+    ['a link in the street layer', (b) => { b.streets.svg = good.svg.replace('</g>', '<a href="https://evil.example/PLANTED"><text>x</text></a></g>'); }],
+    ['an image in the street layer', (b) => { b.streets.svg = good.svg.replace('</g>', '<image href="https://evil.example/PLANTED.png"/></g>'); }],
+    ['a foreign object in the street layer', (b) => { b.streets.svg = good.svg.replace('</g>', '<foreignObject><p>PLANTED</p></foreignObject></g>'); }],
+    ['an inline style in the street layer', (b) => { b.streets.svg = good.svg.replace('<path class="as-w"', '<path style="fill:url(https://evil.example/PLANTED)" class="as-w"'); }],
+    ['an address in a street path', (b) => { b.streets.svg = good.svg.replace('d="M10,10L80,60"', 'd="url(https://evil.example/PLANTED)"'); }],
+    ['a street layer that closes the map', (b) => { b.streets.svg = `</g></svg><script>PLANTED()</script><svg><g>${good.svg}`; }],
+    ['a street layer with a stray bracket', (b) => { b.streets.svg = good.svg.replace('Springfield', 'PLANTED < Springfield'); }],
+    ['street rules that close the stylesheet', (b) => { b.streets.css = `${good.css}</style><script>PLANTED()</script>`; }],
+    ['street rules that import a stylesheet', (b) => { b.streets.css = `@import url(https://evil.example/PLANTED.css);${good.css}`; }],
+    ['street rules that load an address', (b) => { b.streets.css = `${good.css}.as-l{background:url(https://evil.example/PLANTED)}`; }],
+    ['street rules that restyle the page', (b) => { b.streets.css = `${good.css}body{display:none}`; }],
+    ['a credit that links elsewhere', (b) => { b.streets.credit.html = good.credit.html.replace('https://protomaps.com', 'https://evil.example/PLANTED'); }],
+    ['a credit on a look-alike host', (b) => { b.streets.credit.html = good.credit.html.replace('https://www.openstreetmap.org/', 'https://www.openstreetmap.org.evil.example/PLANTED/'); }],
+    ['a credit with a script', (b) => { b.streets.credit.html = good.credit.html.replace('</p>', '<script>PLANTED()</script></p>'); }],
+    ['a credit with a handler', (b) => { b.streets.credit.html = good.credit.html.replace('<p class="amap-credit"', '<p onclick="PLANTED()" class="amap-credit"'); }],
+    ['a credit that does not credit OpenStreetMap', (b) => { b.streets.credit.html = '<p class="amap-credit">PLANTED: prepared by <a href="https://protomaps.com">Protomaps</a>.</p>'; }],
+    ['streets with no credit', (b) => { delete b.streets.credit; b.streets.svg = good.svg.replace('Springfield', 'PLANTED'); }],
+  ];
+  const mapCases = [
+    ['markup in an outline', (b) => { b.areas[0].points = `${b.areas[0].points}${hostile}`; }],
+    ['an outline with five corners', (b) => { b.areas[0].points = b.areas[0].points.split(' ').slice(0, 5).join(' '); }],
+    ['an outline outside the frame', (b) => { b.areas[0].points = b.areas[0].points.replace(/^[^,]*,/, '9999,'); }],
+    ['markup in a neighbour\'s outline', (b) => { b.around[0].points = `1,1 2,2 3,3 4,4 5,5 6,6${hostile}`; }],
+    ['markup in a centre', (b) => { b.areas[0].centre = [`300${hostile}`, 180]; }],
+    ['a centre outside the frame', (b) => { b.areas[0].centre = [300, 9999]; }],
+    ['markup in the frame', (b) => { b.frame.w = `600${hostile}`; }],
+    ['a frame of no size', (b) => { b.frame.h = 0; }],
+    ['a frame far too large', (b) => { b.frame.w = 1e9; }],
+    ['an answer for another area', (b) => { b.areas[0].cell = b.around[0].cell; }],
+    ['an answer with an area missing', (b) => { b.areas = b.areas.slice(1); }],
+    ['an answer that says it failed', (b) => { b.ok = false; }],
+  ];
+  const run = async (plant) => {
+    const ose = await sampleOse(m, { edit: (k, b) => { if (k === 'map') { b.streets = fakeStreets(); plant(b); } return b; } });
+    return { ose, pages: renderAll(m, ose) };
+  };
+  const leaks = (what, pages) => {
+    const all = Object.values(pages).join('\n');
+    if (/PLANTED|evil\.example/.test(all)) out.push(`${what}: reached a page`);
+    for (const [path, html] of Object.entries(pages)) {
+      out.push(...inlineHandlerProblems(html).map((p) => `${what}: ${path}: ${p}`));
+      if (path !== 'index.html' && !path.startsWith('tv/') && /<script/i.test(html)) out.push(`${what}: ${path} carries a script`);
+    }
+  };
+  // The control: a street layer that is one is drawn, so the cases below fail for their fault and nothing else.
+  const control = await run(() => {});
+  if (!whereOf(control.pages['wear/index.html']).includes(good.svg) || !whereOf(control.pages['wear/index.html']).includes(good.credit.html)) out.push('a real street layer is refused');
+  for (const [what, plant] of streetCases) {
+    let pages;
+    try {
+      ({ pages } = await run(plant));
+    } catch (e) {
+      out.push(`${what}: stopped the build (${e.message.split('\n')[0]})`);
+      continue;
+    }
+    leaks(what, pages);
+    const wear = whereOf(pages['wear/index.html']);
+    if ((wear.match(/<polygon class="hex-area"/g) ?? []).length !== 2) out.push(`${what}: the hexagons were lost with the streets`);
+    if (!wear.includes('<g class="hex-streets"></g>')) out.push(`${what}: the street layer was still drawn`);
+    if (/amap-credit|where-credit/.test(wear) || pages['wear/index.html'].includes('.as-l{')) out.push(`${what}: a credit or street rules stayed without the streets`);
+  }
+  for (const [what, plant] of mapCases) {
+    let ose;
+    let pages;
+    try {
+      ({ ose, pages } = await run(plant));
+    } catch (e) {
+      out.push(`${what}: stopped the build (${e.message.split('\n')[0]})`);
+      continue;
+    }
+    leaks(what, pages);
+    if (Object.keys(ose.maps).length) out.push(`${what}: taken for a map`);
+    const wear = whereOf(pages['wear/index.html']);
+    if (/<svg class="hex-map"/.test(wear)) out.push(`${what}: a map was drawn from it`);
+    if ((wear.match(/<li><b>Area \d+<\/b>/g) ?? []).length !== 2) out.push(`${what}: the list went with the map`);
+  }
+  return out;
+}
+
+/**
+ * A map read never stops a build. Late, refused, rate-limited, unreadable or
+ * not a map: the page is built with its list, says the map is missing, draws
+ * no empty frame, and the build is told why. One map failing leaves the others.
+ */
+export async function mapFailSoftProblems(m) {
+  const out = [];
+  const base = () => fakeOse({ now: NOW });
+  const wrap = (onMap) => {
+    const f = base();
+    return async (url, init) => (isMapRead(url) ? onMap(url, init, f) : f(url, init));
+  };
+  const named = (name) => Object.assign(new Error(name), { name });
+  const answers = (status, body, type = 'application/json') => async () => new globalThis.Response(body, { status, headers: { 'Content-Type': type } });
+  const cases = [
+    ['a 500', answers(500, '{"ok":false,"status":500}'), /answered 500/],
+    ['a rate limit (429)', answers(429, '{"ok":false,"status":429,"code":"RATE_LIMITED"}'), /answered 429/],
+    ['a refusal (400)', answers(400, '{"ok":false,"status":400,"code":"TOO_MANY_CELLS"}'), /answered 400/],
+    ['an OSE with no such route (404)', answers(404, 'Not found', 'text/plain'), /answered 404/],
+    ['an edge challenge (403, a page)', answers(403, '<!doctype html><title>Just a moment</title>', 'text/html'), /answered 403/],
+    ['a 200 that is not JSON', answers(200, '<!doctype html><title>Just a moment</title>', 'text/html'), /could not be read/],
+    ['a 200 that is not a map', answers(200, '{"ok":true,"status":200}'), /not a map/],
+    ['a connection that fails', async () => { throw new TypeError('fetch failed'); }, /could not be read/],
+    ['an answer that never comes', async () => { throw named('TimeoutError'); }, /gave no answer in 10 seconds/],
+    ['a redirect', async () => { throw new TypeError('redirect mode is set to error'); }, /could not be read/],
+  ];
+  for (const [what, onMap, said] of cases) {
+    let ose;
+    try {
+      ose = await m.ose.readOse({ base: FAKE_ORIGIN, creator: sample(), fetch: wrap(onMap), now: NOW, sleep: async () => {} });
+    } catch (e) {
+      out.push(`${what}: stopped the build (${e.message.split('\n')[0]})`);
+      continue;
+    }
+    if (Object.keys(ose.maps).length) out.push(`${what}: a map was kept`);
+    if (!ose.mapsMissed.length || !ose.mapsMissed.every((x) => said.test(x))) out.push(`${what}: the build was told "${ose.mapsMissed.join('; ')}"`);
+    if (ose.linked.length !== (await sampleOse(m)).linked.length) out.push(`${what}: events were lost with the map`);
+    const failed = await tryBuild(m, { ose });
+    if (failed) out.push(`${what}: the pages did not build (${failed.split('\n')[0]})`);
+    const pages = renderAll(m, ose);
+    const wear = whereOf(pages['wear/index.html']);
+    if (/<svg class="hex-map"|<figure class="where-map"|where-credit/.test(wear)) out.push(`${what}: a map or an empty frame was drawn`);
+    if ((wear.match(/<li><b>Area \d+<\/b>/g) ?? []).length !== 2 || !/Table at a weekend market/.test(wear) || !/Launch evening/.test(wear)) out.push(`${what}: the list of areas is not on the page`);
+    if (!/id="where-note"[^>]*>[^<]*could not be drawn when this page was built/.test(wear)) out.push(`${what}: the page does not say the map is missing`);
+    if (/The same events are listed below it/.test(wear)) out.push(`${what}: the page speaks of a map it does not show`);
+    if (!(pages['wear/index.html'].match(/<article class="event"/g) ?? []).length) out.push(`${what}: the events went with the map`);
+  }
+  // A read is given a time limit, so one that hangs cannot hold a build.
+  const seen = [];
+  await m.ose.readOse({ base: FAKE_ORIGIN, creator: sample(), fetch: wrap((url, init, f) => { seen.push(init); return f(url, init); }), now: NOW, sleep: async () => {} });
+  if (!seen.length || !seen.every((init) => init?.signal instanceof globalThis.AbortSignal)) out.push('a map read has no time limit');
+  if (m.ose.MAP_TIMEOUT_MS > 15_000) out.push(`a map read may hang for ${m.ose.MAP_TIMEOUT_MS} ms`);
+  // One map failing leaves the others: only the two-area map is refused here.
+  const partial = await sampleOse(m, { fail: (k, cells) => (k === 'map' && String(cells).includes(',') ? 429 : null) });
+  const part = renderAll(m, partial);
+  if (/<svg class="hex-map"/.test(whereOf(part['wear/index.html']))) out.push('a refused map was drawn');
+  if (!/<svg class="hex-map"/.test(whereOf(part['teach/index.html']))) out.push('one map failing took another station\'s map with it');
+  if (partial.mapsMissed.length !== 1 || !/a map of 2 areas was left out/.test(partial.mapsMissed[0])) out.push(`one refused map was reported as "${partial.mapsMissed.join('; ')}"`);
+  // With every map read, nothing is reported missing.
+  if ((await sampleOse(m)).mapsMissed.length) out.push('a map that was read is reported missing');
+  return out;
+}
+
+/**
+ * A build of many stations spaces its map reads: OurSharedEvents asks for
+ * under 6 a second. Driven by a clock the check owns; no real time passes.
+ */
+export async function mapSpacingProblems(m) {
+  const out = [];
+  let t = 1_000_000;
+  const starts = [];
+  const f = fakeOse({ now: NOW });
+  const cells = gridDisk(latLngToCell(39.7817, -89.6501, 7), 2).slice(0, 9);
+  const lists = cells.map((c) => [c]);
+  // Each answer takes 10 ms of the check's clock: far faster than the limit allows unspaced.
+  const fetch = async (url, init) => { starts.push(t); t += 10; return f(url, init); };
+  const { maps } = await m.ose.readMaps({ origin: FAKE_ORIGIN, lists, fetch, sleep: async (ms) => { t += ms; }, clock: () => t });
+  if (Object.keys(maps).length !== lists.length) out.push(`${Object.keys(maps).length} of ${lists.length} maps were read`);
+  for (let i = 0; i < starts.length; i += 1) {
+    const inOneSecond = starts.filter((s) => s >= starts[i] && s < starts[i] + 1000).length;
+    if (inOneSecond >= 6) {
+      out.push(`${inOneSecond} map reads started within one second: OurSharedEvents asks for under 6`);
+      break;
+    }
+  }
+  // A slow answer is its own spacing: nothing more is waited.
+  let waited = 0;
+  t = 0;
+  await m.ose.readMaps({ origin: FAKE_ORIGIN, lists: lists.slice(0, 3), fetch: async (url, init) => { t += 500; return f(url, init); }, sleep: async (ms) => { waited += ms; t += ms; }, clock: () => t });
+  if (waited) out.push(`the build waited ${waited} ms between answers that were already half a second apart`);
+  return out;
+}
+
+/**
+ * Contract: the stand-in the other layers read is held to an answer recorded
+ * from OSE staging on 2026-11-14 (fixtures/ose-map-areas.staging.json), and the
+ * build takes that recorded answer for the map it is. The request is cells
+ * only: OSE refuses a coordinate, a finer cell and a 13th cell.
+ */
+export function mapContractProblems(m) {
+  const out = [];
+  const recorded = json('fixtures/ose-map-areas.staging.json');
+  const cells = recorded.areas.map((a) => a.cell);
+  const path = m.map.mapPath(cells);
+  if (path !== `/api/v2/map/areas?cells=${cells.join(',')}&around=1`) out.push(`the build asks ${path}`);
+  const standIn = mapAreasAnswer(new URL(path, FAKE_ORIGIN).searchParams).body;
+  for (const k of ['w', 'h', 'projection']) if (standIn.frame[k] !== recorded.frame[k]) out.push(`the stand-in's frame ${k} is ${standIn.frame[k]}, staging's is ${recorded.frame[k]}`);
+  for (const k of ['scale', 'x0', 'y0']) if (Math.abs(standIn.frame[k] - recorded.frame[k]) > Math.abs(recorded.frame[k]) * 1e-9) out.push(`the stand-in's frame ${k} is ${standIn.frame[k]}, staging's is ${recorded.frame[k]}`);
+  if (JSON.stringify(standIn.areas) !== JSON.stringify(recorded.areas)) out.push('the stand-in draws the area unlike staging');
+  if (JSON.stringify(standIn.around) !== JSON.stringify(recorded.around)) out.push('the stand-in draws the neighbours unlike staging');
+  if (recorded.streets !== null) out.push('the recorded answer has streets: record the street checks against it too');
+  const map = m.map.mapFromAnswer(recorded, cells);
+  if (!map) out.push('the build refuses the answer staging gave');
+  else {
+    if (map.w !== 600 || map.h !== 360) out.push(`the build reads a frame of ${map.w} by ${map.h}`);
+    if (map.areas.length !== 1 || map.around.length !== 6 || map.streets !== null) out.push('the build reads the recorded answer as something else');
+    if (map.areas[0].points !== recorded.areas[0].points || map.areas[0].centre.join() !== recorded.areas[0].centre.join()) out.push('the build changes the outline or the centre staging gave');
+  }
+  if (m.map.MAP_AREAS_MAX !== 12) out.push(`the build would ask for ${m.map.MAP_AREAS_MAX} areas: OSE frames 12`);
+  const refusal = (q) => mapAreasAnswer(new globalThis.URLSearchParams(q)).body.code;
+  const res9 = latLngToCell(39.7817, -89.6501, 9);
+  const thirteen = gridDisk(cells[0], 2).slice(0, 13).join(',');
+  for (const [q, code] of [[{ cells: cells[0], lat: '39.78' }, 'COORDINATES_NOT_ACCEPTED'], [{ cells: res9 }, 'CELL_RESOLUTION'], [{ cells: thirteen }, 'TOO_MANY_CELLS'], [{ cells: 'not-a-cell' }, 'CELL_INVALID'], [{}, 'CELLS_REQUIRED'], [{ cells: cells[0], around: '2' }, 'AROUND_INVALID']]) {
+    if (refusal(q) !== code) out.push(`the stand-in answers ${refusal(q)} where OSE answers ${code}`);
+  }
   return out;
 }
 

@@ -82,15 +82,25 @@ place. A `programme` event must be held the way its slot says, or the build stop
 ## The where map
 
 A station page maps its in-person events by area, below the events themselves.
-It follows the way OurSharedEvents draws its own maps:
+The showcase does not draw the map. OurSharedEvents does, and the build reads
+its drawing, so there is one map renderer (OW-217, OSE ADR-033):
 
-- An area is the event's H3 cell at resolution 7, about 5 square kilometres. Nothing finer is kept or drawn: the build reads the area OSE publishes and leaves the event's coordinates behind.
+```
+GET <OSE>/api/v2/map/areas?cells=<cell>,<cell>…&around=1
+```
+
+- One read per station, at build time, with the station's areas in the order its list numbers them. Cells only: no coordinate and no address is ever sent, and the page asks nothing of anyone.
+- An area is an H3 cell at resolution 7, about 5 square kilometres. Nothing finer is kept, asked for or drawn: the build reads the area OSE publishes for an event and leaves its coordinates behind.
 - The map shows where events are, never where people are, so it carries no count of people.
-- It is drawn at build time as inline SVG. There is no script and no request to a map company; the page is as static as before.
-- The areas are see-through and sit above an empty street layer. The showcase has no streets of its own: that group is where OurSharedEvents' drawn streets go once it offers them to an outside reader.
+- The frame (600 by 360), each outline and each number's place are used exactly as OurSharedEvents returns them. No cell id or coordinate is written into the page.
+- When the answer carries a street layer, it goes under the see-through areas, its rules go in the page's stylesheet, and OpenStreetMap's credit shows beside the map. No streets, no credit. OSE staging answers with no streets until its street archive is loaded (OSE-1883).
+- Nothing in the answer is trusted. A street layer that holds anything but groups, a rectangle, paths and text, rules that style anything but the street layer, or a credit that links anywhere but OpenStreetMap and Protomaps is left out, and the hexagons stay. An outline, a centre or a frame that is not plain numbers inside the frame, or an answer for other cells, means no map.
+- The read never stops a build. Late (10 seconds), refused, rate-limited or not a map: the page is built with the list alone and says the map could not be drawn, and the build prints why. It is not retried; the next build reads again. There is no second drawing to fall back on.
+- One map holds 12 areas, the most OurSharedEvents frames. A station with more draws its first 12 (soonest event first) and lists the events in the others below.
+- Map reads are at least 200 ms apart, so a build of many stations stays under the 6 a second OurSharedEvents asks for.
 - The map is never the only route. The same events are listed below it, each linked to its card, and an in-person event with no area yet is listed too.
 
-An online event is nowhere, so it is not on the map. `sections.map: false` hides the map. Building needs `h3-js`, the library OSE uses for the same cells (a dev dependency: nothing is added to the Worker).
+An online event is nowhere, so it is not on the map. `sections.map: false` hides the map, and then it is not read. Building needs `h3-js` only to check that an area is a resolution-7 cell (a dev dependency: nothing is added to the Worker).
 
 ## A programme is declared in OurSharedEvents
 

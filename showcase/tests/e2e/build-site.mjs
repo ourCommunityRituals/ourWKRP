@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { buildShowcase, readJson, SHOWCASE } from '../../lib/build.mjs';
 import { readOse } from '../../lib/ose.mjs';
 import { seededReports } from '../checks.mjs';
-import { fakeOse, FAKE_ORIGIN, NOW } from '../fake-ose.mjs';
+import { fakeOse, fakeStreets, FAKE_ORIGIN, NOW } from '../fake-ose.mjs';
 
 const site = process.argv[2];
 const creator = readJson(join(SHOWCASE, 'fixtures', 'sample-creator.json'));
@@ -26,10 +26,14 @@ export const VARIANTS = {
   list: { layout: 'list', stationOrder: 'next-event', display: 'tv', sections: { scatter: false } },
   grid: { layout: 'grid', sections: { values: false, schedule: false } },
 };
+// The default site reads the map as OSE staging answers it today: hexagons, no
+// streets. The list variant reads it with a street layer in OSE's shape, so every
+// per-page check also runs on a page that carries streets and their credit.
+const paved = await readOse({ base: FAKE_ORIGIN, creator, fetch: fakeOse({ edit: (k, b) => (k === 'map' ? { ...b, streets: fakeStreets() } : b) }), now: NOW });
 for (const [name, options] of Object.entries(VARIANTS)) {
   const outDir = join(site, name);
   cpSync(join(site, 'img'), join(outDir, 'img'), { recursive: true });
-  const built = buildShowcase({ creator: { ...creator, ...options }, reports: seededReports(), outDir, ose, now: NOW });
+  const built = buildShowcase({ creator: { ...creator, ...options }, reports: seededReports(), outDir, ose: name === 'list' ? paved : ose, now: NOW });
   if (built.missing.length) {
     console.error(`e2e setup (${name}): missing images ${built.missing.join(', ')}`);
     process.exit(1);

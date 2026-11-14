@@ -46,8 +46,12 @@ describe('creator showcase: contract', () => {
     expect(C.contractProblems(m)).toEqual([]);
   });
 
+  it('the where map: the stand-in draws what OSE staging answered, and the build takes that answer', () => {
+    expect(C.mapContractProblems(m)).toEqual([]);
+  });
+
   it('every committed JSON file in showcase/ parses', () => {
-    const files = [join(C.SHOWCASE, 'categories.json'), join(C.SHOWCASE, 'fixtures', 'sample-ose-events.json'), ...creatorFiles()];
+    const files = [join(C.SHOWCASE, 'categories.json'), join(C.SHOWCASE, 'fixtures', 'sample-ose-events.json'), join(C.SHOWCASE, 'fixtures', 'ose-map-areas.staging.json'), ...creatorFiles()];
     for (const f of files) expect(() => JSON.parse(readFileSync(f, 'utf8')), f).not.toThrow();
   });
 
