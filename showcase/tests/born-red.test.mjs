@@ -296,6 +296,10 @@ describe('creator showcase: born red', () => {
     expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, { ...withCampaigns, series: false }).join('\n')).toMatch(/teach: series named "Thursday evening class[^"]*", want ""/);
     const lostSeries = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('<span class="label">Series</span>', '<span class="label">Gone</span>') };
     expect(oseVerdictProblems(plan(), C.sample(), lostSeries, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/teach: series named/);
+    // After a seed, OSE has named the campaign: the verdict follows the swapped id, and not a wrong one.
+    const swapped = { ...C.sample(), campaigns: [{ frequency: 'wear', oseCampaignId: 'cmp_real-0001' }] };
+    expect(oseVerdictProblems(plan(), swapped, pages, resolved, C.NOW, { ...withCampaigns, campaignIds: { cmp_sample_wear: 'cmp_real-0001' } })).toEqual([]);
+    expect(oseVerdictProblems(plan(), swapped, pages, resolved, C.NOW, { ...withCampaigns, campaignIds: { cmp_sample_wear: 'cmp_other' } }).join('\n')).toMatch(/wear: station partners "Corner hardware[^"]*", want ""/);
     const lostArea = { ...pages, 'wear/index.html': pages['wear/index.html'].replace('<polygon class="hex-area"', '<polygon class="gone"') };
     expect(oseVerdictProblems(plan(), C.sample(), lostArea, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/wear: 1 areas on the map, want 2/);
     const noFeed = { ...pages, 'index.html': pages['index.html'].replace(/<p class="calendar">[\s\S]*?<\/p>/, '') };

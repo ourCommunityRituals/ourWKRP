@@ -35,9 +35,10 @@ const FORM_TARGET = /\/forms?\//i;
  * @param {number} now
  * @param {{campaigns?: boolean, calendar?: string|null, series?: boolean}} [worker]  whether the worker's sponsor
  *   bundle names campaigns, the feed URL when the worker serves the brand's calendar feed, and whether its
- *   event read says which series an event sits on
+ *   event read says which series an event sits on. `campaignIds` maps a plan campaign's placeholder id to the
+ *   id OSE gave it (the seed swaps the creator file's link the same way); absent, the ids are the plan's own
  */
-export function oseVerdictProblems(plan, creator, pages, resolved, now, { campaigns = false, calendar = null, series = false } = {}) {
+export function oseVerdictProblems(plan, creator, pages, resolved, now, { campaigns = false, calendar = null, series = false, campaignIds = {} } = {}) {
   const out = [];
   const seriesRows = (html) => [...html.matchAll(/<span class="label">Series<\/span>([^<]*)</g)].map((x) => x[1]).sort().join(' | ');
   const wantSeries = {};
@@ -79,7 +80,7 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now, { campai
       for (const b of backers) {
         if (campaigns && b.campaign) {
           // A campaign shows on its own station and any it also names, wherever one of this event's stations is among them.
-          for (const c of (creator.campaigns ?? []).filter((k) => k.oseCampaignId === b.campaign.id)) {
+          for (const c of (creator.campaigns ?? []).filter((k) => k.oseCampaignId === (campaignIds[b.campaign.id] ?? b.campaign.id))) {
             for (const id of [c.frequency, ...(c.also ?? [])]) if ([link.frequency, ...(link.also ?? [])].includes(id)) (wantPartners[id] ??= new Set()).add(b.name);
           }
         }
@@ -156,7 +157,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const probed = probe?.ok ? await probe.json().catch(() => null) : null;
   const series = Boolean(probed && 'series' in probed);
   console.log(`event read names its series: ${series ? 'yes' : 'no (this OSE is before declared series)'}`);
-  const problems = oseVerdictProblems(plan, creator, pages, resolved, Date.now(), { campaigns, calendar, series });
+  // The seed swapped each campaign link, in order, for the id OSE gave the campaign.
+  const written = readJson(join(SHOWCASE, 'fixtures', `${slug}.json`)).campaigns ?? [];
+  const campaignIds = Object.fromEntries(written.map((c, i) => [c.oseCampaignId, creator.campaigns?.[i]?.oseCampaignId]));
+  const problems = oseVerdictProblems(plan, creator, pages, resolved, Date.now(), { campaigns, calendar, series, campaignIds });
   console.log(`sponsor bundle names campaigns: ${campaigns ? 'yes' : 'no (this OSE is before campaigns in the bundle)'}`);
   for (const r of resolved) console.log(`${r.url} -> ${r.status} ${r.location ?? ''}`);
   if (problems.length) {

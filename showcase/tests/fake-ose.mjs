@@ -2,10 +2,10 @@
 // read, render and gate layers are tested without a worker. It answers the
 // public reads the build makes, in OSE's own response shapes (see
 // handlers/events.ts, handlers/poster-bundle.ts and handlers/sponsors.ts at the
-// .ose-ref commit). One of them is ahead of that commit, as OSE's open work
-// defines it: a sponsor's `campaign: { id, title }` in the sponsor bundle. The
-// brand calendar feed at /brands/<brand>/calendar.ics is served at that commit,
-// and so is the declared series beside each event (`series`, OSE ADR-029).
+// .ose-ref commit). All of it is served at that commit: a sponsor's
+// `campaign: { id, title }` in the sponsor bundle, the brand calendar feed at
+// /brands/<brand>/calendar.ics, and the declared series beside each event
+// (`series`, OSE ADR-029).
 // The integration layer runs the same build against a real local worker.
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
