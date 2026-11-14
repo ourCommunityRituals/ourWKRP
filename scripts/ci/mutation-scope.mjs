@@ -77,6 +77,7 @@ export const MUTATION_PATHS = Object.freeze([
   'tests/integration/session-lifecycle.test.ts',
   'tests/security/ccr-invariants.test.ts',
   'tests/security/cors-policy.test.ts',
+  'tests/security/count-floor-routes.test.ts',
   'tests/security/cross-product-boundary.invariant.spec.ts',
   'tests/security/security-headers.test.ts',
   'tests/security/vanity-slug-security.test.ts',

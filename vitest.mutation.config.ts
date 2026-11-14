@@ -11,7 +11,7 @@ import base from './vitest.config';
 //   - three integration specs that test scripts, not src/: they spawn the
 //     Playwright installer, the D1 seeder and the smoke reporter, which no
 //     mutant in src/lib reaches.
-//   - five specs that start a local Miniflare (workerd and D1) in beforeAll.
+//   - six specs that start a local Miniflare (workerd and D1) in beforeAll.
 //     Under Stryker's parallel reruns their D1 setup failed now and then
 //     ("fetch failed", "Migration 0001_initial.sql failed"). Stryker scores a
 //     mutant whose run errors as neither killed nor survived, so the same file
@@ -36,6 +36,7 @@ export const MUTATION_EXCLUDED_SPECS = [
   'tests/integration/facets-flow.test.ts',
   'tests/integration/vanity-slug.test.ts',
   'tests/security/vanity-slug-security.test.ts',
+  'tests/security/count-floor-routes.test.ts',
 ];
 
 /**
