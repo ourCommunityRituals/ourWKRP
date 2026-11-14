@@ -67,11 +67,16 @@ compatibility_date = "2024-06-01"
 
 # Staging on the ourwkrp.com Cloudflare zone. MUST be top-level (before any
 # [table] header) so it binds to the default/staging env, not env.production.
-# Requires the stg.ourwkrp.com Custom Domain in Cloudflare. workers_dev=false
-# closes the *.workers.dev URL -- staging is reachable only at the custom domain,
-# so the host always matches the Spotify redirect_uri.
+# stg.ourwkrp.com is a Workers Custom Domain (OW-114): the deploy creates the
+# hostname's DNS record and a certificate for that one name, and the Worker is
+# its origin. A plain route (`stg.ourwkrp.com/*` with zone_name) only runs a
+# Worker in front of a hostname that already has a certificate, and this zone
+# serves none, so the route deployed and nothing could reach it. The
+# certificate names stg.ourwkrp.com only: it does not cover the apex or www.
+# workers_dev=false closes the *.workers.dev URL -- staging is reachable only at
+# the custom domain, so the host always matches the Spotify redirect_uri.
 routes = [
-  { pattern = "stg.ourwkrp.com/*", zone_name = "ourwkrp.com" }
+  { pattern = "stg.ourwkrp.com", custom_domain = true }
 ]
 workers_dev = false
 
