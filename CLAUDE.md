@@ -218,4 +218,15 @@ APP_URL=https://ourwkrp.com
 
 ---
 
+## 7. Environment: staging, not the owner's computer
+
+A standing order from the owner (2026-11-14) for every session.
+
+- **Staging is the environment of record.** Work is run and checked against staging (`stg.oursharedevents.com`, `stg.ourwkrp.com`). A result counts when it is seen on staging, or in the CI that deploys to it.
+- **Never the owner's own computer.** Do not ask the owner to run, build, seed or check anything on their machine, and do not plan work that depends on it. A throwaway worker inside a CI job or a session's own container is a test rig: it can support a result, and it does not stand in for staging.
+- **One exception: a private showcase instance.** Its data file and built pages stay private. They are never committed, loaded into staging or published until the owner says the people named in them have agreed.
+- **This grants nothing else.** Staging changes only through CI after a merge to `main`. Who merges, who deploys and who holds credentials are unchanged, and production is not staging.
+
+---
+
 *Doc status: corrected for drift 2026-08-28 (OCR-111 — register-first auth, route/template/test counts, session semantics, dead branch removed); test counts re-measured + invariant-enforcement / brain-conformance / #22-gate mechanisms documented 2026-09-10 (OSE-1292 / F14). Source of truth remains the code: `src/router.ts` header for routes, `migrations/` for schema, and the suites themselves for the authoritative test count.*
