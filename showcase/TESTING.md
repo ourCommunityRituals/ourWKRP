@@ -111,6 +111,10 @@ JSON file runs in the contract layer.
 - The escaping check now renders every layout and the TV board, not only the default page set. Planted: a station title unescaped on the board; a card title unescaped in the list and grid layouts.
 - The seed plan's dates and UTC instants, across a DST change.
 
+## Overlap
+
+`overlapProblems` (unit): an event with `also` shows on each station it names and once on Lead; its codes show only on the station it lives on, and elsewhere the card names that station and links to it; its sponsor travels with it; the TV board keeps the codes; the front page lists it once under both stations; a borrowed programme event is not held to the borrowing station's slots and never stands under its On air; a campaign with `also` shows its partner on each station it names; `also` refuses an unknown station, its own station, Lead and a repeat, and an event is still linked once; a station that only borrows events must still state its why. The integration verdict counts a card on every station an event names and its codes on its home station only.
+
 ## Partners (S9)
 
 - **Sponsor strip** (`sponsorProblems`, security): on an event card, below the title and date and above everything else; only the sponsors OSE's public bundle lists (one side's yes, a pending answer and a past event's sponsor reach no page); a name and nothing else of the row; the one link is the event's own SPONSOR `/s/` code, and there is none without that code; no `/impression` or `/click` request; a sponsor name is never in or on a control; a bundle that fails, has no list, or names the creator stops the build.

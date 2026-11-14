@@ -131,7 +131,20 @@ test('a station names its campaign partner once at the top, and each event its c
   await expect(page.locator('input, select, button, form')).toHaveCount(0);
   await open(page, '/teach/index.html');
   await expect(page.locator('ul.partners')).toHaveCount(0);
-  await expect(page.locator('article.event p.backers')).toHaveText(['Backed byPrint shop (showcase demo)']);
+  await expect(page.locator('article.event p.backers')).toHaveText(['Backed byPrint shop (showcase demo)', 'Backed byCorner hardware (showcase demo)']);
+});
+
+test('an event on two stations shows on both: its codes at home, a link to them elsewhere', async ({ page }) => {
+  await open(page, '/wear/index.html');
+  const home = page.locator('article.event', { hasText: 'Launch evening (showcase demo)' });
+  await expect(home).toHaveCount(1);
+  await expect(home.locator('figure.code')).not.toHaveCount(0);
+  await open(page, '/teach/index.html');
+  const guest = page.locator('article.event', { hasText: 'Launch evening (showcase demo)' });
+  await expect(guest).toHaveCount(1);
+  await expect(guest.locator('figure.code')).toHaveCount(0);
+  await guest.getByRole('link', { name: 'Codes on the Wear page' }).click();
+  await expect(page).toHaveURL(/\/wear\/index\.html$/);
 });
 
 test('the creator page links the calendar feed as a plain link', async ({ page }) => {

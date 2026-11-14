@@ -79,7 +79,7 @@
     { "frequency": "teach", "oseEventId": "evt_sample-0003", "intent": "trial", "placement": "pd_sample0003" },
     { "frequency": "teach", "oseEventId": "evt_sample-0004", "intent": "programme", "placement": "pd_sample0004" },
     { "frequency": "wear", "oseEventId": "evt_sample-0005", "intent": "pop-up", "placement": "pd_sample0005", "until": "15:00" },
-    { "frequency": "wear", "oseEventId": "evt_sample-0006", "intent": "one-off" },
+    { "frequency": "wear", "also": ["teach"], "oseEventId": "evt_sample-0006", "intent": "one-off" },
     { "frequency": "teach", "oseEventId": "evt_sample-0007", "intent": "one-off" },
     { "frequency": "wear", "oseEventId": "evt_sample-0008", "intent": "one-off" }
   ],

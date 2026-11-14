@@ -54,6 +54,9 @@ describe('creator showcase: unit', () => {
   it('calendar feed: linked only where OSE serves one, as a plain link, and never one that names the creator', async () => {
     expect(await C.calendarProblems(m)).toEqual([]);
   });
+  it('overlap: an event or campaign shows on more than one station, with one home, one set of codes and one slot', async () => {
+    expect(await C.overlapProblems(m)).toEqual([]);
+  });
   it('dates read as day, short month, year', () => {
     expect(C.dateProblems(m)).toEqual([]);
   });

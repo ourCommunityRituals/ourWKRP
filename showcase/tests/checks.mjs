@@ -762,7 +762,7 @@ export async function intentProblems(m) {
   if (firstWeekly !== 'programme') out.push(`a ${firstWeekly} stood under On air`);
   const order = t.upcoming.map((x) => x.event.startsAt);
   if (order.join() !== [...order].sort().join()) out.push('upcoming events are not soonest first');
-  if (t.upcoming.some((x) => x.link.frequency !== 'teach')) out.push('teach lists an event from another frequency');
+  if (t.upcoming.some((x) => x.link.frequency !== 'teach' && !(x.link.also ?? []).includes('teach'))) out.push('teach lists an event that is not on it');
   const lead = S.stationSchedule(sample().stations[2], ose.linked, NOW, { isLead: true });
   if (!lead.upcoming.some((x) => x.link.frequency === 'wear') || !lead.upcoming.some((x) => x.link.frequency === 'teach')) out.push('Lead does not show the whole dial');
   const offSlot = ose.linked.map((x) => (x.link.oseEventId === 'evt_sample-0001' ? { ...x, event: { ...x.event, startsAt: '2026-11-19T01:00:00Z' } } : x));
@@ -1203,5 +1203,93 @@ export async function calendarProblems(m) {
   bare.schedule.rows = bare.schedule.rows.filter((r) => r.length < 5);
   const none = await sampleOse(m, { creator: bare, calls });
   if (calls.length || none.calendar) out.push('a creator with no events read OSE for a feed');
+  return out;
+}
+
+// ── Overlap (owner, 2026-11-13) ──────────────────────────────────────────────
+/**
+ * Stations are a playful way in, not boxes: an event or a campaign may show on
+ * more than one. It still has one home, one set of codes and one programme slot,
+ * so the play never costs the function.
+ */
+export async function overlapProblems(m) {
+  const out = [];
+  const ose = await sampleOse(m);
+  const render = (creator = sample(), o = ose) => m.render.renderPages({ creator: { ...creator, display: 'tv' }, catalog: catalog().categories, reports: seededReports(), theme: '', ose: o, now: NOW });
+  const pages = render();
+  const TITLE = 'Launch evening (showcase demo)';
+  const cards = (html) => cardsOf(html).filter((c) => c.includes(`>${TITLE}<`));
+
+  // It shows on both stations, and once on Lead.
+  const home = cards(pages['wear/index.html']);
+  const guest = cards(pages['teach/index.html']);
+  if (home.length !== 1) out.push(`wear shows the event ${home.length} times, want 1`);
+  if (guest.length !== 1) out.push(`teach, where it also shows, has it ${guest.length} times, want 1`);
+  if (cards(pages['lead/index.html']).length !== 1) out.push(`Lead shows the event ${cards(pages['lead/index.html']).length} times, want 1`);
+
+  // One set of codes, on the station it lives on. Elsewhere the card names that station and links to it.
+  if (!/class="codes"/.test(home[0] ?? '')) out.push('the event has no codes on the station it lives on');
+  if (/<span class="tag">Wear<\/span>/.test(home[0] ?? '')) out.push('the event is tagged as away on its own station');
+  if (/class="codes"|data-code-url/.test(guest[0] ?? '')) out.push('the event shows its codes again on a station it only also shows on');
+  if (!/<span class="tag">Wear<\/span>/.test(guest[0] ?? '')) out.push('away from home, the card does not name the station it lives on');
+  if (!/<a href="\.\.\/wear\/index\.html">Codes on the Wear page<\/a>/.test(guest[0] ?? '')) out.push('away from home, the card does not link to its codes');
+  // Its consented sponsor travels with it.
+  if (!(guest[0] ?? '').includes(SPONSOR)) out.push('the event lost its sponsor on the station it also shows on');
+  // On a screen in the room nobody can tap through, so the board keeps the codes.
+  if (/Codes on the/.test(pages['tv/index.html'])) out.push('the TV board sends a viewer to another page for codes');
+
+  // The front page lists it once, under both stations.
+  const when = pages['index.html'].match(/<dt>When<\/dt>[\s\S]*?<\/dd>/)?.[0] ?? '';
+  const row = (when.match(/<li>[\s\S]*?<\/li>/g) ?? []).filter((li) => li.includes(TITLE));
+  if (row.length !== 1) out.push(`the front page lists the event ${row.length} times, want 1`);
+  else if (!/href="wear\/index\.html"/.test(row[0]) || !/href="teach\/index\.html"/.test(row[0])) out.push('the front page does not name both of its stations');
+
+  // A programme event is held to the slots of the station it lives on only, and stands under On air there only.
+  const both = sample();
+  both.events[0].also = ['wear'];
+  let wearPage = null;
+  try {
+    const built = render(both, await sampleOse(m, { creator: both }));
+    wearPage = built['wear/index.html'];
+    // The borrowed class is among the two events the board shows for Wear: it keeps its codes there.
+    const wearPanel = (built['tv/index.html'].match(/<section class="panel"[\s\S]*?<\/section>/g) ?? []).find((x) => x.includes('100.9'));
+    const borrowedCard = cardsOf(wearPanel ?? '').find((c) => c.includes('>Evening class (showcase demo)<'));
+    if (!borrowedCard) out.push('the TV board does not show the borrowed class on the Wear panel');
+    else if (/Codes on the/.test(borrowedCard) || !/class="codes"/.test(borrowedCard)) out.push('the TV board sends a viewer to another page for a borrowed event\'s codes');
+  } catch (e) {
+    out.push(`a programme event that also shows elsewhere stopped the build: ${e.message.split('\n')[1] ?? e.message}`);
+  }
+  if (wearPage && cardsOf(wearPage).length !== 3) out.push(`wear shows ${cardsOf(wearPage).length} events with a class added, want 3`);
+  const wearStation = both.stations.find((s) => s.id === 'wear');
+  const borrowed = { ...wearStation, programme: sample().stations[0].programme };
+  const sched = m.schedule.stationSchedule(borrowed, ose.linked.map((x) => (x.link.oseEventId === 'evt_sample-0001' ? { ...x, link: both.events[0] } : x)), NOW);
+  if (sched.onAir.some((o) => o.next)) out.push('an event stood under On air on a station it only also shows on');
+
+  // A campaign may show on more than one station too.
+  const wide = sample();
+  wide.campaigns = [{ frequency: 'wear', also: ['teach'], oseCampaignId: 'cmp_sample_wear' }];
+  const lists = (html) => (html.match(/<ul class="partners"[\s\S]*?<\/ul>/g) ?? []).flatMap((u) => u.match(/<li>/g) ?? []).length;
+  const p = render(wide, await sampleOse(m, { creator: wide }));
+  if (lists(p['wear/index.html']) !== 1) out.push('a campaign on two stations left the one it lives on');
+  if (lists(p['teach/index.html']) !== 1) out.push('a campaign does not show on the station it also names');
+  if (lists(pages['teach/index.html']) !== 0) out.push('a campaign shows on a station it does not name');
+
+  // The creator file: `also` names real stations, other than its own and Lead, once each; an event is still linked once.
+  const refused = (edit, want, what) => {
+    const c = sample();
+    edit(c);
+    const problems = m.schema.creatorProblems(c, catalog());
+    if (!problems.some((x) => want.test(x))) out.push(`${what} was accepted`);
+  };
+  if (m.schema.creatorProblems(sample(), catalog()).length) out.push(`the fixture, with an event on two stations, is refused: ${m.schema.creatorProblems(sample(), catalog())[0]}`);
+  refused((c) => { c.events[5].also = ['nowhere']; }, /events\.5: also "nowhere" is not one of/, 'an event also on an unknown station');
+  refused((c) => { c.events[5].also = ['wear']; }, /already its frequency/, 'an event also on its own station');
+  refused((c) => { c.events[5].also = ['lead']; }, /is Lead/, 'an event also on Lead');
+  refused((c) => { c.events[5].also = ['teach', 'teach']; }, /listed twice/, 'a station listed twice');
+  refused((c) => { c.events[5].also = []; }, /events\.5\.also/, 'an empty also');
+  refused((c) => { c.events.push({ frequency: 'teach', oseEventId: 'evt_sample-0006', intent: 'one-off' }); }, /linked twice/, 'the same event linked twice');
+  refused((c) => { c.campaigns[0].also = ['nowhere']; }, /campaigns\.0: also "nowhere"/, 'a campaign also on an unknown station');
+  // A station that only borrows events still has to say why it is on air.
+  refused((c) => { c.events = [{ frequency: 'wear', also: ['teach'], oseEventId: 'evt_sample-0006', intent: 'one-off' }]; c.schedule.rows = c.schedule.rows.filter((r) => r.length < 5 || r[4] === 'evt_sample-0006'); delete c.stations[0].why; delete c.stations[0].programme; }, /stations\.teach: a frequency with events or a programme needs its why/, 'a station with only borrowed events and no why');
   return out;
 }

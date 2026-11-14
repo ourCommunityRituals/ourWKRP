@@ -7,7 +7,7 @@
 // from the creator file; event-level When, Where and How come from OSE, read
 // at build time. Nothing is kept in both places.
 import { esc, fmtDate, floorText, mergeStations, safeHttpsUrl, FLOOR } from './showcase.mjs';
-import { INTENT_LABELS, MODE_LABELS, isPast, slotOf, soonestFirst, stationSchedule, todayIn, whenText } from './schedule.mjs';
+import { onStation, INTENT_LABELS, MODE_LABELS, isPast, slotOf, soonestFirst, stationSchedule, todayIn, whenText } from './schedule.mjs';
 import { qrSvg } from './codes.mjs';
 import { SECTIONS } from './schema.mjs';
 
@@ -284,7 +284,7 @@ function sponsorStrip(sponsors = [], codes = []) {
 export function stationPartners(c, s, upcoming) {
   const out = [];
   const seen = new Set();
-  for (const link of (c.campaigns ?? []).filter((k) => k.frequency === s.id)) {
+  for (const link of (c.campaigns ?? []).filter((k) => onStation(k, s.id))) {
     for (const x of upcoming) {
       for (const sp of x.sponsors ?? []) {
         const key = `${link.oseCampaignId} ${sp.id}`;
@@ -444,7 +444,7 @@ function creatorPage({ c, stations, linked, reports, theme, now, built, byId, op
       <div><dt>What</dt><dd><ul>${stations.map((s) => `<li><a href="${esc(s.id)}/index.html">${esc(s.name)} ${s.freq.toFixed(1)}</a>: ${esc(s.title)}</li>`).join('')}</ul></dd></div>
       <div><dt>When</dt><dd>${
         next.length
-          ? `<ul>${next.map(({ link, event }) => `<li>${esc(whenText(event, link))}: ${esc(event.title)} (<a href="${esc(link.frequency)}/index.html">${esc(byId[link.frequency]?.name ?? link.frequency)}</a>, ${esc(INTENT_LABELS[link.intent])})</li>`).join('')}</ul>`
+          ? `<ul>${next.map(({ link, event }) => `<li>${esc(whenText(event, link))}: ${esc(event.title)} (<a href="${esc(link.frequency)}/index.html">${esc(byId[link.frequency]?.name ?? link.frequency)}</a>${(link.also ?? []).map((id) => `, <a href="${esc(id)}/index.html">${esc(byId[id]?.name ?? id)}</a>`).join('')}, ${esc(INTENT_LABELS[link.intent])})</li>`).join('')}</ul>`
           : 'Nothing is scheduled yet.'
       }${calendarLine(calendar)}</dd></div>
       <div><dt>Where</dt><dd>Online at the places under "Where the work lives"; in person at each event's own address, on its station page.</dd></div>
@@ -538,7 +538,10 @@ ${footer(c, built)}
 `;
 }
 
-function eventCard({ link, event, codes, sponsors }, i, { isLead, byId }) {
+function eventCard({ link, event, codes, sponsors }, i, { isLead, byId, here = null }) {
+  // Away from the station it lives on (Lead, or a station it also shows on), a
+  // card names its home station and sends codes there: one event, one set of codes.
+  const away = isLead || (here !== null && link.frequency !== here);
   // Every programme event on a slot carries that slot's purpose, not only the next one.
   const slot = byId[link.frequency] ? slotOf(byId[link.frequency], link, event) : null;
   const why = event.whyPurpose || slot?.purpose || byId[link.frequency]?.why || null;
@@ -546,7 +549,7 @@ function eventCard({ link, event, codes, sponsors }, i, { isLead, byId }) {
   const where = event.attendanceMode === 'online' ? 'Online' : event.whereAddress || event.venue;
   const row = (label, value) => (value ? `<p><span class="label">${label}</span>${esc(value)}</p>` : '');
   return `<article class="event" aria-labelledby="ev-${i}">
-          <p class="tags"><span class="tag intent">${esc(INTENT_LABELS[link.intent])}</span>${mode ? `<span class="tag">${esc(mode)}</span>` : ''}${isLead ? `<span class="tag">${esc(byId[link.frequency]?.name ?? link.frequency)}</span>` : ''}</p>
+          <p class="tags"><span class="tag intent">${esc(INTENT_LABELS[link.intent])}</span>${mode ? `<span class="tag">${esc(mode)}</span>` : ''}${away ? `<span class="tag">${esc(byId[link.frequency]?.name ?? link.frequency)}</span>` : ''}</p>
           <h3 id="ev-${i}">${esc(event.title)}</h3>
           ${row('When', whenText(event, link))}
           ${sponsorStrip(sponsors, codes)}
@@ -556,7 +559,7 @@ function eventCard({ link, event, codes, sponsors }, i, { isLead, byId }) {
           ${row('Why', why)}
           ${row('How', event.howDetails)}
           ${
-            isLead
+            away
               ? `<p><a href="../${esc(link.frequency)}/index.html">Codes on the ${esc(byId[link.frequency]?.name ?? link.frequency)} page</a></p>`
               : codes.length
                 ? `<div class="codes" aria-label="Codes for ${esc(event.title)}">${codes.map(codeFigure).join('')}</div>`
@@ -609,7 +612,7 @@ function stationPage({ c, s, stations, schedule, theme, built, byId, opt }) {
     }
     ${
       schedule.upcoming.length
-        ? `<div class="events">${schedule.upcoming.map((x, i) => eventCard(x, i, { isLead, byId })).join('')}</div>`
+        ? `<div class="events">${schedule.upcoming.map((x, i) => eventCard(x, i, { isLead, byId, here: s.id })).join('')}</div>`
         : `<p class="empty">Nothing is scheduled on this frequency yet.</p>`
     }
   </section>

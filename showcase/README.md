@@ -42,7 +42,7 @@ Version 1 files still validate. Version 2 adds, all optional:
 | `stations[].why` | The frequency's purpose. Required once it has events or a programme. |
 | `stations[].programme[]` | Slots: `cadence` (daily-weekdays, weekly, biweekly, monthly, as-announced), `day`, `week` (monthly), `time`, `timezone`, `mode` (online, in_person, both), `kind` (one of the category's `eventKinds`), `purpose`. |
 | `oseBrand` | The OSE brand the events live on (never `root`). |
-| `events[]` | `{ frequency, oseEventId, intent, placement?, until? }`. `frequency` is a station id; `intent` is one-off, pop-up, programme or trial; `placement` is the showcase placement (its `/q` code); `until` ends a pop-up's window (OSE events have no end time). |
+| `events[]` | `{ frequency, also?, oseEventId, intent, placement?, until? }`. `frequency` is the station the event lives on; `also` lists other stations it shows on (see Overlap); `intent` is one-off, pop-up, programme or trial; `placement` is the showcase placement (its `/q` code); `until` ends a pop-up's window (OSE events have no end time). |
 | `campaigns[]` | `{ frequency, oseCampaignId }`. The campaign's partner shows once at the top of that station, only when OSE's public sponsor bundle lists a sponsor under that campaign on one of the station's upcoming events (OSE S14). Lead takes a whole-dial campaign. |
 | `stations[].event.placements[]` | 1 to 4 short labels (40 characters each) for where a demo event's codes hung, in the instance's own words. Absent: the demo size's labels. |
 | `layout` | How the stations are laid out: `dial` (the default), `list` (a column) or `grid` (cards). List and grid draw no dial and show each station's title. |
@@ -60,6 +60,17 @@ event kinds its own stations run (each station's demo `event.kind`, then its
 programme slots' kinds), so a bar reads "game night" and is never told about a
 class it does not hold. Give a demo event its own `placements` when the size's
 labels do not fit.
+
+## Overlap: stations are a way in, not boxes
+
+The dial, the stations and their frequencies are a playful way to present what
+someone does. They carry no meaning the system depends on, and they overlap
+(owner, 2026-11-13: function over fashion, always; playful, not a joke).
+
+- An event or a campaign has one home, `frequency`, and may list other stations in `also`. It then shows on each of them.
+- Its codes stay on the station it lives on. Elsewhere its card names that station and links to it, so one event has one set of codes and its counts are not split by where it was listed. The TV board keeps the codes, since nobody can tap through on a screen.
+- A programme event is held to the slots of the station it lives on, and stands under "On air" there only.
+- Lead shows every station already, so it is never listed in `also`. An event is still linked once.
 
 ## Partners and the calendar feed
 

@@ -107,9 +107,15 @@ const place = z.union([
     .strict(),
 ]);
 
+// Overlap (owner, 2026-11-13): stations are a playful way in, not boxes, so an
+// event or a campaign may show on more than one. `frequency` is where it lives
+// (its codes and its programme slot); `also` lists the other stations it shows on.
+const also = z.array(slug).min(1).max(8).optional();
+
 const eventLink = z
   .object({
     frequency: slug,
+    also,
     oseEventId,
     intent: z.enum(INTENTS),
     // The showcase placement on this event (one per station page): its /q code.
@@ -120,7 +126,7 @@ const eventLink = z
   })
   .strict();
 
-const campaignLink = z.object({ frequency: slug, oseCampaignId }).strict();
+const campaignLink = z.object({ frequency: slug, also, oseCampaignId }).strict();
 
 // A copied schedule row: date, title, price, pairing; and, once it is a real
 // OSE event, that event's id (the row then retires and OSE is the source).
@@ -236,20 +242,36 @@ export function creatorProblems(creator, catalog) {
     if (!Array.isArray(p) && p.station && !ids.has(p.station)) problems.push(`places.${i}: station "${p.station}" is not one of the creator's stations`);
   });
 
-  // Frequency decides: every event and campaign is on a frequency the creator has.
+  // Every event and campaign lives on a frequency the creator has, and may show
+  // on others too. Lead already shows everything, so it is never listed in `also`.
   const events = creator.events ?? [];
   const onAir = new Set();
   const seen = new Set();
+  const leadIds = new Set(creator.stations.filter((s) => (s.category ?? s.id) === 'lead').map((s) => s.id));
+  const alsoProblems = (where, link) => {
+    const out = [];
+    const listed = link.also ?? [];
+    listed.forEach((id, k) => {
+      if (!ids.has(id)) out.push(`${where}: also "${id}" is not one of the creator's stations`);
+      else if (id === link.frequency) out.push(`${where}: also "${id}" is already its frequency`);
+      else if (leadIds.has(id)) out.push(`${where}: also "${id}" is Lead, which shows every station already`);
+      if (listed.indexOf(id) !== k) out.push(`${where}: also "${id}" is listed twice`);
+    });
+    return out;
+  };
   events.forEach((e, i) => {
     if (!ids.has(e.frequency)) problems.push(`events.${i}: frequency "${e.frequency}" is not one of the creator's stations`);
     else onAir.add(e.frequency);
-    if (seen.has(e.oseEventId)) problems.push(`events.${i}: ${e.oseEventId} is linked twice (an event has one frequency)`);
+    problems.push(...alsoProblems(`events.${i}`, e));
+    for (const id of e.also ?? []) if (ids.has(id)) onAir.add(id);
+    if (seen.has(e.oseEventId)) problems.push(`events.${i}: ${e.oseEventId} is linked twice (list its other stations in also)`);
     seen.add(e.oseEventId);
     if (e.intent === 'pop-up' && !e.until) problems.push(`events.${i}: a pop-up needs the end of its window (until)`);
     if (e.intent !== 'pop-up' && e.until) problems.push(`events.${i}: only a pop-up has an until`);
   });
   (creator.campaigns ?? []).forEach((c, i) => {
     if (!ids.has(c.frequency)) problems.push(`campaigns.${i}: frequency "${c.frequency}" is not one of the creator's stations`);
+    problems.push(...alsoProblems(`campaigns.${i}`, c));
   });
   if (events.length && !creator.oseBrand) problems.push('oseBrand: needed once events are linked (the OSE brand they live on)');
 

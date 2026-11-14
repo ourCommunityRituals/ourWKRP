@@ -139,8 +139,8 @@ const MUTANTS_LIST = [
   ['read only: a click beacon posted to OSE', 'readOnlyProblems', [{ file: O, from: '        sponsors = sponsorsFromBundle(backing.body.bundle);', to: "        sponsors = sponsorsFromBundle(backing.body.bundle);\n        for (const s of sponsors) await f(`${origin}/api/v2/events/${link.oseEventId}/sponsors/${s.id}/impression`, { method: 'GET' }).catch(() => null);" }]],
   ['partner: once per event, not once per station', 'partnerProblems', [{ file: R, from: 'if (sp.campaign?.id !== link.oseCampaignId || seen.has(key)) continue;', to: 'if (sp.campaign?.id !== link.oseCampaignId) continue;' }]],
   ['partner: any sponsor on the station', 'partnerProblems', [{ file: R, from: 'if (sp.campaign?.id !== link.oseCampaignId || seen.has(key)) continue;', to: 'if (seen.has(key)) continue;' }]],
-  ['partner: every frequency, not the one named', 'partnerProblems', [{ file: R, from: '(c.campaigns ?? []).filter((k) => k.frequency === s.id)', to: '(c.campaigns ?? [])' }]],
-  ['partner: shown without a campaign link', 'partnerProblems', [{ file: R, from: 'for (const link of (c.campaigns ?? []).filter((k) => k.frequency === s.id)) {', to: "for (const link of [{ frequency: s.id, oseCampaignId: 'cmp_sample_wear' }].filter((k) => s.id === 'wear')) {" }]],
+  ['partner: every frequency, not the one named', 'partnerProblems', [{ file: R, from: '(c.campaigns ?? []).filter((k) => onStation(k, s.id))', to: '(c.campaigns ?? [])' }]],
+  ['partner: shown without a campaign link', 'partnerProblems', [{ file: R, from: 'for (const link of (c.campaigns ?? []).filter((k) => onStation(k, s.id))) {', to: "for (const link of [{ frequency: s.id, oseCampaignId: 'cmp_sample_wear' }].filter((k) => s.id === 'wear')) {" }]],
   ['partner: below the events', 'partnerProblems', [
     { file: R, from: "    ${partnerList(s, stationPartners(c, s, schedule.upcoming))}\n", to: '' },
     { file: R, from: '  <section aria-labelledby="report-title" class="station-report">', to: '  ${partnerList(s, stationPartners(c, s, schedule.upcoming))}\n  <section aria-labelledby="report-title" class="station-report">' },
@@ -148,6 +148,22 @@ const MUTANTS_LIST = [
   ['partner: the campaign not named', 'partnerProblems', [{ file: R, from: "${campaign?.title ? ` <span class=\"muted\">· ${esc(campaign.title)}</span>` : ''}", to: '' }]],
   ['partner: a link on the TV board', 'partnerProblems', [{ file: R, from: 'partnerList(s, stationPartners(c, s, schedule.upcoming), { links: false })', to: 'partnerList(s, stationPartners(c, s, schedule.upcoming))' }]],
   ['partner: missing from the TV board', 'partnerProblems', [{ file: R, from: '      ${partnerList(s, stationPartners(c, s, schedule.upcoming), { links: false })}\n', to: '' }]],
+  // Overlap (owner, 2026-11-13)
+  ['overlap: also ignored, one station only', 'overlapProblems', [{ file: SH, from: 'link.frequency === id || (link.also ?? []).includes(id);', to: 'link.frequency === id;' }]],
+  ['overlap: codes shown again away from home', 'overlapProblems', [{ file: R, from: 'const away = isLead || (here !== null && link.frequency !== here);', to: 'const away = isLead;' }]],
+  ['overlap: away everywhere, codes nowhere', 'overlapProblems', [{ file: R, from: 'const away = isLead || (here !== null && link.frequency !== here);', to: 'const away = true;' }]],
+  ['overlap: the TV board sends viewers elsewhere for codes', 'overlapProblems', [{ file: R, from: "eventCard(x, `tv-${i}-${k}`, { isLead: false, byId })", to: "eventCard(x, `tv-${i}-${k}`, { isLead: false, byId, here: s.id })" }]],
+  ['overlap: the front page names one station', 'overlapProblems', [{ file: R, from: "${(link.also ?? []).map((id) => `, <a href=\"${esc(id)}/index.html\">${esc(byId[id]?.name ?? id)}</a>`).join('')}", to: '' }]],
+  ['overlap: a borrowed class held to the wrong slots', 'overlapProblems', [{ file: SH, from: "if (link.intent !== 'programme' || isLead || link.frequency !== station.id) continue;", to: "if (link.intent !== 'programme' || isLead) continue;" }]],
+  ['overlap: a borrowed class under On air', 'overlapProblems', [{ file: SH, from: "link.intent === 'programme' && link.frequency === station.id && slotMatches(slot, event)", to: "link.intent === 'programme' && slotMatches(slot, event)" }]],
+  ['overlap: a campaign on its own station only', 'overlapProblems', [{ file: R, from: '(c.campaigns ?? []).filter((k) => onStation(k, s.id))', to: '(c.campaigns ?? []).filter((k) => k.frequency === s.id)' }]],
+  ['overlap: an unknown station accepted', 'overlapProblems', [{ file: SC, from: "if (!ids.has(id)) out.push(`${where}: also", to: "if (false) out.push(`${where}: also" }]],
+  ['overlap: Lead accepted in also', 'overlapProblems', [{ file: SC, from: 'else if (leadIds.has(id)) out.push(', to: 'else if (false) out.push(' }]],
+  ['overlap: its own station accepted in also', 'overlapProblems', [{ file: SC, from: 'else if (id === link.frequency) out.push(', to: 'else if (false) out.push(' }]],
+  ['overlap: a station listed twice accepted', 'overlapProblems', [{ file: SC, from: 'if (listed.indexOf(id) !== k) out.push(', to: 'if (false) out.push(' }]],
+  ['overlap: an event linked twice accepted', 'overlapProblems', [{ file: SC, from: 'if (seen.has(e.oseEventId)) problems.push(', to: 'if (false) problems.push(' }]],
+  ['overlap: campaigns unchecked', 'overlapProblems', [{ file: SC, from: "problems.push(...alsoProblems(`campaigns.${i}`, c));", to: '' }]],
+  ['overlap: a borrowing station needs no why', 'overlapProblems', [{ file: SC, from: 'for (const id of e.also ?? []) if (ids.has(id)) onAir.add(id);', to: '' }]],
   // Calendar feed (S8 follow-up)
   ['calendar: listed whatever OSE answered', 'calendarProblems', [{ file: O, from: "const feed = res?.status === 200 ? await res.text().catch(() => '') : '';\n    if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {", to: "const feed = res ? await res.text().catch(() => '') : '';\n    if (true) {" }]],
   ['calendar: any 200 taken for a feed', 'calendarProblems', [{ file: O, from: 'if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {', to: 'if (feed) {' }]],
@@ -181,10 +197,10 @@ const MUTANTS_LIST = [
   ['slots: times read in UTC', 'slotProblems', [{ file: SH, from: "const when = eventWhen(ev, slot.timezone || ev.timezone || 'UTC');", to: "const when = eventWhen(ev, 'UTC');" }]],
   ['slots: midnight reads 0 am', 'slotProblems', [{ file: SH, from: 'h % 12 === 0 ? 12 : h % 12', to: 'h % 12' }]],
   ['time: today reads as past', 'timeProblems', [{ file: SH, from: 'return last < todayIn(', to: 'return last <= todayIn(' }]],
-  ['intents: a trial under On air', 'intentProblems', [{ file: SH, from: "link.intent === 'programme' && slotMatches(slot, event)", to: 'slotMatches(slot, event)' }]],
+  ['intents: a trial under On air', 'intentProblems', [{ file: SH, from: "link.intent === 'programme' && link.frequency === station.id && slotMatches(slot, event)", to: 'slotMatches(slot, event)' }]],
   ['intents: a programme off its slots accepted', 'intentProblems', [{ file: SH, from: 'if (!own.length) problems.push(', to: 'if (false) problems.push(' }]],
   ['intents: a mode unlike its slot accepted', 'intentProblems', [{ file: SH, from: 'if (s.mode !== event.attendanceMode) problems.push(', to: 'if (false) problems.push(' }]],
-  ['frequency: every event on every station', 'intentProblems', [{ file: SH, from: 'isLead || link.frequency === station.id', to: 'true' }]],
+  ['frequency: every event on every station', 'intentProblems', [{ file: SH, from: 'isLead || onStation(link, station.id)', to: 'true' }]],
   ['order: latest first', 'intentProblems', [{ file: SH, from: '(a, b) => sortKey(a.event).localeCompare(sortKey(b.event));', to: '(a, b) => sortKey(b.event).localeCompare(sortKey(a.event));' }]],
   ['past: a moved programme blocks the build on past events', 'intentProblems', [{ file: SH, from: 'for (const { link, event } of upcoming) {', to: 'for (const { link, event } of mine) {' }]],
   ['why: only the next programme event reads its slot purpose', 'slotWhyProblems', [{ file: R, from: 'const slot = byId[link.frequency] ? slotOf(', to: 'const slot = i === 0 && byId[link.frequency] ? slotOf(' }]],
@@ -232,7 +248,7 @@ describe('creator showcase: born red', () => {
     const urls = [...new Set(Object.values(pages).flatMap((h) => [...h.matchAll(/data-code-url="([^"]*)"/g)].map((x) => x[1])))];
     const resolved = urls.map((url) => ({ url, status: 302, location: `${C.FAKE_ORIGIN}/events/evt_sample-0001` }));
     const lostCard = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('<article class="event"', '<article class="gone"') };
-    expect(oseVerdictProblems(plan(), C.sample(), lostCard, resolved, C.NOW, { campaigns: true }).join('\n')).toMatch(/teach: 2 event cards, want 3/);
+    expect(oseVerdictProblems(plan(), C.sample(), lostCard, resolved, C.NOW, { campaigns: true }).join('\n')).toMatch(/teach: 3 event cards, want 4/);
     const draftShown = { ...pages, 'teach/index.html': `${pages['teach/index.html']}<h3>Draft class (showcase demo)</h3>` };
     expect(oseVerdictProblems(plan(), C.sample(), draftShown, resolved, C.NOW).join('\n')).toMatch(/evt_sample-0007: "Draft class/);
     const dead = resolved.map((r, i) => (i === 0 ? { ...r, status: 404 } : r));

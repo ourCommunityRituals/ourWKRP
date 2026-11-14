@@ -58,12 +58,18 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now, { campai
     if (!shown) return;
     if (backers.length) {
       const names = backers.map((b) => b.name).sort().join(' + ');
-      for (const id of [link.frequency, lead].filter(Boolean)) (wantStrips[id] ??= []).push(names);
+      for (const id of [link.frequency, ...(link.also ?? []), lead].filter(Boolean)) (wantStrips[id] ??= []).push(names);
       for (const b of backers) {
-        if (campaigns && b.campaign && (creator.campaigns ?? []).some((c) => c.frequency === link.frequency && c.oseCampaignId === b.campaign.id)) (wantPartners[link.frequency] ??= new Set()).add(b.name);
+        if (campaigns && b.campaign) {
+          // A campaign shows on its own station and any it also names, wherever one of this event's stations is among them.
+          for (const c of (creator.campaigns ?? []).filter((k) => k.oseCampaignId === b.campaign.id)) {
+            for (const id of [c.frequency, ...(c.also ?? [])]) if ([link.frequency, ...(link.also ?? [])].includes(id)) (wantPartners[id] ??= new Set()).add(b.name);
+          }
+        }
       }
     }
-    want[link.frequency] = (want[link.frequency] ?? 0) + 1;
+    // An event shows on the station it lives on and on any it also names; its codes stay at home.
+    for (const id of [link.frequency, ...(link.also ?? [])]) want[id] = (want[id] ?? 0) + 1;
     if (lead) want[lead] = (want[lead] ?? 0) + 1;
     wantCodes[link.frequency] = (wantCodes[link.frequency] ?? 0) + (link.placement ? 1 : 0) + 1 + (p.codes ?? []).filter((c) => !FORM_KINDS.has(c.kind)).length;
   });

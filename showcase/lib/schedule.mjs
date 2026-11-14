@@ -137,9 +137,12 @@ export function whenText(ev, link) {
  * @param {{link: object, event: object}[]} linked  every public OSE event the creator links
  * @param {Date|number} now
  */
+/** Whether a link shows on a station: it lives there, or lists it in `also`. */
+export const onStation = (link, id) => link.frequency === id || (link.also ?? []).includes(id);
+
 export function stationSchedule(station, linked, now, { isLead = false } = {}) {
   const problems = [];
-  const mine = linked.filter(({ link }) => isLead || link.frequency === station.id);
+  const mine = linked.filter(({ link }) => isLead || onStation(link, station.id));
   const upcoming = mine.filter(({ event }) => !isPast(event, now)).sort(soonestFirst);
   const slots = isLead ? [] : (station.programme ?? []);
 
@@ -148,7 +151,8 @@ export function stationSchedule(station, linked, now, { isLead = false } = {}) {
   for (const { link, event } of upcoming) {
     const where = `${link.frequency}: ${link.oseEventId}`;
     if (link.intent === 'pop-up' && !eventWhen(event)?.time) problems.push(`${where}: a pop-up needs a start time on its OSE event`);
-    if (link.intent !== 'programme' || isLead) continue;
+    // A programme event is held to the slots of the station it lives on, not of one it also shows on.
+    if (link.intent !== 'programme' || isLead || link.frequency !== station.id) continue;
     const own = (station.programme ?? []).filter((s) => slotMatches(s, event));
     if (!own.length) problems.push(`${where}: a programme event matches none of its frequency's slots`);
     if (event.attendanceMode) {
@@ -158,7 +162,7 @@ export function stationSchedule(station, linked, now, { isLead = false } = {}) {
 
   const onAir = slots.map((slot) => {
     // Only programme events stand under "On air": a one-off, pop-up or trial never does.
-    const next = upcoming.find(({ link, event }) => link.intent === 'programme' && slotMatches(slot, event));
+    const next = upcoming.find(({ link, event }) => link.intent === 'programme' && link.frequency === station.id && slotMatches(slot, event));
     return { slot, text: onAirText(slot), next: next ?? null };
   });
   return { onAir, upcoming, problems };
