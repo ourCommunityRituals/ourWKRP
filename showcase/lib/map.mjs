@@ -101,6 +101,7 @@ const STREET_CSS_MAX = 4000;
 // OpenStreetMap's credit: one paragraph of text with links to OpenStreetMap and Protomaps, and to nowhere else.
 const CREDIT = /^<p class="amap-credit"(?: data-testid="[a-z-]+")?>(?:[^<>]|<a href="https:\/\/(?:www\.openstreetmap\.org|protomaps\.com)(?:\/[A-Za-z0-9/_-]*)?">[^<>]+<\/a>)+<\/p>$/;
 const CREDIT_MAX = 600;
+const OSM_HOST = 'www.openstreetmap.org';
 
 /**
  * The street layer of an answer, or null when there is none or it is not what
@@ -124,7 +125,7 @@ export function streetLayer(streets) {
   if (!CREDIT.test(credit)) return null;
   // It must credit OpenStreetMap by a link whose host is exactly OpenStreetMap's.
   const hosts = [...credit.matchAll(/<a href="([^"]*)">/g)].map(([, href]) => new URL(href).hostname);
-  if (!hosts.includes('www.openstreetmap.org')) return null;
+  if (!hosts.some((host) => host === OSM_HOST)) return null;
   return { svg, css, credit };
 }
 
