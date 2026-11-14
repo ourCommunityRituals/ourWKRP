@@ -18,7 +18,6 @@
       <div class="stat-card big-stat"><div class="stat-value" id="total-tracks">—</div><div class="stat-label">Tracks</div></div>
       <div class="stat-card big-stat"><div class="stat-value" id="total-contributors">—</div><div class="stat-label">Contributors</div></div>
       <div class="stat-card big-stat"><div class="stat-value" id="total-playlists">—</div><div class="stat-label">Playlists</div></div>
-      <div class="stat-card big-stat"><div class="stat-value" id="total-attributions">—</div><div class="stat-label">DJ Attributions</div></div>
     </div>
 
     <div class="section" data-testid="top-genres-section">
@@ -56,6 +55,12 @@
   <script nonce="__CSP_NONCE__">
     (function() {
       'use strict';
+      // A count of people under the floor arrives as null with <name>_suppressed;
+      // it reads in words, never as 0, blank, NaN or "null".
+      var WITHHELD_TEXT = '__COUNT_WITHHELD_TEXT__';
+      function countText(n, suppressed) {
+        return (suppressed === true || typeof n !== 'number' || !isFinite(n)) ? WITHHELD_TEXT : n.toLocaleString();
+      }
       Promise.all([
         fetch('/api/stats').then(function(r) { return r.json(); }),
         fetch('/api/contributors').then(function(r) { return r.json(); }),
@@ -66,7 +71,7 @@
         if (statsData.ok) {
           var s = statsData.stats;
           document.getElementById('total-tracks').textContent = s.total_tracks.toLocaleString();
-          document.getElementById('total-contributors').textContent = s.total_contributors.toLocaleString();
+          document.getElementById('total-contributors').textContent = countText(s.total_contributors, s.total_contributors_suppressed);
           document.getElementById('total-playlists').textContent = s.total_playlists.toLocaleString();
           renderBarChart('top-genres', s.top_genres || [], 'genre');
           renderBarChart('top-decades', s.top_decades || [], 'decade');
@@ -75,8 +80,6 @@
         if (contribData.ok) {
           renderContributors(contribData.contributors || []);
         }
-
-        document.getElementById('total-attributions').textContent = '0';
 
         // Load layer breakdown
         fetch('/api/layers').then(function(r) { return r.json(); }).then(function(ld) {
