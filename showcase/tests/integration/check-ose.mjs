@@ -18,6 +18,9 @@
 // The where map: a station draws one area for each distinct resolution-7 cell of
 // its shown events that the plan gives a place, worked out here from the plan's
 // coordinates, not read back from the page.
+// The map itself is read by the build from the worker's public area map
+// (GET /api/v2/map/areas, OSE ADR-033), so the areas only show when the real
+// worker answered that read with a map of exactly those cells.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -108,6 +111,9 @@ export function oseVerdictProblems(plan, creator, pages, resolved, now, { campai
     if (cards(html) !== (want[s.id] ?? 0)) out.push(`${s.id}: ${cards(html)} event cards, want ${want[s.id] ?? 0}`);
     if (codes(html).length !== (wantCodes[s.id] ?? 0)) out.push(`${s.id}: ${codes(html).length} codes, want ${wantCodes[s.id] ?? 0}`);
     if (areasDrawn(html) !== (wantAreas[s.id]?.size ?? 0)) out.push(`${s.id}: ${areasDrawn(html)} areas on the map, want ${wantAreas[s.id]?.size ?? 0}`);
+    // The map is the worker's own drawing, read by the build: its 600 by 360 frame.
+    // A worker that does not serve the area map leaves the list with no map, and that is a failure here.
+    if (wantAreas[s.id]?.size && !/<svg class="hex-map" viewBox="0 0 600 360"/.test(html)) out.push(`${s.id}: its map is not in the frame OurSharedEvents draws (600 by 360)`);
     const wantedModes = (wantModes[s.id] ?? []).sort().join(' | ');
     if (modeTags(html) !== wantedModes) out.push(`${s.id}: modes shown "${modeTags(html)}", want "${wantedModes}"`);
     const gotSeries = seriesRows(html);

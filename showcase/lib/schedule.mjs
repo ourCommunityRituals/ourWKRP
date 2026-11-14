@@ -154,6 +154,9 @@ export function seriesSlotProblems(series, slot) {
   return out;
 }
 
+/** Lead is the whole dial: every frequency's events show on it. */
+export const isLeadStation = (s) => (s.category ?? s.id) === 'lead';
+
 /** Whether a link shows on a station: it lives there, or lists it in `also`. */
 export const onStation = (link, id) => link.frequency === id || (link.also ?? []).includes(id);
 

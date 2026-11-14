@@ -5,12 +5,14 @@
 // .ose-ref commit). All of it is served at that commit: a sponsor's
 // `campaign: { id, title }` in the sponsor bundle, the brand calendar feed at
 // /brands/<brand>/calendar.ics, and the declared series beside each event
-// (`series`, OSE ADR-029).
+// (`series`, OSE ADR-029), and the public area map (`/api/v2/map/areas`, OSE
+// ADR-033; handlers/map-areas.ts and lib/street-map.ts). The contract layer
+// holds the map stand-in to an answer recorded from OSE staging.
 // The integration layer runs the same build against a real local worker.
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { latLngToCell } from 'h3-js';
+import { cellToBoundary, cellToLatLng, getResolution, gridDisk, isValidCell, latLngToCell } from 'h3-js';
 import { planDate, zonedInstant } from '../lib/plan.mjs';
 
 const SHOWCASE = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -78,6 +80,85 @@ const sponsorRow = (sp, eventId) => ({
 /** Both sides said yes: the stand-in for OSE's SPONSOR_ON_SHOW_SQL. */
 const onShow = (sp) => sp.sponsorAccepted !== false && sp.organizerAccepted !== false;
 
+// ── The public area map, as OSE draws it (lib/street-map.ts) ─────────────────
+const MAP_W = 600;
+const MAP_H = 360;
+const MAX_AREA_CELLS = 12;
+const COORDINATE_PARAMS = ['lat', 'lon', 'lng', 'latitude', 'longitude', 'coords', 'coordinates', 'position', 'geo'];
+
+/** Latitude and longitude to Web Mercator world units, origin top-left. */
+function toWorld(lat, lng) {
+  const s = Math.sin((Math.max(-85.05112878, Math.min(85.05112878, lat)) * Math.PI) / 180);
+  return [(lng + 180) / 360, 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)];
+}
+
+function frameForCells(cells, w = MAP_W, h = MAP_H, pad = 0.08) {
+  const pts = cells.flatMap((c) => cellToBoundary(c).map(([lat, lng]) => toWorld(lat, lng)));
+  const xs = pts.map((p) => p[0]);
+  const ys = pts.map((p) => p[1]);
+  const [xMin, xMax, yMin, yMax] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const scale = Math.min((w * (1 - 2 * pad)) / Math.max(xMax - xMin, 1e-9), (h * (1 - 2 * pad)) / Math.max(yMax - yMin, 1e-9));
+  return { w, h, scale, x0: (xMin + xMax) / 2 - w / 2 / scale, y0: (yMin + yMax) / 2 - h / 2 / scale };
+}
+
+const fx = (v) => Number(v.toFixed(1));
+const project = (f, lat, lng) => {
+  const [x, y] = toWorld(lat, lng);
+  return [(x - f.x0) * f.scale, (y - f.y0) * f.scale];
+};
+const outline = (f, cell) => cellToBoundary(cell).map(([lat, lng]) => project(f, lat, lng)).map(([x, y]) => `${fx(x)},${fx(y)}`).join(' ');
+
+/**
+ * OSE's answer to GET /api/v2/map/areas, as `{ status, body }`. Like OSE
+ * staging today (no street archive loaded), `streets` is null.
+ */
+export function mapAreasAnswer(searchParams) {
+  const refuse = (code) => ({ status: 400, body: { ok: false, status: 400, code, error: code } });
+  for (const name of searchParams.keys()) if (COORDINATE_PARAMS.includes(name.toLowerCase())) return refuse('COORDINATES_NOT_ACCEPTED');
+  const raw = searchParams.getAll('cells').join(',');
+  if (!raw) return refuse('CELLS_REQUIRED');
+  const cells = [...new Set(raw.split(','))];
+  if (cells.length > MAX_AREA_CELLS) return refuse('TOO_MANY_CELLS');
+  for (const cell of cells) {
+    if (!isValidCell(cell)) return refuse('CELL_INVALID');
+    if (getResolution(cell) !== 7) return refuse('CELL_RESOLUTION');
+  }
+  const aroundParam = searchParams.get('around');
+  if (aroundParam !== null && aroundParam !== '0' && aroundParam !== '1') return refuse('AROUND_INVALID');
+  const own = new Set(cells);
+  const around = aroundParam === '1' ? [...new Set(cells.flatMap((c) => gridDisk(c, 1)))].filter((c) => !own.has(c)) : [];
+  const frame = frameForCells([...cells, ...around]);
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      status: 200,
+      frame: { projection: 'web-mercator', w: frame.w, h: frame.h, scale: frame.scale, x0: frame.x0, y0: frame.y0 },
+      areas: cells.map((cell, i) => {
+        const [x, y] = project(frame, ...cellToLatLng(cell));
+        return { cell, n: i + 1, points: outline(frame, cell), centre: [fx(x), fx(y)] };
+      }),
+      around: around.map((cell) => ({ cell, points: outline(frame, cell) })),
+      streets: null,
+    },
+  };
+}
+
+/**
+ * A street layer in the shape OSE returns one (lib/street-map.ts `STREET_STYLE`
+ * and its layer markup, lib/attendee-map.ts `streetCredit`), for a test to
+ * plant in an answer. Staging serves none until its street archive is loaded,
+ * so this is the stand-in's copy of the shape, not a recorded answer.
+ */
+export const fakeStreets = () => ({
+  svg: '<g class="amap-s" aria-hidden="true" data-testid="amap-streets" data-z="12"><rect class="as-l" width="600" height="360"/><path class="as-w" d="M0,300L600,320L600,360L0,360Z"/><path class="as-v" d="M10,10L80,60"/><path class="as-r as-1" d="M0,40L600,60M120,0L140,360"/><path class="as-r as-2" d="M0,180L600,200"/><path class="as-r as-3" d="M300,0L320,360"/><text class="as-t" x="150" y="90" text-anchor="middle">Springfield &amp; O&#39;Fallon</text></g>',
+  css: '.as-l{fill:var(--surface)}.as-w{fill:var(--info);opacity:.3}.as-v,.as-r{fill:none;stroke-linecap:round}.as-v{stroke:var(--info);opacity:.5;stroke-width:2}.as-r{stroke:var(--border-strong)}.as-1{stroke:var(--border);stroke-width:1.2}.as-2{stroke-width:2.5}.as-3{stroke-width:4}.as-t{fill:var(--text-muted);font:600 22px system-ui;paint-order:stroke;stroke:var(--bg);stroke-width:4}',
+  credit: {
+    html: '<p class="amap-credit" data-testid="amap-credit">Street map data © <a href="https://www.openstreetmap.org/copyright/en">OpenStreetMap</a> contributors, prepared by <a href="https://protomaps.com">Protomaps</a>.</p>',
+    osm: 'https://www.openstreetmap.org/copyright/en',
+  },
+});
+
 /**
  * A fetch that answers like OSE. `edit(kind, body)` may change a response
  * before it is sent, and `fail(kind, id)` may return a status to answer with
@@ -95,6 +176,12 @@ export function fakeOse({ brand = 'showcase-sample', now = NOW, origin = FAKE_OR
     calls.push({ url: String(url), init });
     const u = new URL(String(url));
     if (u.origin !== origin) throw new Error(`fake OSE: unexpected origin ${u.origin}`);
+    if (u.pathname === '/api/v2/map/areas') {
+      const failed = fail('map', u.searchParams.get('cells'));
+      if (failed) return json(failed, { ok: false, status: failed, code: failed === 429 ? 'RATE_LIMITED' : 'PLANTED', error: 'planted failure' });
+      const answer = mapAreasAnswer(u.searchParams);
+      return json(answer.status, answer.status === 200 ? edit('map', answer.body) : answer.body);
+    }
     if (u.pathname === '/api/v2/events') {
       const b = u.searchParams.get('brand') || 'root';
       const shown = items.filter(([, i]) => i.brand_id === b && i.status === 'active').map(([, i]) => i);
