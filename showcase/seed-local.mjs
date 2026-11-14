@@ -7,8 +7,8 @@
 //
 // With --plan (the fixture's fixtures/sample-ose-events.json), it also creates
 // the upcoming OSE events the creator links, on the creator's brand: their 5W
-// text, poster codes and one showcase placement per station event ("Showcase:
-// <Station> page"), and writes showcase/work/<slug>/creator.json, the creator
+// text, poster codes, sponsors and one showcase placement per station event
+// ("Showcase: <Station> page"), and writes showcase/work/<slug>/creator.json, the creator
 // file with the plan's placeholder ids swapped for the real ones. A real
 // creator's events are made by the owner in OSE admin, never by this script.
 //
@@ -19,7 +19,7 @@
 // Writes showcase/work/<slug>/reports.json: PRIVATE, it holds signed links.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { assertLocalBase, createPacer, hourBuckets, scansFor, SHAPES } from './lib/showcase.mjs';
+import { assertLocalBase, createPacer, hourBuckets, placementsFor, scansFor, SHAPES } from './lib/showcase.mjs';
 import { SHOWCASE, readJson, loadCatalog } from './lib/build.mjs';
 import { creatorProblems } from './lib/schema.mjs';
 import { planDate } from './lib/plan.mjs';
@@ -69,7 +69,7 @@ const dayOffset = (days) => new Date(Date.now() + days * 86_400_000).toISOString
 // The local database exists only for this showcase run, so a rerun starts from no events.
 const RESET_TABLES = ['event_codes', 'export_manifest', 'report_access_log', 'scan_aggregates', 'scan_cell_aggregates',
   'scan_node_returns', 'scan_placement_events', 'share_opens_daily', 'shortlinks', 'sponsor_displays', 'sponsor_placement',
-  'poster_deployments'];
+  'poster_deployments', 'sponsor_business', 'campaigns'];
 
 /**
  * The plan's upcoming events, on the creator's brand (or the plan entry's own,
@@ -78,6 +78,39 @@ const RESET_TABLES = ['event_codes', 'export_manifest', 'report_access_log', 'sc
 async function seedPlan(pickType) {
   const catalog = loadCatalog().categories;
   const ids = {};
+  const businesses = {};
+
+  /**
+   * The plan's sponsors for one event. The organizer adds each through the
+   * admin API, which is the organizer's yes. The sponsor's own yes is given
+   * from its sponsor home, which a script holds no token for, so on this
+   * throwaway local database each side's answer is written as the plan gives
+   * it: OSE's public bundle then decides what shows, as it does anywhere.
+   */
+  async function seedSponsors(p, eventId, brand) {
+    await api('PUT', `/api/v2/admin/events/${eventId}`, { settings: { useSponsors: true } });
+    for (const sp of p.sponsors) {
+      let placement;
+      if (!businesses[sp.id]) {
+        const made = await api('POST', '/api/v2/admin/sponsors', { event_id: eventId, name: sp.name, brand_id: brand, tier: 'bronze' });
+        if (typeof made.id !== 'string' || typeof made.placement_id !== 'string') throw new Error(`contract: sponsors returned no id for ${sp.id}`);
+        businesses[sp.id] = made.id;
+        placement = made.placement_id;
+      } else {
+        // The same business on a second event: one more placement, as the organizer's.
+        placement = `spl_showcase_${Object.keys(ids).length}_${sp.id}`;
+        await d1("INSERT INTO sponsor_placement (id, sponsor_business_id, event_id, tier, source, is_active) VALUES (?, ?, ?, 'bronze', 'organizer', 1)", [placement, businesses[sp.id], eventId]);
+      }
+      // A sponsor that has not answered stays unset (pending), which is not a yes.
+      if (sp.sponsorAccepted !== false) await d1('UPDATE sponsor_placement SET sponsor_accepted = 1 WHERE id = ?', [placement]);
+      await d1(`UPDATE sponsor_placement SET organizer_accepted = ${sp.organizerAccepted === false ? 0 : 1} WHERE id = ?`, [placement]);
+      if (sp.campaign) {
+        await d1("INSERT OR IGNORE INTO campaigns (id, brand_id, title, status) VALUES (?, ?, ?, 'active')", [sp.campaign.id, brand, sp.campaign.title]);
+        await d1('UPDATE sponsor_placement SET campaign_id = ? WHERE id = ?', [sp.campaign.id, placement]);
+      }
+    }
+  }
+
   for (const p of plan.events) {
     const link = (creator.events ?? []).find((e) => e.oseEventId === p.ref);
     if (!link) throw new Error(`plan: ${p.ref} is not linked in the creator file`);
@@ -98,6 +131,7 @@ async function seedPlan(pickType) {
     if (p.codes) await api('PUT', `/api/v2/admin/events/${ev.id}/poster-codes`, { codes: p.codes });
     if (p.state !== 'draft') await api('PUT', `/api/v2/admin/events/${ev.id}`, { status: 'active' });
     ids[p.ref] = ev.id;
+    if (p.sponsors) await seedSponsors(p, ev.id, p.brand ?? creator.oseBrand);
     if (p.placementRef) {
       const pd = await api('POST', `/api/v2/admin/events/${ev.id}/poster-deployments`, {
         placement_label: `Showcase: ${station.name ?? cat?.name ?? station.id} page`,
@@ -156,7 +190,7 @@ async function main() {
     await api('PUT', `/api/v2/admin/events/${ev.id}`, { status: 'active' });
 
     const placements = [];
-    for (const label of shape.placements) {
+    for (const label of placementsFor(st.event)) {
       const pd = await api('POST', `/api/v2/admin/events/${ev.id}/poster-deployments`, {
         placement_label: label,
         placement_type: /door|room|table/i.test(label) ? 'venue' : 'community',

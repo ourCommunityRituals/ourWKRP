@@ -3,6 +3,7 @@
 // build (and OW's QR encoder, src/lib/qr.ts) loads exactly as build-page.mjs
 // loads it, not through Playwright's module loader.
 //   node showcase/tests/e2e/build-site.mjs <dir>
+import { cpSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildShowcase, readJson, SHOWCASE } from '../../lib/build.mjs';
 import { readOse } from '../../lib/ose.mjs';
@@ -18,3 +19,20 @@ if (missing.length) {
   process.exit(1);
 }
 console.log(`e2e site: ${Object.keys(pages).join(', ')}`);
+
+// The layout and display menu, pairwise rather than every combination: each
+// option value appears in at least one variant, built beside the default site.
+export const VARIANTS = {
+  list: { layout: 'list', stationOrder: 'next-event', display: 'tv', sections: { scatter: false } },
+  grid: { layout: 'grid', sections: { values: false, schedule: false } },
+};
+for (const [name, options] of Object.entries(VARIANTS)) {
+  const outDir = join(site, name);
+  cpSync(join(site, 'img'), join(outDir, 'img'), { recursive: true });
+  const built = buildShowcase({ creator: { ...creator, ...options }, reports: seededReports(), outDir, ose, now: NOW });
+  if (built.missing.length) {
+    console.error(`e2e setup (${name}): missing images ${built.missing.join(', ')}`);
+    process.exit(1);
+  }
+  console.log(`e2e site /${name}: ${Object.keys(built.pages).join(', ')}`);
+}

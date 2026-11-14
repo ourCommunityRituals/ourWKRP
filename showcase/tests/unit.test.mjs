@@ -30,6 +30,33 @@ describe('creator showcase: unit', () => {
   it('stations take catalog defaults, the creator copy wins, and reports attach without their links', () => {
     expect(C.mergeProblems(m)).toEqual([]);
   });
+  it("a demo event's codes hang under its own labels, else under its size's", () => {
+    expect(C.placementLabelProblems(m)).toEqual([]);
+  });
+  it("the fixed sentences name the instance and list its own event kinds", async () => {
+    expect(await C.instanceWordingProblems(m)).toEqual([]);
+  });
+  it('layout: a dial, a list or a grid of the same station links; no layout is the dial', async () => {
+    expect(await C.layoutProblems(m)).toEqual([]);
+  });
+  it('station order: the file by default; by next event when asked, the quiet after the busy, Lead last', async () => {
+    expect(await C.stationOrderProblems(m)).toEqual([]);
+  });
+  it('sections: each switch hides its own section and nothing else; sources always show', async () => {
+    expect(await C.sectionProblems(m)).toEqual([]);
+  });
+  it('TV board: only when asked; events and codes, no counts; a hold, a pause and a readable dwell', async () => {
+    expect(await C.tvProblems(m)).toEqual([]);
+  });
+  it('station partner: once, at the top, only where the creator file and OSE name the same campaign', async () => {
+    expect(await C.partnerProblems(m)).toEqual([]);
+  });
+  it('calendar feed: linked only where OSE serves one, as a plain link, and never one that names the creator', async () => {
+    expect(await C.calendarProblems(m)).toEqual([]);
+  });
+  it('overlap: an event or campaign shows on more than one station, with one home, one set of codes and one slot', async () => {
+    expect(await C.overlapProblems(m)).toEqual([]);
+  });
   it('dates read as day, short month, year', () => {
     expect(C.dateProblems(m)).toEqual([]);
   });

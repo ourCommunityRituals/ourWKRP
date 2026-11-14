@@ -58,7 +58,7 @@
       "programme": [
         { "cadence": "monthly", "week": "last", "day": "sunday", "time": "12:00", "timezone": "America/Chicago", "mode": "in_person", "kind": "pop-up", "purpose": "the market table" }
       ],
-      "event": { "title": "Saturday market stall", "kind": "pop-up", "demo": "low" }
+      "event": { "title": "Saturday market stall", "kind": "pop-up", "demo": "low", "placements": ["Table card", "Stall sign"] }
     },
     {
       "id": "lead", "eyebrow": "Organizer",
@@ -79,7 +79,7 @@
     { "frequency": "teach", "oseEventId": "evt_sample-0003", "intent": "trial", "placement": "pd_sample0003" },
     { "frequency": "teach", "oseEventId": "evt_sample-0004", "intent": "programme", "placement": "pd_sample0004" },
     { "frequency": "wear", "oseEventId": "evt_sample-0005", "intent": "pop-up", "placement": "pd_sample0005", "until": "15:00" },
-    { "frequency": "wear", "oseEventId": "evt_sample-0006", "intent": "one-off" },
+    { "frequency": "wear", "also": ["teach"], "oseEventId": "evt_sample-0006", "intent": "one-off" },
     { "frequency": "teach", "oseEventId": "evt_sample-0007", "intent": "one-off" },
     { "frequency": "wear", "oseEventId": "evt_sample-0008", "intent": "one-off" }
   ],

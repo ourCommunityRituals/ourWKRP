@@ -28,6 +28,9 @@ const MUTANTS_LIST = [
   ['escaping: an unescaped attribute', 'escapingProblems', [{ file: R, from: 'aria-label="Open the full ${esc(s.name)} report"', to: 'aria-label="Open the full ${s.name} report"' }]],
   ['escaping: script data not guarded', 'escapingProblems', [{ file: R, from: /JSON\.stringify\(stationData\)\.replace\([^)]*\)/, to: 'JSON.stringify(stationData)' }]],
   ['escaping: an OSE event title unescaped', 'escapingProblems', [{ file: R, from: '<h3 id="ev-${i}">${esc(event.title)}</h3>', to: '<h3 id="ev-${i}">${event.title}</h3>' }]],
+  ['escaping: an event kind unescaped', 'escapingProblems', [{ file: R, from: "for this week's ${esc(orList(kinds))}.", to: "for this week's ${orList(kinds)}." }]],
+  ['escaping: a station title unescaped on the TV board', 'escapingProblems', [{ file: R, from: '<h2 id="tv-${i}">${esc(s.title)}</h2>', to: '<h2 id="tv-${i}">${s.title}</h2>' }]],
+  ['escaping: a card title unescaped in the list and grid layouts', 'escapingProblems', [{ file: R, from: '<span class="t">${esc(s.title)}</span>', to: '<span class="t">${s.title}</span>' }]],
   ['escaping: an OSE code word unescaped', 'escapingProblems', [{ file: R, from: '<span class="word">${esc(code.word)}</span>', to: '<span class="word">${code.word}</span>' }]],
   ['link allowlist: any source scheme linked', 'linkProblems', [{ file: R, from: 'const href = safeHttpsUrl(s.url);', to: 'const href = s.url;' }]],
   ['link allowlist: any place scheme linked', 'linkProblems', [{ file: R, from: 'if (p.url && safeHttpsUrl(p.url)) return', to: 'if (p.url) return' }]],
@@ -66,6 +69,14 @@ const MUTANTS_LIST = [
   ['past: a past event shown with its codes', 'pastCodeProblems', [{ file: SH, from: "return last < todayIn(now, ev.timezone || 'UTC');", to: 'return false;' }]],
   ['CSP: an inline handler', 'cspProblems', [{ file: R, from: '<a class="ch" href=', to: '<a class="ch" onclick="void 0" href=' }]],
   // 2. Contract
+  ['menu: an unknown layout accepted', 'contractProblems', [{ file: SC, from: 'layout: z.enum(LAYOUTS).optional(),', to: 'layout: z.string().optional(),' }]],
+  ['menu: an unknown station order accepted', 'contractProblems', [{ file: SC, from: 'stationOrder: z.enum(STATION_ORDERS).optional(),', to: 'stationOrder: z.string().optional(),' }]],
+  ['menu: an unknown display accepted', 'contractProblems', [{ file: SC, from: 'display: z.enum(DISPLAYS).optional(),', to: 'display: z.string().optional(),' }]],
+  ['menu: an unknown section accepted', 'contractProblems', [{ file: SC, from: '[k, z.boolean().optional()]))).strict().optional(),', to: '[k, z.boolean().optional()]))).passthrough().optional(),' }]],
+  ['menu: a section switch of any type accepted', 'contractProblems', [{ file: SC, from: '[k, z.boolean().optional()]))).strict().optional(),', to: '[k, z.any().optional()]))).strict().optional(),' }]],
+  ['menu: sources can be hidden', 'contractProblems', [{ file: SC, from: 'if (creator.sections?.sources === false && creator.sources.length) problems.push(', to: 'if (false) problems.push(' }]],
+  ['contract: any number of placement labels accepted', 'contractProblems', [{ file: SC, from: "placements: z.array(z.string().trim().min(1).max(40)).min(1).max(4).optional(),", to: "placements: z.array(z.string().trim().min(1).max(40)).optional()," }]],
+  ['contract: a blank or endless placement label accepted', 'contractProblems', [{ file: SC, from: "placements: z.array(z.string().trim().min(1).max(40)).min(1).max(4).optional(),", to: "placements: z.array(z.string()).min(1).max(4).optional()," }]],
   ['contract: non-https sources allowed', 'contractProblems', [{ file: SC, from: 'url: https,', to: 'url: text,' }]],
   ['contract: future categories open', 'contractProblems', [{ file: SC, from: "else if (cat.status === 'future')", to: 'else if (false)' }]],
   ['contract: unknown fields allowed', 'contractProblems', [{ file: SC, from: '      .optional(),\n  })\n  .strict();', to: '      .optional(),\n  });' }]],
@@ -75,6 +86,108 @@ const MUTANTS_LIST = [
   ['contract: a pop-up window not required', 'contractProblems', [{ file: SC, from: "if (e.intent === 'pop-up' && !e.until)", to: 'if (false)' }]],
   ['contract: slot kinds not checked', 'contractProblems', [{ file: SC, from: 'if (cat && !cat.eventKinds.includes(s.kind))', to: 'if (false)' }]],
   // 3. Unit
+  ['layout: a list still draws the dial', 'layoutProblems', [{ file: R, from: "const dial = layout === 'dial';", to: 'const dial = true;' }]],
+  ['layout: a card loses its title', 'layoutProblems', [{ file: R, from: '${dial ? \'\' : `<span class="t">${esc(s.title)}</span>`}', to: '' }]],
+  ['layout: station pages ignore the layout', 'layoutProblems', [{ file: R, from: "${tuner(c, stations, s, '../', opt.layout)}", to: "${tuner(c, stations, s, '../')}" }]],
+  ['layout: the default is not the dial', 'layoutProblems', [{ file: R, from: "layout: c.layout ?? 'dial',", to: "layout: c.layout ?? 'grid'," }]],
+  ['station order: next-event ignored', 'stationOrderProblems', [{ file: R, from: "opt.stationOrder === 'next-event' ? byNextEvent(stations, schedules) : stations", to: 'stations' }]],
+  ['station order: Lead not last', 'stationOrderProblems', [{ file: R, from: '(isLeadStation(s) ? 2 :', to: '(isLeadStation(s) ? 0 :' }]],
+  ['station order: the quiet before the busy', 'stationOrderProblems', [{ file: R, from: 'schedules[s.id].upcoming.length ? 0 : 1', to: 'schedules[s.id].upcoming.length ? 1 : 0' }]],
+  ['station order: by next event when nobody asked', 'stationOrderProblems', [{ file: R, from: "stationOrder: c.stationOrder ?? 'file',", to: "stationOrder: c.stationOrder ?? 'next-event'," }]],
+  ['sections: scatter cannot be hidden', 'sectionProblems', [{ file: R, from: '${opt.show.scatter ? `<section aria-labelledby="scatter-title"', to: '${true ? `<section aria-labelledby="scatter-title"' }]],
+  ['sections: values cannot be hidden', 'sectionProblems', [{ file: R, from: '${opt.show.values ? `<p>${esc(c.values.body)}</p>` : \'\'}', to: '<p>${esc(c.values.body)}</p>' }]],
+  ['sections: a station still shows its report', 'sectionProblems', [{ file: R, from: "${opt.show.reports ? reportFigure(s, '../') : ''}", to: "${reportFigure(s, '../')}" }]],
+  ['sections: the copied schedule cannot be hidden', 'sectionProblems', [{ file: R, from: 'opt.show.schedule && c.schedule && copiedRows.length', to: 'c.schedule && copiedRows.length' }]],
+  ['sections: an empty reporting section shows', 'sectionProblems', [{ file: R, from: '${opt.show.values || opt.show.reports ? `<section aria-labelledby="reports-title">', to: '${true ? `<section aria-labelledby="reports-title">' }]],
+  ['sections: one switch hides them all', 'sectionProblems', [{ file: R, from: 'show: Object.fromEntries(SECTIONS.map((k) => [k, c.sections?.[k] !== false])),', to: 'show: Object.fromEntries(SECTIONS.map((k) => [k, !c.sections])),' }]],
+  ['tv: built when nobody asked', 'tvProblems', [{ file: R, from: "if (opt.display === 'tv') pages['tv/index.html']", to: "pages['tv/index.html']" }]],
+  ['tv: never built', 'tvProblems', [{ file: R, from: "if (opt.display === 'tv') pages['tv/index.html']", to: "if (false) pages['tv/index.html']" }]],
+  ['tv: Lead rotates with the stations', 'tvProblems', [{ file: R, from: 'const own = stations.filter((s) => !isLeadStation(s));', to: 'const own = stations;' }]],
+  ['tv: a count on the board', 'tvProblems', [{ file: R, from: '<h2 id="tv-${i}">${esc(s.title)}</h2>', to: '<h2 id="tv-${i}">${esc(s.title)}</h2>${s.report ? `<p>${s.report.distinctScanners} scanners</p>` : \'\'}' }]],
+  ['tv: every event on one panel', 'tvProblems', [{ file: R, from: 'const TV_EVENTS = 2;', to: 'const TV_EVENTS = 9;' }]],
+  ['tv: a panel gone before it can be read', 'tvProblems', [{ file: R, from: 'return Math.max(14, Math.ceil(3 + (words / 100) * 60 + 2));', to: 'return 8;' }]],
+  ['tv: a touch holds for 5 seconds', 'tvProblems', [{ file: R, from: 'export const HOLD_SECONDS = 20;', to: 'export const HOLD_SECONDS = 5;' }]],
+  ['tv: no Pause button', 'tvProblems', [{ file: R, from: '<button type="button" class="tv-pause" aria-pressed="false" hidden>Pause</button>', to: '' }]],
+  ['tv: a key does not hold the panel', 'tvProblems', [{ file: R, from: 'document.addEventListener("keydown", hold);', to: '' }]],
+  ['tv: reduced motion still rotates', 'tvProblems', [{ file: R, from: 'if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;', to: '' }]],
+  ['tv: a hidden panel still shows', 'tvProblems', [{ file: R, from: '.panel[hidden] { display: none; }', to: '' }]],
+  // Partners (S9)
+  ['sponsors: the strip above the event title', 'sponsorProblems', [
+    { file: R, from: "          ${row('When', whenText(event, link))}\n          ${sponsorStrip(sponsors, codes)}", to: "          ${row('When', whenText(event, link))}" },
+    { file: R, from: '          <h3 id="ev-${i}">${esc(event.title)}</h3>', to: '          ${sponsorStrip(sponsors, codes)}\n          <h3 id="ev-${i}">${esc(event.title)}</h3>' },
+  ]],
+  ['sponsors: the strip below the content', 'sponsorProblems', [
+    { file: R, from: "          ${row('When', whenText(event, link))}\n          ${sponsorStrip(sponsors, codes)}", to: "          ${row('When', whenText(event, link))}" },
+    { file: R, from: "          ${row('How', event.howDetails)}", to: "          ${row('How', event.howDetails)}\n          ${sponsorStrip(sponsors, codes)}" },
+  ]],
+  ['sponsors: never shown', 'sponsorProblems', [{ file: R, from: "if (!sponsors.length) return '';\n  const code = sponsorCode(codes);", to: "if (sponsors.length < 99) return '';\n  const code = sponsorCode(codes);" }]],
+  ['sponsors: a past event read', 'sponsorProblems', [{ file: O, from: 'if (!isPast(event, now)) {', to: 'if (true) {' }]],
+  ['sponsors: not the public surface', 'sponsorProblems', [{ file: O, from: '/sponsor-bundle?surface=public`);', to: '/sponsor-bundle`);' }]],
+  ['sponsors: the whole row kept', 'sponsorProblems', [{ file: O, from: 'out.push({ id, title, campaign });', to: 'out.push({ ...s, id, title, campaign });' }]],
+  ['sponsors: linked to its website', 'sponsorProblems', [
+    { file: O, from: 'out.push({ id, title, campaign });', to: 'out.push({ id, title, campaign, website_url: s.website_url });' },
+    { file: R, from: 'code ? `<a href="${esc(code.url)}">About ${sponsors.length > 1', to: 'sponsors[0].website_url ? `<a href="${esc(sponsors[0].website_url)}">About ${sponsors.length > 1' },
+  ]],
+  ['sponsors: a click beacon on the link', 'sponsorProblems', [{ file: R, from: 'code ? `<a href="${esc(code.url)}">About ${sponsors.length > 1', to: 'code ? `<a href="${esc(code.url)}" ping="/api/v2/events/x/sponsors/${esc(sponsors[0].id)}/click">About ${sponsors.length > 1' }]],
+  ['sponsors: any /s/ code taken for the SPONSOR code', 'sponsorProblems', [{ file: R, from: "codes.find((k) => k.kind === 'sponsor') ?? null;", to: "codes.find((k) => k.kind !== 'track') ?? null;" }]],
+  ['sponsors: a sponsor as a button', 'sponsorProblems', [{ file: R, from: '.map((s) => `<span class="backer">${esc(s.title)}</span>`)', to: '.map((s) => `<button type="button" class="backer">${esc(s.title)}</button>`)' }]],
+  ['sponsors: a failed bundle passes', 'sponsorProblems', [{ file: O, from: 'if (backing.status !== 200 || !Array.isArray(backing.body?.bundle?.sponsors)) {', to: 'if (false) {' }]],
+  ['sponsors: names unchecked', 'sponsorProblems', [{ file: O, from: 'for (const s of sponsors) problems.push(', to: 'for (const s of []) problems.push(' }]],
+  ['sponsors: a campaign title unchecked', 'sponsorProblems', [{ file: O, from: "`${s.title} ${s.campaign?.title ?? ''}`, terms));", to: '`${s.title}`, terms));' }]],
+  ['escaping: a sponsor name unescaped', 'escapingProblems', [{ file: R, from: '.map((s) => `<span class="backer">${esc(s.title)}</span>`)', to: '.map((s) => `<span class="backer">${s.title}</span>`)' }]],
+  ['escaping: a campaign title unescaped', 'escapingProblems', [{ file: R, from: '<span class="muted">· ${esc(campaign.title)}</span>', to: '<span class="muted">· ${campaign.title}</span>' }]],
+  ['read only: a click beacon posted to OSE', 'readOnlyProblems', [{ file: O, from: '        sponsors = sponsorsFromBundle(backing.body.bundle);', to: "        sponsors = sponsorsFromBundle(backing.body.bundle);\n        for (const s of sponsors) await f(`${origin}/api/v2/events/${link.oseEventId}/sponsors/${s.id}/impression`, { method: 'GET' }).catch(() => null);" }]],
+  ['partner: once per event, not once per station', 'partnerProblems', [{ file: R, from: 'if (sp.campaign?.id !== link.oseCampaignId || seen.has(key)) continue;', to: 'if (sp.campaign?.id !== link.oseCampaignId) continue;' }]],
+  ['partner: any sponsor on the station', 'partnerProblems', [{ file: R, from: 'if (sp.campaign?.id !== link.oseCampaignId || seen.has(key)) continue;', to: 'if (seen.has(key)) continue;' }]],
+  ['partner: every frequency, not the one named', 'partnerProblems', [{ file: R, from: '(c.campaigns ?? []).filter((k) => onStation(k, s.id))', to: '(c.campaigns ?? [])' }]],
+  ['partner: shown without a campaign link', 'partnerProblems', [{ file: R, from: 'for (const link of (c.campaigns ?? []).filter((k) => onStation(k, s.id))) {', to: "for (const link of [{ frequency: s.id, oseCampaignId: 'cmp_sample_wear' }].filter((k) => s.id === 'wear')) {" }]],
+  ['partner: below the events', 'partnerProblems', [
+    { file: R, from: "    ${partnerList(s, stationPartners(c, s, schedule.upcoming))}\n", to: '' },
+    { file: R, from: '  <section aria-labelledby="report-title" class="station-report">', to: '  ${partnerList(s, stationPartners(c, s, schedule.upcoming))}\n  <section aria-labelledby="report-title" class="station-report">' },
+  ]],
+  ['partner: the campaign not named', 'partnerProblems', [{ file: R, from: "${campaign?.title ? ` <span class=\"muted\">· ${esc(campaign.title)}</span>` : ''}", to: '' }]],
+  ['partner: a link on the TV board', 'partnerProblems', [{ file: R, from: 'partnerList(s, stationPartners(c, s, schedule.upcoming), { links: false })', to: 'partnerList(s, stationPartners(c, s, schedule.upcoming))' }]],
+  ['partner: missing from the TV board', 'partnerProblems', [{ file: R, from: '      ${partnerList(s, stationPartners(c, s, schedule.upcoming), { links: false })}\n', to: '' }]],
+  // Overlap (owner, 2026-11-13)
+  ['overlap: also ignored, one station only', 'overlapProblems', [{ file: SH, from: 'link.frequency === id || (link.also ?? []).includes(id);', to: 'link.frequency === id;' }]],
+  ['overlap: codes shown again away from home', 'overlapProblems', [{ file: R, from: 'const away = isLead || (here !== null && link.frequency !== here);', to: 'const away = isLead;' }]],
+  ['overlap: away everywhere, codes nowhere', 'overlapProblems', [{ file: R, from: 'const away = isLead || (here !== null && link.frequency !== here);', to: 'const away = true;' }]],
+  ['overlap: the TV board sends viewers elsewhere for codes', 'overlapProblems', [{ file: R, from: "eventCard(x, `tv-${i}-${k}`, { isLead: false, byId })", to: "eventCard(x, `tv-${i}-${k}`, { isLead: false, byId, here: s.id })" }]],
+  ['overlap: the front page names one station', 'overlapProblems', [{ file: R, from: "${(link.also ?? []).map((id) => `, <a href=\"${esc(id)}/index.html\">${esc(byId[id]?.name ?? id)}</a>`).join('')}", to: '' }]],
+  ['overlap: a borrowed class held to the wrong slots', 'overlapProblems', [{ file: SH, from: "if (link.intent !== 'programme' || isLead || link.frequency !== station.id) continue;", to: "if (link.intent !== 'programme' || isLead) continue;" }]],
+  ['overlap: a borrowed class under On air', 'overlapProblems', [{ file: SH, from: "link.intent === 'programme' && link.frequency === station.id && slotMatches(slot, event)", to: "link.intent === 'programme' && slotMatches(slot, event)" }]],
+  ['overlap: a campaign on its own station only', 'overlapProblems', [{ file: R, from: '(c.campaigns ?? []).filter((k) => onStation(k, s.id))', to: '(c.campaigns ?? []).filter((k) => k.frequency === s.id)' }]],
+  ['overlap: an unknown station accepted', 'overlapProblems', [{ file: SC, from: "if (!ids.has(id)) out.push(`${where}: also", to: "if (false) out.push(`${where}: also" }]],
+  ['overlap: Lead accepted in also', 'overlapProblems', [{ file: SC, from: 'else if (leadIds.has(id)) out.push(', to: 'else if (false) out.push(' }]],
+  ['overlap: its own station accepted in also', 'overlapProblems', [{ file: SC, from: 'else if (id === link.frequency) out.push(', to: 'else if (false) out.push(' }]],
+  ['overlap: a station listed twice accepted', 'overlapProblems', [{ file: SC, from: 'if (listed.indexOf(id) !== k) out.push(', to: 'if (false) out.push(' }]],
+  ['overlap: an event linked twice accepted', 'overlapProblems', [{ file: SC, from: 'if (seen.has(e.oseEventId)) problems.push(', to: 'if (false) problems.push(' }]],
+  ['overlap: campaigns unchecked', 'overlapProblems', [{ file: SC, from: "problems.push(...alsoProblems(`campaigns.${i}`, c));", to: '' }]],
+  ['overlap: a borrowing station needs no why', 'overlapProblems', [{ file: SC, from: 'for (const id of e.also ?? []) if (ids.has(id)) onAir.add(id);', to: '' }]],
+  // Calendar feed (S8 follow-up)
+  ['calendar: listed whatever OSE answered', 'calendarProblems', [{ file: O, from: "const feed = res?.status === 200 ? await res.text().catch(() => '') : '';\n    if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {", to: "const feed = res ? await res.text().catch(() => '') : '';\n    if (true) {" }]],
+  ['calendar: any 200 taken for a feed', 'calendarProblems', [{ file: O, from: 'if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {', to: 'if (feed) {' }]],
+  ['calendar: a missing feed stops the build', 'calendarProblems', [{ file: O, from: 'if (/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) {', to: "if (!/^BEGIN:VCALENDAR\\r?\\n/.test(feed)) throw new Error('no calendar feed');\n    {" }]],
+  ['calendar: never listed', 'calendarProblems', [{ file: O, from: 'calendar = `${origin}${path}`;', to: 'calendar = null;' }]],
+  ['calendar: its text unchecked', 'calendarProblems', [{ file: O, from: "problems.push(...neutralProblems('the calendar feed', lines, terms));", to: '' }]],
+  ['calendar: folded lines not joined', 'calendarProblems', [{ file: O, from: "feed.replace(/\\r?\\n[ \\t]/g, '')", to: 'feed' }]],
+  ['calendar: a tracking parameter added', 'calendarProblems', [{ file: R, from: '<p class="calendar"><a href="${esc(calendar)}">', to: '<p class="calendar"><a href="${esc(calendar)}?utm_source=ourwkrp">' }]],
+  ['calendar: any URL drawn', 'calendarProblems', [{ file: R, from: 'if (!calendar || !CALENDAR_URL.test(calendar)) return', to: 'if (!calendar) return' }]],
+  ['calendar: on every station page', 'calendarProblems', [
+    { file: R, from: 'function stationPage({ c, s, stations, schedule, theme, built, byId, opt }) {', to: 'function stationPage({ c, s, stations, schedule, theme, built, byId, opt, calendar }) {' },
+    { file: R, from: "pages[`${s.id}/index.html`] = stationPage({ c, s,", to: "pages[`${s.id}/index.html`] = stationPage({ calendar: ose.calendar, c, s," },
+    { file: R, from: "    ${partnerList(s, stationPartners(c, s, schedule.upcoming))}\n", to: "    ${partnerList(s, stationPartners(c, s, schedule.upcoming))}\n    ${calendarLine(calendar)}\n" },
+  ]],
+  ['calendar: read for a creator with no events', 'calendarProblems', [
+    { file: O, from: "if (!links.length) return { origin, linked: [], dropped: [], calendar: null };", to: '' },
+    { file: O, from: '  if (linked.length) {\n    await paced();\n    const path = calendarPath', to: '  if (true) {\n    await paced();\n    const path = calendarPath' },
+  ]],
+  ["placements: a station's own labels ignored", 'placementLabelProblems', [{ file: S, from: "(event.placements?.length ? event.placements : SHAPES[event.demo].placements)", to: "SHAPES[event.demo].placements" }]],
+  ['wording: "the creator" is back', 'instanceWordingProblems', [{ file: R, from: "${esc(c.name)} sees all of it.", to: "The creator sees all of it." }]],
+  ['wording: the fixed list of kinds is back', 'instanceWordingProblems', [{ file: R, from: "for this week's ${esc(orList(kinds))}.", to: "for this week's class, set or game night." }]],
+  ['wording: the consent rule names nobody', 'instanceWordingProblems', [{ file: R, from: "and ${esc(c.name)} has accepted.", to: "and the other side has accepted." }]],
+  ['wording: an instance with no kinds reads nothing', 'instanceWordingProblems', [{ file: R, from: "eventKinds(c).length ? eventKinds(c) : ['event']", to: "eventKinds(c)" }]],
+  ['wording: kinds read from every station but the first', 'instanceWordingProblems', [{ file: R, from: "const kinds = creator.stations.flatMap(", to: "const kinds = creator.stations.slice(1).flatMap(" }]],
   ['unit: totals ignore an hour of exactly 5', 'totalProblems', [{ file: S, from: 'filter((n) => n >= FLOOR)', to: 'filter((n) => n > FLOOR)' }]],
   ['unit: hours all get the first count', 'bucketProblems', [{ file: S, from: 'n: shape.counts[i]', to: 'n: shape.counts[0]' }]],
   ['unit: the pacer never waits', 'pacingProblems', [{ file: S, from: 'if (stamps.length >= perMinute) {', to: 'if (false) {' }]],
@@ -84,10 +197,10 @@ const MUTANTS_LIST = [
   ['slots: times read in UTC', 'slotProblems', [{ file: SH, from: "const when = eventWhen(ev, slot.timezone || ev.timezone || 'UTC');", to: "const when = eventWhen(ev, 'UTC');" }]],
   ['slots: midnight reads 0 am', 'slotProblems', [{ file: SH, from: 'h % 12 === 0 ? 12 : h % 12', to: 'h % 12' }]],
   ['time: today reads as past', 'timeProblems', [{ file: SH, from: 'return last < todayIn(', to: 'return last <= todayIn(' }]],
-  ['intents: a trial under On air', 'intentProblems', [{ file: SH, from: "link.intent === 'programme' && slotMatches(slot, event)", to: 'slotMatches(slot, event)' }]],
+  ['intents: a trial under On air', 'intentProblems', [{ file: SH, from: "link.intent === 'programme' && link.frequency === station.id && slotMatches(slot, event)", to: 'slotMatches(slot, event)' }]],
   ['intents: a programme off its slots accepted', 'intentProblems', [{ file: SH, from: 'if (!own.length) problems.push(', to: 'if (false) problems.push(' }]],
   ['intents: a mode unlike its slot accepted', 'intentProblems', [{ file: SH, from: 'if (s.mode !== event.attendanceMode) problems.push(', to: 'if (false) problems.push(' }]],
-  ['frequency: every event on every station', 'intentProblems', [{ file: SH, from: 'isLead || link.frequency === station.id', to: 'true' }]],
+  ['frequency: every event on every station', 'intentProblems', [{ file: SH, from: 'isLead || onStation(link, station.id)', to: 'true' }]],
   ['order: latest first', 'intentProblems', [{ file: SH, from: '(a, b) => sortKey(a.event).localeCompare(sortKey(b.event));', to: '(a, b) => sortKey(b.event).localeCompare(sortKey(a.event));' }]],
   ['past: a moved programme blocks the build on past events', 'intentProblems', [{ file: SH, from: 'for (const { link, event } of upcoming) {', to: 'for (const { link, event } of mine) {' }]],
   ['why: only the next programme event reads its slot purpose', 'slotWhyProblems', [{ file: R, from: 'const slot = byId[link.frequency] ? slotOf(', to: 'const slot = i === 0 && byId[link.frequency] ? slotOf(' }]],
@@ -122,6 +235,9 @@ describe('creator showcase: born red', () => {
     lost.reports[1].scansSent = 18;
     expect(reportProblems(creator, lost).join('\n')).toMatch(/wear: 18 of 21 scans counted/);
     const named = structuredClone(good);
+    const mislabelled = structuredClone(good);
+    mislabelled.reports[1].placements = ['Table card', 'Garment tag'];
+    expect(reportProblems(creator, mislabelled).join('\n')).toMatch(/wear: codes hung under "Table card, Garment tag", want "Table card, Stall sign"/);
     named.reports[0].pageText = 'Checked in: planted.person@example.com';
     expect(reportProblems(creator, named).join('\n')).toMatch(/email address/);
   });
@@ -131,13 +247,22 @@ describe('creator showcase: born red', () => {
     const pages = await C.samplePages(m);
     const urls = [...new Set(Object.values(pages).flatMap((h) => [...h.matchAll(/data-code-url="([^"]*)"/g)].map((x) => x[1])))];
     const resolved = urls.map((url) => ({ url, status: 302, location: `${C.FAKE_ORIGIN}/events/evt_sample-0001` }));
-    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW)).toEqual([]);
     const lostCard = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('<article class="event"', '<article class="gone"') };
-    expect(oseVerdictProblems(plan(), C.sample(), lostCard, resolved, C.NOW).join('\n')).toMatch(/teach: 2 event cards, want 3/);
+    expect(oseVerdictProblems(plan(), C.sample(), lostCard, resolved, C.NOW, { campaigns: true }).join('\n')).toMatch(/teach: 3 event cards, want 4/);
     const draftShown = { ...pages, 'teach/index.html': `${pages['teach/index.html']}<h3>Draft class (showcase demo)</h3>` };
     expect(oseVerdictProblems(plan(), C.sample(), draftShown, resolved, C.NOW).join('\n')).toMatch(/evt_sample-0007: "Draft class/);
     const dead = resolved.map((r, i) => (i === 0 ? { ...r, status: 404 } : r));
     expect(oseVerdictProblems(plan(), C.sample(), pages, dead, C.NOW).join('\n')).toMatch(/answered 404/);
+    // The fake names campaigns in its bundle, so the wear partner is expected.
+    const withCampaigns = { campaigns: true };
+    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, withCampaigns)).toEqual([]);
+    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW).join('\n')).toMatch(/wear: station partners "Corner hardware \(showcase demo\)", want ""/);
+    const oneSided = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('Print shop (showcase demo)</span>', 'Print shop (showcase demo)</span>, <span class="backer">Waiting cafe (showcase demo)</span>') };
+    expect(oseVerdictProblems(plan(), C.sample(), oneSided, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/sponsor "Waiting cafe \(showcase demo\)" reached a page/);
+    const lostStrip = { ...pages, 'wear/index.html': pages['wear/index.html'].replace('<p class="backers">', '<p class="gone">') };
+    expect(oseVerdictProblems(plan(), C.sample(), lostStrip, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/wear: sponsor strips/);
+    const lostPartner = { ...pages, 'wear/index.html': pages['wear/index.html'].replace('<ul class="partners"', '<ul class="gone"') };
+    expect(oseVerdictProblems(plan(), C.sample(), lostPartner, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/wear: station partners "", want "Corner hardware/);
     const toForm = resolved.map((r, i) => (i === 1 ? { ...r, location: `${C.FAKE_ORIGIN}/events/evt_x/forms/checkin` } : r));
     expect(oseVerdictProblems(plan(), C.sample(), pages, toForm, C.NOW).join('\n')).toMatch(/not to the event/);
   });

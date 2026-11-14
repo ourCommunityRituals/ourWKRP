@@ -5,7 +5,12 @@
       "ref": "evt_sample-0001", "placementRef": "pd_sample0001",
       "title": "Evening class (showcase demo)", "on": { "weekday": "thursday", "weeks": 1 }, "time": "18:00", "timezone": "America/Chicago",
       "what_short": "A short practical class.", "how_details": "Join online from the class page.",
-      "codes": [{ "kind": "website", "target_url": "https://example.net/class" }, { "kind": "checkin" }]
+      "codes": [{ "kind": "website", "target_url": "https://example.net/class" }, { "kind": "checkin" }],
+      "sponsors": [
+        { "id": "sb_sample02", "name": "Print shop (showcase demo)" },
+        { "id": "sb_sample03", "name": "Waiting cafe (showcase demo)", "organizerAccepted": false },
+        { "id": "sb_sample04", "name": "Unsure bakery (showcase demo)", "sponsorAccepted": false }
+      ]
     },
     {
       "ref": "evt_sample-0002", "placementRef": "pd_sample0002",
@@ -22,18 +27,21 @@
     {
       "ref": "evt_sample-0004", "placementRef": "pd_sample0004",
       "title": "Evening class (showcase demo)", "on": { "weekday": "thursday", "weeks": -1 }, "time": "18:00", "timezone": "America/Chicago",
-      "what_short": "A short practical class, already held."
+      "what_short": "A short practical class, already held.",
+      "sponsors": [{ "id": "sb_sample05", "name": "Last week's partner (showcase demo)" }]
     },
     {
       "ref": "evt_sample-0005", "placementRef": "pd_sample0005",
       "title": "Table at a weekend market (showcase demo)", "on": { "weekday": "saturday", "weeks": 1 }, "time": "12:00", "timezone": "America/Chicago",
       "what_short": "Made goods on a table for the afternoon.", "where_address": "100 Market Street, Springfield",
-      "codes": [{ "kind": "tickets", "target_url": "https://example.net/table" }]
+      "codes": [{ "kind": "tickets", "target_url": "https://example.net/table" }, { "kind": "sponsor", "target_url": "https://example.net/partners" }],
+      "sponsors": [{ "id": "sb_sample01", "name": "Corner hardware (showcase demo)", "campaign": { "id": "cmp_sample_wear", "title": "Winter tables (showcase demo)" } }]
     },
     {
       "ref": "evt_sample-0006",
       "title": "Launch evening (showcase demo)", "on": { "weekday": "friday", "weeks": 2 }, "time": "19:00", "timezone": "America/Chicago",
-      "what_short": "One evening to launch a new range.", "where_address": "200 Main Street, Springfield"
+      "what_short": "One evening to launch a new range.", "where_address": "200 Main Street, Springfield",
+      "sponsors": [{ "id": "sb_sample01", "name": "Corner hardware (showcase demo)", "campaign": { "id": "cmp_sample_wear", "title": "Winter tables (showcase demo)" } }]
     },
     {
       "ref": "evt_sample-0007",

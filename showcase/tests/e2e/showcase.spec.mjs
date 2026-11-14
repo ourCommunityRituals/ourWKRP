@@ -4,7 +4,14 @@ import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 const STATIONS = ['teach', 'wear', 'lead'];
-const PAGES = [['the creator page', '/index.html'], ...STATIONS.map((s) => [`the ${s} page`, `/${s}/index.html`])];
+// The default site, then the layout and display menu's variants (tests/e2e/build-site.mjs).
+const SITES = ['', '/list', '/grid'];
+const PAGES = SITES.flatMap((site) => [
+  [`${site || 'default'}: the creator page`, `${site}/index.html`, site],
+  ...STATIONS.map((s) => [`${site || 'default'}: the ${s} page`, `${site}/${s}/index.html`, site]),
+]);
+PAGES.push(['/list: the TV board', '/list/tv/index.html', '/list']);
+const isTv = (path) => path.endsWith('/tv/index.html');
 
 async function open(page, path) {
   const errors = [];
@@ -14,7 +21,7 @@ async function open(page, path) {
   expect(errors, 'page script errors').toEqual([]);
 }
 
-for (const [name, path] of PAGES) {
+for (const [name, path, site] of PAGES) {
   test.describe(name, () => {
     test.beforeEach(async ({ page }) => open(page, path));
 
@@ -41,16 +48,17 @@ for (const [name, path] of PAGES) {
     });
 
     test('the tuner links every station, and marks this one', async ({ page }) => {
+      test.skip(isTv(path), 'a TV board has no tuner: nobody taps a wall');
       const links = page.locator('.channels a.ch');
       await expect(links).toHaveCount(STATIONS.length);
       const current = page.locator('.channels a[aria-current="page"]');
-      if (path === '/index.html') await expect(current).toHaveCount(0);
-      else await expect(current).toHaveAttribute('href', `..${path}`);
+      if (path === `${site}/index.html`) await expect(current).toHaveCount(0);
+      else await expect(current).toHaveAttribute('href', `..${path.slice(site.length)}`);
     });
 
     test('every tap target outside running text is at least 44 px tall', async ({ page }) => {
       const small = await page.evaluate(() =>
-        [...document.querySelectorAll('.ch, .back, .code a, .places a, .ledger li a, .event p a')]
+        [...document.querySelectorAll('.ch, .back, .code a, .places a, .ledger li a, .event p a, .tv-pause')]
           .map((el) => ({ text: el.textContent.trim().slice(0, 40), h: Math.round(el.getBoundingClientRect().height) }))
           .filter((x) => x.h > 0 && x.h < 44),
       );
@@ -106,4 +114,140 @@ test('Lead shows every frequency and sends codes to their station pages', async 
   await expect(page.locator('article.event')).toHaveCount(5);
   await expect(page.locator('figure.code')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Codes on the Wear page' }).first()).toHaveAttribute('href', '../wear/index.html');
+});
+
+// ── S9: partners, and the brand's calendar feed ──────────────────────────────
+
+test('a station names its campaign partner once at the top, and each event its consented sponsors', async ({ page }) => {
+  await open(page, '/wear/index.html');
+  const partners = page.getByRole('list', { name: 'Partners backing Wear' });
+  await expect(partners.getByRole('listitem')).toHaveCount(1);
+  await expect(partners).toContainText('Corner hardware (showcase demo)');
+  await expect(partners).toContainText('Winter tables (showcase demo)');
+  await expect(partners.getByRole('link')).toHaveAttribute('href', /\/s\/Sp0005$/);
+  const strips = page.locator('article.event p.backers');
+  await expect(strips).toHaveCount(2);
+  // No control on the page carries a sponsor: nothing to filter, search or sort by.
+  await expect(page.locator('input, select, button, form')).toHaveCount(0);
+  await open(page, '/teach/index.html');
+  await expect(page.locator('ul.partners')).toHaveCount(0);
+  await expect(page.locator('article.event p.backers')).toHaveText(['Backed byPrint shop (showcase demo)', 'Backed byCorner hardware (showcase demo)']);
+});
+
+test('an event on two stations shows on both: its codes at home, a link to them elsewhere', async ({ page }) => {
+  await open(page, '/wear/index.html');
+  const home = page.locator('article.event', { hasText: 'Launch evening (showcase demo)' });
+  await expect(home).toHaveCount(1);
+  await expect(home.locator('figure.code')).not.toHaveCount(0);
+  await open(page, '/teach/index.html');
+  const guest = page.locator('article.event', { hasText: 'Launch evening (showcase demo)' });
+  await expect(guest).toHaveCount(1);
+  await expect(guest.locator('figure.code')).toHaveCount(0);
+  await guest.getByRole('link', { name: 'Codes on the Wear page' }).click();
+  await expect(page).toHaveURL(/\/wear\/index\.html$/);
+});
+
+test('the creator page links the calendar feed as a plain link', async ({ page }) => {
+  await open(page, '/index.html');
+  await expect(page.getByRole('link', { name: 'Every date as a calendar feed' })).toHaveAttribute('href', /\/brands\/showcase-sample\/calendar\.ics$/);
+});
+
+// ── S10: the layout and display menu ─────────────────────────────────────────
+
+test('the list layout is a column of stations with no dial, soonest station first', async ({ page }) => {
+  await open(page, '/list/index.html');
+  await expect(page.locator('svg.dial')).toHaveCount(0);
+  await expect(page.locator('.channels.list a.ch')).toHaveCount(STATIONS.length);
+  const boxes = await page.locator('.channels.list a.ch').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => [Math.round(r.left), Math.round(r.top)]));
+  expect(new Set(boxes.map((b) => b[0])).size, 'one column').toBe(1);
+  expect(boxes.map((b) => b[1])).toEqual([...boxes.map((b) => b[1])].sort((a, b) => a - b));
+  await expect(page.locator('.channels.list a.ch').first()).toContainText('Teach');
+  await expect(page.locator('.channels.list a.ch').first()).toContainText('Evening workshops');
+});
+
+test('the grid layout is cards, and a card opens its station', async ({ page }) => {
+  await open(page, '/grid/index.html');
+  await expect(page.locator('svg.dial')).toHaveCount(0);
+  await page.locator('.channels.grid a.ch', { hasText: 'Wear' }).click();
+  await expect(page).toHaveURL(/\/grid\/wear\/index\.html$/);
+  await expect(page.locator('.channels.grid a[aria-current="page"]')).toContainText('Wear');
+});
+
+test('a hidden section is gone, and the others stay', async ({ page }) => {
+  await open(page, '/list/index.html');
+  await expect(page.locator('#scatter-title')).toHaveCount(0);
+  await expect(page.locator('#reports-title')).toHaveCount(1);
+  await expect(page.locator('#now-title')).toHaveCount(1);
+  await open(page, '/grid/index.html');
+  await expect(page.locator('#scatter-title')).toHaveCount(1);
+  await expect(page.locator('#now-title')).toHaveCount(0);
+  await expect(page.locator('#reports-title')).toHaveText('Reports');
+});
+
+// ── S11: the TV board ────────────────────────────────────────────────────────
+
+const visiblePanels = (page) => page.locator('.panel:visible');
+
+test('the TV board shows one station at a time and moves on by itself', async ({ page }) => {
+  await page.clock.install();
+  await open(page, '/list/tv/index.html');
+  await expect(page.locator('.panel')).toHaveCount(2);
+  await expect(visiblePanels(page)).toHaveCount(1);
+  const first = await visiblePanels(page).locator('h2').textContent();
+  const dwell = Number(await visiblePanels(page).getAttribute('data-dwell'));
+  expect(dwell).toBeGreaterThanOrEqual(14);
+  await expect(page.locator('.tv-left')).toHaveText(`Next in ${dwell} s`);
+  await page.clock.runFor((dwell - 1) * 1000);
+  await expect(visiblePanels(page).locator('h2')).toHaveText(first);
+  await page.clock.runFor(1000);
+  await expect(visiblePanels(page)).toHaveCount(1);
+  await expect(visiblePanels(page).locator('h2')).not.toHaveText(first);
+});
+
+test('a key holds the TV panel for 20 seconds, with the time left on screen', async ({ page }) => {
+  await page.clock.install();
+  await open(page, '/list/tv/index.html');
+  const first = await visiblePanels(page).locator('h2').textContent();
+  const dwell = Number(await visiblePanels(page).getAttribute('data-dwell'));
+  await page.keyboard.press('Shift');
+  await expect(page.locator('.tv-left')).toHaveText('Holding for 20 s');
+  await page.clock.runFor(19_000);
+  await expect(page.locator('.tv-left')).toHaveText('Holding for 1 s');
+  // The hold is over only after its 20 s; the panel then still has its whole dwell.
+  await page.clock.runFor((dwell - 1) * 1000);
+  await expect(visiblePanels(page).locator('h2')).toHaveText(first);
+});
+
+test('Pause stops the TV board until Resume', async ({ page }) => {
+  await page.clock.install();
+  await open(page, '/list/tv/index.html');
+  const first = await visiblePanels(page).locator('h2').textContent();
+  const pause = page.getByRole('button', { name: 'Pause' });
+  await expect(pause).toBeVisible();
+  await pause.click();
+  await expect(page.getByRole('button', { name: 'Resume' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.tv-left')).toHaveText('Paused');
+  await page.clock.runFor(300_000);
+  await expect(visiblePanels(page).locator('h2')).toHaveText(first);
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await page.clock.runFor(120_000);
+  await expect(visiblePanels(page)).toHaveCount(1);
+});
+
+test('with reduced motion the TV board does not rotate: every panel shows', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.clock.install();
+  await open(page, '/list/tv/index.html');
+  await page.clock.runFor(120_000);
+  await expect(visiblePanels(page)).toHaveCount(2);
+  await expect(page.locator('.tv-pause')).toBeHidden();
+});
+
+test('the TV board shows codes and no report or count', async ({ page }) => {
+  await open(page, '/list/tv/index.html');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.reload();
+  expect(await page.locator('figure.code').count()).toBeGreaterThan(0);
+  await expect(page.locator('figure.shot, img, table')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText(/scanners|Fewer than/);
 });

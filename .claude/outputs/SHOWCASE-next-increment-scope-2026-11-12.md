@@ -122,7 +122,8 @@ What is missing, and where each piece should go:
 
 Confirmed by the owner, 2026-11-12: the station's frequency (Teach 89.1, Sound 97.3, and so on) is what places an event or a campaign, and each frequency has its own purpose and schedule. Each frequency makes **all** of its events and campaigns available, not one demo event each.
 
-- **Every event and every campaign has one frequency**, chosen when it is made, just as online or in person is. An event also has an intent: one-off, pop-up, programme or trial (see "Four kinds of event" below).
+- **Changed by the owner, 2026-11-13: stations and frequencies "mean nothing" and "there will be overlap".** They are a playful marketing vehicle, hyperbolic on purpose, and never at the cost of function ("ALWAYS Function over fashion"; "This not a joke. This is just being playful"). So an event or a campaign has one home frequency, where its codes and its programme slot live, and may also show on others (`also` in the creator file). The earlier line read "Every event and every campaign has one frequency"; that part is withdrawn.
+- **Every event and every campaign has a home frequency**, chosen when it is made, just as online or in person is. An event also has an intent: one-off, pop-up, programme or trial (see "Four kinds of event" below).
   OW keeps the link, because OSE knows brands and events but not stations: `events: [{ frequency, oseEventId }]` and `campaigns: [{ frequency, oseCampaignId }]` in the creator file now, and an OW table later (the same shape as `dj_sets.event_id`).
   An OW creation flow (later, with S6) asks for the frequency and writes the OSE record and the OW link together.
 - **The frequency decides where it shows.**

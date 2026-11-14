@@ -27,7 +27,7 @@ This folder is the **container**. It holds no real creator.
 
 - `work/<slug>/reports.json` holds signed SharedReport links. It is git-ignored and never published.
 - `local-ose.env.json` holds the throwaway local admin key. It is git-ignored.
-- `out/<slug>/` is the only publishable folder: `index.html`, `<station>/index.html` per station, a public `reports.json` (counts and image paths only) and `img/`. Share it as a folder or a zip. The build refuses to write it if any text in it carries a signed link, a key, a token, an email address, an anonymous cookie or an id, or if any code on it is not an OSE `/q` or `/s` URL.
+- `out/<slug>/` is the only publishable folder: `index.html`, `<station>/index.html` per station, `tv/index.html` when the file asks for the TV board, a public `reports.json` (counts and image paths only) and `img/`. Share it as a folder or a zip. The build refuses to write it if any text in it carries a signed link, a key, a token, an email address, an anonymous cookie or an id, or if any code on it is not an OSE `/q` or `/s` URL.
 - Seeding and capture refuse any worker that is not `127.0.0.1` or `localhost`. The build reads OSE's public API only (GET, no key), from a local worker or OSE staging, never production.
 - Until the creator agrees, OSE carries neutral text only. The build stops if anything it reads from OSE names her, a name in `privateNames`, a place or one of her links.
 - Place links are plain: shown exactly as the creator file gives them, never counted.
@@ -42,10 +42,65 @@ Version 1 files still validate. Version 2 adds, all optional:
 | `stations[].why` | The frequency's purpose. Required once it has events or a programme. |
 | `stations[].programme[]` | Slots: `cadence` (daily-weekdays, weekly, biweekly, monthly, as-announced), `day`, `week` (monthly), `time`, `timezone`, `mode` (online, in_person, both), `kind` (one of the category's `eventKinds`), `purpose`. |
 | `oseBrand` | The OSE brand the events live on (never `root`). |
-| `events[]` | `{ frequency, oseEventId, intent, placement?, until? }`. `frequency` is a station id; `intent` is one-off, pop-up, programme or trial; `placement` is the showcase placement (its `/q` code); `until` ends a pop-up's window (OSE events have no end time). |
-| `campaigns[]` | `{ frequency, oseCampaignId }`. Validated now; shown once OSE serves campaigns (S14, S9). |
+| `events[]` | `{ frequency, also?, oseEventId, intent, placement?, until? }`. `frequency` is the station the event lives on; `also` lists other stations it shows on (see Overlap); `intent` is one-off, pop-up, programme or trial; `placement` is the showcase placement (its `/q` code); `until` ends a pop-up's window (OSE events have no end time). |
+| `campaigns[]` | `{ frequency, oseCampaignId }`. The campaign's partner shows once at the top of that station, only when OSE's public sponsor bundle lists a sponsor under that campaign on one of the station's upcoming events (OSE S14). Lead takes a whole-dial campaign. |
+| `stations[].event.placements[]` | 1 to 4 short labels (40 characters each) for where a demo event's codes hung, in the instance's own words. Absent: the demo size's labels. |
+| `layout` | How the stations are laid out: `dial` (the default), `list` (a column) or `grid` (cards). List and grid draw no dial and show each station's title. |
+| `stationOrder` | `file` (the default: the file's order) or `next-event` (soonest next event first; a station with nothing upcoming after those; Lead last). |
+| `sections` | Switches, each `true` or `false`, all shown by default: `values`, `scatter` ("Where the work lives"), `reports`, `schedule`, `sources`. `sources: false` is refused while the file lists any source. |
+| `display` | `page` (the default) or `tv`: also build `tv/index.html`, a board for a screen in the room. |
 | `privateNames[]` | Other names she or her ventures go by. Never shown; kept out of OSE text. |
 | `schedule.rows[]` 5th item | The OSE event id a copied row became. That row leaves the copied table. |
+
+## Any instance, not only a creator
+
+The same container builds a site for a person, a venue or an organizer. The fixed
+sentences use the instance's `name` where a person would be named, and list the
+event kinds its own stations run (each station's demo `event.kind`, then its
+programme slots' kinds), so a bar reads "game night" and is never told about a
+class it does not hold. Give a demo event its own `placements` when the size's
+labels do not fit.
+
+## Overlap: stations are a way in, not boxes
+
+The dial, the stations and their frequencies are a playful way to present what
+someone does. They carry no meaning the system depends on, and they overlap
+(owner, 2026-11-13: function over fashion, always; playful, not a joke).
+
+- An event or a campaign has one home, `frequency`, and may list other stations in `also`. It then shows on each of them.
+- Its codes stay on the station it lives on. Elsewhere its card names that station and links to it, so one event has one set of codes and its counts are not split by where it was listed. The TV board keeps the codes, since nobody can tap through on a screen.
+- A programme event is held to the slots of the station it lives on, and stands under "On air" there only.
+- Lead shows every station already, so it is never listed in `also`. An event is still linked once.
+
+## Partners and the calendar feed
+
+A sponsor reaches a page only from OurSharedEvents' public sponsor bundle, where
+both sides have accepted and the event has sponsors switched on. Nothing in the
+creator file can add one.
+
+- On an event card the strip reads "Backed by", below the title and date.
+- A campaign the creator file puts on a frequency shows its partner once, at the top of that station.
+- The only link is the event's own SPONSOR code, so a tap is counted like any other code. The page sends OSE nothing else: no impression or click beacon, no logo request.
+- A sponsor is text, never a control: nobody can filter, search or sort by it.
+
+Where OSE serves the brand's calendar feed, the creator page links it under
+"When" as a plain link. The page counts nothing on it.
+
+## The TV board (`display: tv`)
+
+A screen in the room, built beside the pages at `tv/index.html`. Large type, one
+station at a time, each with its programme and its next two events and their
+codes. A display shows no counts, so no report is drawn on it. Lead is left
+off: it is the whole dial and would repeat every other panel.
+
+A rotating screen must never take a code away from someone lining up a phone, so:
+
+- each panel stays up long enough to read: 3 s to notice, reading at 100 words a minute, 2 s to act, never under 14 s;
+- any key, tap or click holds the panel for 20 s, with the time left on screen;
+- Pause stops the rotation until Resume;
+- with reduced motion, or without the script, every panel shows and nothing rotates.
+
+An unknown layout, order, display or section stops the build. It never falls back silently.
 
 ## Make a page
 
