@@ -9,7 +9,8 @@
 // Sponsors (S9): a card names exactly the plan's sponsors that both sides
 // accepted; one side's yes, a pending answer and a past event's sponsor reach no
 // page. A campaign partner is expected at the top of its station only when the
-// worker's sponsor bundle carries campaigns (OSE S14).
+// worker's sponsor bundle carries campaigns (OSE S14). The calendar feed link is
+// required on the front page exactly when the worker serves the brand's feed (OSE S8).
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -26,10 +27,15 @@ const FORM_TARGET = /\/forms?\//i;
  * @param {Record<string,string>} pages  path → html of the built folder
  * @param {{url: string, status: number, location: string|null}[]} resolved  each code, fetched once
  * @param {number} now
- * @param {{campaigns?: boolean}} [worker]  whether the worker's sponsor bundle names campaigns
+ * @param {{campaigns?: boolean, calendar?: string|null}} [worker]  whether the worker's sponsor bundle names
+ *   campaigns, and the feed URL when the worker serves the brand's calendar feed
  */
-export function oseVerdictProblems(plan, creator, pages, resolved, now, { campaigns = false } = {}) {
+export function oseVerdictProblems(plan, creator, pages, resolved, now, { campaigns = false, calendar = null } = {}) {
   const out = [];
+  // The calendar link: exactly the feed's URL, once, on the front page; none when the worker serves no feed.
+  const feeds = Object.entries(pages).flatMap(([path, html]) => [...html.matchAll(/href="([^"]*calendar\.ics[^"]*)"/g)].map((x) => `${path} ${x[1]}`));
+  const wantFeeds = calendar ? [`index.html ${calendar}`] : [];
+  if (feeds.join(' | ') !== wantFeeds.join(' | ')) out.push(`calendar links "${feeds.join(' | ')}", want "${wantFeeds.join(' | ')}"`);
   const onShow = (sp) => sp.sponsorAccepted !== false && sp.organizerAccepted !== false;
   const strips = (html) => (html.match(/<p class="backers">[\s\S]*?<\/p>/g) ?? []).map((p) => [...p.matchAll(/<span class="backer">([^<]*)<\/span>/g)].map((x) => x[1]).sort().join(' + '));
   const wantStrips = {};
@@ -120,7 +126,12 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     const body = res.ok ? await res.json().catch(() => null) : null;
     if ((body?.bundle?.sponsors ?? []).some((sp) => sp.campaign)) campaigns = true;
   }
-  const problems = oseVerdictProblems(plan, creator, pages, resolved, Date.now(), { campaigns });
+  // Does this worker serve the brand's calendar feed? Asked of the worker itself.
+  const feedUrl = `${base}/brands/${encodeURIComponent(creator.oseBrand)}/calendar.ics`;
+  const feedRes = await fetch(feedUrl, { headers: { Accept: 'text/calendar' } });
+  const calendar = feedRes.status === 200 && (await feedRes.text()).startsWith('BEGIN:VCALENDAR') ? feedUrl : null;
+  console.log(`brand calendar feed: ${calendar ? 'served' : `not served (${feedRes.status})`}`);
+  const problems = oseVerdictProblems(plan, creator, pages, resolved, Date.now(), { campaigns, calendar });
   console.log(`sponsor bundle names campaigns: ${campaigns ? 'yes' : 'no (this OSE is before campaigns in the bundle)'}`);
   for (const r of resolved) console.log(`${r.url} -> ${r.status} ${r.location ?? ''}`);
   if (problems.length) {

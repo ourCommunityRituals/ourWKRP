@@ -247,16 +247,19 @@ describe('creator showcase: born red', () => {
     const pages = await C.samplePages(m);
     const urls = [...new Set(Object.values(pages).flatMap((h) => [...h.matchAll(/data-code-url="([^"]*)"/g)].map((x) => x[1])))];
     const resolved = urls.map((url) => ({ url, status: 302, location: `${C.FAKE_ORIGIN}/events/evt_sample-0001` }));
+    // The stand-in names campaigns in its bundle and serves the calendar feed, so both are expected.
+    const withCampaigns = { campaigns: true, calendar: `${C.FAKE_ORIGIN}/brands/showcase-sample/calendar.ics` };
     const lostCard = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('<article class="event"', '<article class="gone"') };
-    expect(oseVerdictProblems(plan(), C.sample(), lostCard, resolved, C.NOW, { campaigns: true }).join('\n')).toMatch(/teach: 3 event cards, want 4/);
+    expect(oseVerdictProblems(plan(), C.sample(), lostCard, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/teach: 3 event cards, want 4/);
     const draftShown = { ...pages, 'teach/index.html': `${pages['teach/index.html']}<h3>Draft class (showcase demo)</h3>` };
     expect(oseVerdictProblems(plan(), C.sample(), draftShown, resolved, C.NOW).join('\n')).toMatch(/evt_sample-0007: "Draft class/);
     const dead = resolved.map((r, i) => (i === 0 ? { ...r, status: 404 } : r));
     expect(oseVerdictProblems(plan(), C.sample(), pages, dead, C.NOW).join('\n')).toMatch(/answered 404/);
-    // The fake names campaigns in its bundle, so the wear partner is expected.
-    const withCampaigns = { campaigns: true };
     expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, withCampaigns)).toEqual([]);
-    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW).join('\n')).toMatch(/wear: station partners "Corner hardware \(showcase demo\)", want ""/);
+    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, { campaigns: true }).join('\n')).toMatch(/calendar links "index\.html [^"]*calendar\.ics", want ""/);
+    const noFeed = { ...pages, 'index.html': pages['index.html'].replace(/<p class="calendar">[\s\S]*?<\/p>/, '') };
+    expect(oseVerdictProblems(plan(), C.sample(), noFeed, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/calendar links "", want "index\.html/);
+    expect(oseVerdictProblems(plan(), C.sample(), pages, resolved, C.NOW, { calendar: withCampaigns.calendar }).join('\n')).toMatch(/wear: station partners "Corner hardware \(showcase demo\)", want ""/);
     const oneSided = { ...pages, 'teach/index.html': pages['teach/index.html'].replace('Print shop (showcase demo)</span>', 'Print shop (showcase demo)</span>, <span class="backer">Waiting cafe (showcase demo)</span>') };
     expect(oseVerdictProblems(plan(), C.sample(), oneSided, resolved, C.NOW, withCampaigns).join('\n')).toMatch(/sponsor "Waiting cafe \(showcase demo\)" reached a page/);
     const lostStrip = { ...pages, 'wear/index.html': pages['wear/index.html'].replace('<p class="backers">', '<p class="gone">') };
