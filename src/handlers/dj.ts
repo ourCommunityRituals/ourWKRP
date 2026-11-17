@@ -1,12 +1,32 @@
 /**
  * DJ Attribution handlers
  *
- * GET  /dj/:id/live       — live set page (what's playing, tap to attribute)
+ * GET  /dj/:id/live       — live set JSON: tracks played so far, plus
+ *                            `now_playing` (the set's open playback event, or null)
  * GET  /dj/:id/stats      — DJ influence stats JSON
- * POST /api/sets           — start a live set
- * POST /api/sets/:id/tracks — add a track to the current set
- * POST /api/sets/:id/end   — end a live set
+ * POST /api/sets           — start a live set (ends the DJ's previous live set
+ *                            and closes its open playback event)
+ * POST /api/sets/:id/tracks — the set's DJ logs the song now playing: closes the
+ *                            open playback event and opens a new one, returned
+ *                            as `playback_event: { id }`
+ * POST /api/sets/:id/end   — end a live set (closes its open playback event)
  * POST /api/attributions   — record a discovery attribution
+ *
+ * Playback events (migration 0011, OW-219). Each play of a song in a set is its
+ * own `playback_events` row with its own id, so a replay of the same song is a
+ * new event, and "the song playing now" is named by an id, never inferred from
+ * a timestamp. The rules:
+ *   - Only the DJ who owns the live set changes the song (session + ownership +
+ *     live checks below). A listener never does.
+ *   - Times are server time (`datetime('now')` in D1). No client clock is read.
+ *   - A set has at most one open event (ended_at IS NULL), held by a unique
+ *     partial index; closing the old one and opening the new one run in one
+ *     D1 batch, so no reader sees two open or none in between.
+ *   - Ending a set, or starting a new one, closes the open event in the same
+ *     batch that ends the set.
+ *   - brand_id is the owning DJ's contributors.brand_id.
+ *   - set_tracks (one row per song per set) is still written as before; the
+ *     live page's track list reads it unchanged.
  */
 
 import type { Env } from '../types';
@@ -38,10 +58,18 @@ export async function handleStartSet(request: Request, env: Env): Promise<Respon
     return Response.json({ ok: false, error: 'Only DJs can start sets' }, { status: 403 });
   }
 
-  // End any existing live set
-  await env.WKRP_DB.prepare(
-    "UPDATE dj_sets SET is_live = 0, ended_at = datetime('now') WHERE dj_id = ? AND is_live = 1"
-  ).bind(auth.userId).run();
+  // End any existing live set, closing its open playback event in the same
+  // batch (the playback update runs first, while the set still reads as live).
+  await env.WKRP_DB.batch([
+    env.WKRP_DB.prepare(
+      `UPDATE playback_events SET ended_at = datetime('now')
+        WHERE ended_at IS NULL
+          AND set_id IN (SELECT id FROM dj_sets WHERE dj_id = ? AND is_live = 1)`
+    ).bind(auth.userId),
+    env.WKRP_DB.prepare(
+      "UPDATE dj_sets SET is_live = 0, ended_at = datetime('now') WHERE dj_id = ? AND is_live = 1"
+    ).bind(auth.userId),
+  ]);
 
   const parsed = await validateBody(request, startSetBodySchema);
   const body = parsed instanceof Response ? { venue_name: null, event_id: null } : parsed;
@@ -67,8 +95,14 @@ export async function handleStartSet(request: Request, env: Env): Promise<Respon
 
 /**
  * POST /api/sets/:id/tracks
- * Add a track to the current set.
- * Body: { track_id: string }
+ * The set's DJ logs the song now playing.
+ * Body: { track_id: string } — any other field (a time included) is dropped by
+ * the schema; started_at is server time.
+ *
+ * One D1 batch: close the set's open playback event, open a new one with a
+ * fresh id, and keep the set_tracks row (INSERT OR IGNORE, once per song per
+ * set). Logging the same song again opens a new event: a replay.
+ * Returns { ok: true, playback_event: { id } }.
  */
 export async function handleAddSetTrack(request: Request, env: Env, setId: string): Promise<Response> {
   const auth = await requireSession(request, env);
@@ -96,18 +130,42 @@ export async function handleAddSetTrack(request: Request, env: Env, setId: strin
     `SELECT COALESCE(MAX(position), 0) as next_pos FROM set_tracks WHERE set_id = ?`
   ).bind(setId).first<{ next_pos: number }>();
 
-  await env.WKRP_DB.prepare(`
-    INSERT OR IGNORE INTO set_tracks (set_id, track_id, position, played_at)
-    VALUES (?, ?, ?, datetime('now'))
-  `).bind(setId, body.track_id, (posResult?.next_pos ?? 0) + 1).run();
+  const playbackEventId = crypto.randomUUID();
 
-  log('DJ_SET_TRACK_ADDED', { set_id: setId, track_id: body.track_id });
+  const results = await env.WKRP_DB.batch([
+    // 1. Close the song that was playing.
+    env.WKRP_DB.prepare(
+      "UPDATE playback_events SET ended_at = datetime('now') WHERE set_id = ? AND ended_at IS NULL"
+    ).bind(setId),
+    // 2. Open the new play. The set must still be live and this DJ's at write
+    //    time; brand_id comes from the owning DJ's contributor row.
+    env.WKRP_DB.prepare(`
+      INSERT INTO playback_events (id, set_id, track_id, brand_id, started_at, ended_at)
+      SELECT ?, s.id, ?, c.brand_id, datetime('now'), NULL
+        FROM dj_sets s
+        INNER JOIN contributors c ON c.id = s.dj_id
+       WHERE s.id = ? AND s.dj_id = ? AND s.is_live = 1
+    `).bind(playbackEventId, body.track_id, setId, auth.userId),
+    // 3. The set's song list, as before (one row per song per set).
+    env.WKRP_DB.prepare(`
+      INSERT OR IGNORE INTO set_tracks (set_id, track_id, position, played_at)
+      VALUES (?, ?, ?, datetime('now'))
+    `).bind(setId, body.track_id, (posResult?.next_pos ?? 0) + 1),
+  ]);
+
+  // The set ended between the check above and the batch: no event was opened.
+  if ((results[1]?.meta?.changes ?? 0) === 0) {
+    return Response.json({ ok: false, error: 'Live set not found' }, { status: 404 });
+  }
+
+  log('DJ_SET_TRACK_ADDED', { set_id: setId, track_id: body.track_id, playback_event_id: playbackEventId });
   await recordAudit(env, request, {
     action: 'set.track.add', resourceType: 'set', resourceId: setId,
-    outcome: 'success', actorId: auth.userId, meta: { track_id: body.track_id },
+    outcome: 'success', actorId: auth.userId,
+    meta: { track_id: body.track_id, playback_event_id: playbackEventId },
   });
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, playback_event: { id: playbackEventId } });
 }
 
 /**
@@ -129,9 +187,15 @@ export async function handleEndSet(request: Request, env: Env, setId: string): P
     return Response.json({ ok: false, error: 'Not your set' }, { status: 403 });
   }
 
-  await env.WKRP_DB.prepare(
-    "UPDATE dj_sets SET is_live = 0, ended_at = datetime('now') WHERE id = ?"
-  ).bind(setId).run();
+  // End the set and close its open playback event in one batch.
+  await env.WKRP_DB.batch([
+    env.WKRP_DB.prepare(
+      "UPDATE playback_events SET ended_at = datetime('now') WHERE set_id = ? AND ended_at IS NULL"
+    ).bind(setId),
+    env.WKRP_DB.prepare(
+      "UPDATE dj_sets SET is_live = 0, ended_at = datetime('now') WHERE id = ?"
+    ).bind(setId),
+  ]);
 
   log('DJ_SET_ENDED', { set_id: setId });
   await recordAudit(env, request, {
@@ -299,9 +363,20 @@ export async function handleGetDjStats(_request: Request, env: Env, djId: string
   });
 }
 
+/** The open playback event of a live set, as /dj/:id/live returns it. */
+interface NowPlaying {
+  playback_event_id: string;
+  started_at: string;
+  track: { id: string; name: string; artist: string; album: string | null; image_url: string | null };
+}
+
 /**
  * GET /dj/:id/live
  * Get the DJ's current live set with tracks (for the scan page).
+ *
+ * `live_set.now_playing` is the set's open playback event —
+ * { playback_event_id, started_at, track: { id, name, artist, album, image_url } }
+ * — or null when no song is open. It carries no count of anything.
  */
 export async function handleGetLiveSet(_request: Request, env: Env, djId: string): Promise<Response> {
   const dj = await env.WKRP_DB.prepare(
@@ -317,15 +392,39 @@ export async function handleGetLiveSet(_request: Request, env: Env, djId: string
   ).bind(djId).first();
 
   let tracks: unknown[] = [];
+  let nowPlaying: NowPlaying | null = null;
   if (liveSet) {
-    const trackResult = await env.WKRP_DB.prepare(`
-      SELECT t.id, t.name, t.artist, t.album, t.image_url, t.genre, st.played_at
-      FROM set_tracks st
-      INNER JOIN tracks t ON st.track_id = t.id
-      WHERE st.set_id = ?
-      ORDER BY st.position DESC
-    `).bind(liveSet.id).all();
+    const [trackResult, openResult] = await env.WKRP_DB.batch([
+      env.WKRP_DB.prepare(`
+        SELECT t.id, t.name, t.artist, t.album, t.image_url, t.genre, st.played_at
+        FROM set_tracks st
+        INNER JOIN tracks t ON st.track_id = t.id
+        WHERE st.set_id = ?
+        ORDER BY st.position DESC
+      `).bind(liveSet.id),
+      env.WKRP_DB.prepare(`
+        SELECT pe.id AS playback_event_id, pe.started_at,
+               t.id AS track_id, t.name, t.artist, t.album, t.image_url
+        FROM playback_events pe
+        INNER JOIN tracks t ON pe.track_id = t.id
+        WHERE pe.set_id = ? AND pe.ended_at IS NULL
+      `).bind(liveSet.id),
+    ]);
     tracks = trackResult.results;
+    const open = (openResult.results as Record<string, unknown>[])[0];
+    if (open) {
+      nowPlaying = {
+        playback_event_id: open.playback_event_id as string,
+        started_at: open.started_at as string,
+        track: {
+          id: open.track_id as string,
+          name: open.name as string,
+          artist: open.artist as string,
+          album: (open.album ?? null) as string | null,
+          image_url: (open.image_url ?? null) as string | null,
+        },
+      };
+    }
   }
 
   return Response.json({
@@ -335,6 +434,7 @@ export async function handleGetLiveSet(_request: Request, env: Env, djId: string
       id: liveSet.id,
       venue_name: liveSet.venue_name,
       started_at: liveSet.started_at,
+      now_playing: nowPlaying,
       tracks,
     } : null,
   });

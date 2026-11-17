@@ -10,7 +10,8 @@ http:
 
 docs:
   content: |-
-    The DJ's current live set as JSON (tracks played so far).
+    The DJ's current live set as JSON: tracks played so far, and
+    `now_playing` (the open playback event and its track, or null).
   type: text/markdown
 
 settings:
