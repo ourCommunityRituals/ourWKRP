@@ -72,6 +72,41 @@ export function createPacer({ perMinute = PER_MINUTE, windowMs = 61_000, now = D
   };
 }
 
+/**
+ * The nightly roll-up (scan_aggregates), run on the local worker as its 03:00
+ * cron would run it, through the scheduled route `wrangler dev --test-scheduled`
+ * serves (both start-local-ose scripts pass that flag). A trigger can answer
+ * "ok" and still write nothing (wrangler's Local Explorer did, on Windows), so
+ * this waits until every seeded event has totals and stops the seed otherwise:
+ * a report minted before its totals are written is an empty report.
+ * `countRolledUp(eventId)` reads how many roll-up rows the event has.
+ */
+export const ROLL_UP_CRON = '0 3 * * *';
+export async function runRollUp({ base, eventIds, fetch: f, countRolledUp, sleep, timeoutMs = 30_000, stepMs = 500 }) {
+  const url = `${assertLocalBase(base)}/__scheduled?cron=${encodeURIComponent(ROLL_UP_CRON)}`;
+  const res = await f(url, { method: 'GET' });
+  if (!res.ok) throw new Error(`roll-up: /__scheduled answered ${res.status}`);
+  let waiting = [...eventIds];
+  for (let waited = 0; ; waited += stepMs) {
+    const still = [];
+    for (const id of waiting) if (!((await countRolledUp(id)) > 0)) still.push(id);
+    waiting = still;
+    if (!waiting.length) return;
+    if (waited >= timeoutMs) throw new Error(`roll-up: no scan totals for ${waiting.join(', ')} after ${timeoutMs / 1000} s; their reports would be empty`);
+    await sleep(stepMs);
+  }
+}
+
+/**
+ * A SharedReport's total as OSE gives it: a number, or null when OSE has no
+ * total to show. Anything else, a missing field included, is a broken contract.
+ */
+export function reportTotal(body) {
+  const n = body?.report?.distinct_scanners;
+  if (n === null || typeof n === 'number') return n;
+  throw new Error(`contract: shared-report has no distinct_scanners (${n === undefined ? 'missing' : typeof n})`);
+}
+
 /** Stations: catalog defaults, the creator's copy wins. */
 export function mergeStations(creator, catalog, reports = { reports: [] }) {
   const byStation = Object.fromEntries((reports.reports ?? []).map((r) => [r.station, r]));

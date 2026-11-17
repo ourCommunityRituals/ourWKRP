@@ -19,7 +19,7 @@
 // Writes showcase/work/<slug>/reports.json: PRIVATE, it holds signed links.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { assertLocalBase, createPacer, hourBuckets, placementsFor, scansFor, SHAPES } from './lib/showcase.mjs';
+import { assertLocalBase, createPacer, hourBuckets, placementsFor, reportTotal, runRollUp, scansFor, SHAPES } from './lib/showcase.mjs';
 import { SHOWCASE, readJson, loadCatalog } from './lib/build.mjs';
 import { creatorProblems } from './lib/schema.mjs';
 import { planDate } from './lib/plan.mjs';
@@ -261,15 +261,16 @@ async function main() {
 
   if (plan) await seedPlan(pickType);
 
-  // Nightly roll-up (scan_aggregates), as the 03:00 cron would run it.
-  const cron = await fetch(`${EXPLORER}/local/scheduled?worker=oursharedevents`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cron: '0 3 * * *' }),
+  // Nightly roll-up (scan_aggregates), as the 03:00 cron would run it, waited
+  // for until every demo event has its totals.
+  await runRollUp({
+    base: BASE,
+    eventIds: out.map((r) => r.eventId),
+    fetch,
+    sleep,
+    countRolledUp: async (id) => (await d1('SELECT COUNT(*) AS n FROM scan_aggregates WHERE event_id = ?', [id]))[0]?.n ?? 0,
   });
-  console.log(`roll-up: ${cron.status}`);
-  if (!cron.ok) throw new Error(`roll-up failed: ${cron.status}`);
-  await sleep(1500);
+  console.log(`roll-up: totals written for ${out.length} events`);
 
   for (const r of out) {
     const minted = await api('POST', `/api/v2/admin/events/${r.eventId}/shared-report/mint-link`, { role: 'admin', ttl_days: 30, depth: 'premium' });
@@ -278,9 +279,15 @@ async function main() {
     const check = await fetch(`${BASE}/api/v2/events/${r.eventId}/shared-report`, { headers: { Authorization: `Bearer ${minted.token}` } });
     const body = await check.json().catch(() => ({}));
     r.reportStatus = check.status;
-    const n = body?.report?.distinct_scanners ?? body?.distinct_scanners;
-    if (check.ok && !(typeof n === 'number' || n === null)) throw new Error(`contract: shared-report has no distinct_scanners for ${r.station}`);
-    r.distinctScanners = n ?? null;
+    let n = null;
+    if (check.ok) {
+      try {
+        n = reportTotal(body);
+      } catch (e) {
+        throw new Error(`${e.message} for ${r.station}`);
+      }
+    }
+    r.distinctScanners = n;
     console.log(`${r.station}: report ${check.status}, distinct_scanners=${JSON.stringify(r.distinctScanners)}`);
   }
 

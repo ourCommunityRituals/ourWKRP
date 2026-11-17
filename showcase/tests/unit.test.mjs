@@ -27,6 +27,9 @@ describe('creator showcase: unit', () => {
   it('the pacer never sends more than 50 scans a minute', async () => {
     expect(await C.pacingProblems(m)).toEqual([]);
   });
+  it('the seed runs the roll-up on the local worker and waits for its totals; a withheld total is null', async () => {
+    expect(await C.rollUpProblems(m)).toEqual([]);
+  });
   it('stations take catalog defaults, the creator copy wins, and reports attach without their links', () => {
     expect(C.mergeProblems(m)).toEqual([]);
   });
