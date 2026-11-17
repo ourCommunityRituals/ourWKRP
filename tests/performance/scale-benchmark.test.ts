@@ -47,7 +47,7 @@ function mockD1(trackCount = 1000) {
     })),
     batch: vi.fn(async (stmts: unknown[]) => {
       batchCalls.push(stmts.length);
-      return stmts.map(() => ({ success: true, results: [{ count: trackCount }] }));
+      return stmts.map(() => ({ success: true, results: [{ count: trackCount }], meta: { changes: 1 } }));
     }),
     _batchCalls: batchCalls,
   };

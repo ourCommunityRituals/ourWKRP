@@ -2,7 +2,7 @@
 
 **Status:** Concept — roadmap, not built
 **Product:** ourWKRP
-**Last updated:** 2026-05-22
+**Last updated:** 2026-11-17 (voting mechanic: resolve by playback-event id, OW-219)
 
 ## Vision
 
@@ -40,10 +40,14 @@ one-off vote gives nobody a reason to return; a season does.
 
 ## Voting mechanic (the substrate)
 
-- **Static QR + scan-timestamp inference.** One static QR at the venue. The
-  server records *when* the scan arrived and resolves the now-playing track by
-  intersecting that timestamp with the `set_tracks.played_at` playback log
-  (migration 0006). No physically-rotating QR.
+- **Resolve by the playback-event id carried in the code (binding).** Each
+  play of a song is a `playback_events` row with its own id (migration 0011,
+  OW-219); `GET /dj/:id/live` names the open one as `now_playing`. The code a
+  voter scans on the **room screen** carries that id, and the vote resolves to
+  it. There is **no timestamp intersection**: the server never works out the
+  song from *when* a scan arrived. The **wall poster stays static** (one QR per
+  venue); only the screen changes with the song. This is the scan-resolution
+  law in `artist-attribution-five-surfaces.md`.
 - **Server-side resolution only** — never trust a client clock.
 - **Dedup is per song-play** — one vote per profile/device per playback
   instance. Votes key to the **playback-event id**, not the bare track id, so a

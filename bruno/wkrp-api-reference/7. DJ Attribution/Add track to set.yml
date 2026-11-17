@@ -21,7 +21,9 @@ http:
 
 docs:
   content: |-
-    Append a track to a live set as the DJ plays it.
+    The set's own DJ logs the song now playing. Closes the set's open playback
+    event and opens a new one (a replay of the same song is a new event), on
+    server time. Returns `{ ok, playback_event: { id } }`.
   type: text/markdown
 
 settings:

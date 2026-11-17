@@ -103,6 +103,12 @@ function recordingEnv(): { env: Env; calls: Call[] } {
         },
       };
     },
+    // D1 runs a batch's statements in order, as one transaction.
+    async batch(stmts: Array<{ run: () => Promise<unknown> }>) {
+      const out: unknown[] = [];
+      for (const st of stmts) out.push(await st.run());
+      return out;
+    },
   };
   return { env: { WKRP_DB: db } as unknown as Env, calls };
 }

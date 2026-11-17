@@ -2,7 +2,7 @@
 
 **Status:** Architecture — substrate built, generalization not started
 **Products:** OSE (surfaces + events) · OW (attribution + catalog) — hybrid
-**Last updated:** 2026-08-26
+**Last updated:** 2026-11-17 (`playback_events` exists: migration 0011, OW-219)
 **Companion:** `fist-of-five-competition.md` (FOF is a *format* on top of this, not a peer)
 
 ## What this is
@@ -40,6 +40,15 @@ negotiable. "New song, new code" = rotating *logical* vote key on a screen, one
 static poster on the wall. Requires the `playback_events` table
 (`id, set_id, track_id, started_at, ended_at, brand_id`) — the FOF doc's
 `set_tracks` PK cannot express a replay and must not be used for dedup.
+
+**Built (2026-11-17, OW-219):** `playback_events` exists (migration 0011). Each
+`POST /api/sets/:id/tracks` by the set's own DJ closes the set's open event and
+opens a new one in one D1 batch, on server time, and returns its id; a replay
+is a new event. A unique partial index keeps at most one open event per set;
+ending a set (or starting the DJ's next one) closes it. `GET /dj/:id/live`
+names the open event as `now_playing`. `brand_id` is the owning DJ's brand.
+Old `set_tracks` rows were not backfilled (they hold no replays). Votes, the
+scan contract and the screen key are not built yet.
 
 ## The five surfaces, per shape
 

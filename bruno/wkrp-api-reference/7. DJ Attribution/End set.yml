@@ -13,7 +13,7 @@ http:
 
 docs:
   content: |-
-    End a live set (marks it no longer live).
+    End a live set (marks it no longer live and closes its open playback event).
   type: text/markdown
 
 settings:
