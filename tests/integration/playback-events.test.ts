@@ -296,38 +296,123 @@ describe('right to erasure: playback events follow dj_sets and set_tracks', () =
   // (lib/erasure.ts: contributions stay so the catalog's lineage holds). A
   // playback event names a set and a track, never a person, so it is kept the
   // same way and still resolves to its set: nothing orphaned, nothing personal
-  // left on it.
-  it('keeps every set, set track and playback event, all still linked', async () => {
-    const dj = await register(rig, 'Test Selector', 'dj');
-    const endedSet = await startSet(rig, dj);
-    await logTrack(rig, dj, endedSet, 'trk-a');
-    await call(rig, 'POST', `/api/sets/${endedSet}/end`, { cookie: dj.cookie });
-    const liveSet = await startSet(rig, dj);
-    await logTrack(rig, dj, liveSet, 'trk-b');
-    await logTrack(rig, dj, liveSet, 'trk-b');
+  // left on it. A live set ends with the erasure (OW-219): it stops being live
+  // and its open event closes; every row stays.
 
-    const snapshot = async () => ({
-      sets: (await rig.db.prepare('SELECT * FROM dj_sets ORDER BY id').all()).results,
-      setTracks: (await rig.db.prepare('SELECT * FROM set_tracks ORDER BY set_id, track_id').all()).results,
-      playback: await playbackRows(rig),
-    });
-    const before = await snapshot();
-    expect(before.playback).toHaveLength(3);
+  type Row = Record<string, unknown>;
+  const snapshot = async () => ({
+    sets: (await rig.db.prepare('SELECT * FROM dj_sets ORDER BY id').all<Row>()).results,
+    setTracks: (await rig.db.prepare('SELECT * FROM set_tracks ORDER BY set_id, track_id').all<Row>()).results,
+    playback: (await playbackRows(rig)) as unknown as Row[],
+  });
 
+  // Give an ended set and the closed events a time in the past, so a statement
+  // that rewrote them now would show in the snapshot.
+  async function backdateClosed(): Promise<void> {
+    await rig.db.prepare(
+      "UPDATE dj_sets SET started_at = '2026-01-01 19:00:00', ended_at = '2026-01-01 21:00:00' WHERE is_live = 0",
+    ).run();
+    await rig.db.prepare(
+      "UPDATE playback_events SET started_at = '2026-01-01 20:00:00', ended_at = '2026-01-01 20:03:00' WHERE ended_at IS NOT NULL",
+    ).run();
+  }
+
+  async function erase(dj: { id: string; cookie: string }): Promise<void> {
     const res = await call(rig, 'DELETE', `/api/contributors/${dj.id}/identity`, { cookie: dj.cookie });
     expect(res.status).toBe(200);
-
     const c = await rig.db.prepare('SELECT name, status FROM contributors WHERE id = ?').bind(dj.id).first<{ name: string; status: string }>();
     expect(c).toEqual({ name: '[erased]', status: 'departed' });
-    expect(await snapshot()).toEqual(before);
+  }
 
+  async function orphanCount(): Promise<number> {
     const orphans = await rig.db.prepare(
       `SELECT COUNT(*) AS n FROM playback_events pe
          LEFT JOIN dj_sets s ON s.id = pe.set_id
          LEFT JOIN contributors c ON c.id = s.dj_id
         WHERE s.id IS NULL OR c.id IS NULL`,
     ).first<{ n: number }>();
-    expect(orphans!.n).toBe(0);
+    return orphans!.n;
+  }
+
+  it('a DJ with no live set: every set, set track and playback event stays exactly as it was', async () => {
+    const dj = await register(rig, 'Test Selector', 'dj');
+    const endedSet = await startSet(rig, dj);
+    await logTrack(rig, dj, endedSet, 'trk-a');
+    await logTrack(rig, dj, endedSet, 'trk-b');
+    await call(rig, 'POST', `/api/sets/${endedSet}/end`, { cookie: dj.cookie });
+    await backdateClosed();
+
+    const before = await snapshot();
+    expect(before.sets).toHaveLength(1);
+    expect(before.playback).toHaveLength(2);
+
+    await erase(dj);
+    expect(await snapshot()).toEqual(before);
+    expect(await orphanCount()).toBe(0);
+  }, 30000);
+
+  it('a live set ends and its open event closes; every row is kept, all still linked', async () => {
+    const dj = await register(rig, 'Test Selector', 'dj');
+    const other = await register(rig, 'Other Selector', 'dj');
+    const endedSet = await startSet(rig, dj);
+    await logTrack(rig, dj, endedSet, 'trk-a');
+    await call(rig, 'POST', `/api/sets/${endedSet}/end`, { cookie: dj.cookie });
+    const liveSet = await startSet(rig, dj);
+    await logTrack(rig, dj, liveSet, 'trk-b');
+    const openId = await logTrack(rig, dj, liveSet, 'trk-b');
+    const otherSet = await startSet(rig, other);
+    const otherOpenId = await logTrack(rig, other, otherSet, 'trk-c');
+    await backdateClosed();
+
+    const before = await snapshot();
+    expect(before.sets).toHaveLength(3);
+    expect(before.playback).toHaveLength(4);
+    expect(before.playback.filter((r) => r.ended_at === null).map((r) => r.id).sort()).toEqual([openId, otherOpenId].sort());
+
+    await erase(dj);
+    const after = await snapshot();
+
+    // Nothing deleted, nothing added: the same rows by id.
+    expect(after.sets.map((r) => r.id)).toEqual(before.sets.map((r) => r.id));
+    expect(after.playback.map((r) => r.id)).toEqual(before.playback.map((r) => r.id));
+    expect(after.setTracks).toEqual(before.setTracks);
+
+    // Only the live set's is_live / ended_at and the open event's ended_at move.
+    const endedAt = (rows: Row[], id: string) => rows.find((r) => r.id === id)!.ended_at;
+    const liveAfter = after.sets.find((r) => r.id === liveSet)!;
+    expect(liveAfter.is_live).toBe(0);
+    expect(liveAfter.ended_at).toEqual(expect.any(String));
+    expect(endedAt(after.playback, openId)).toEqual(expect.any(String));
+    const expectedSets = before.sets.map((r) =>
+      r.id === liveSet ? { ...r, is_live: 0, ended_at: liveAfter.ended_at } : r);
+    const expectedPlayback = before.playback.map((r) =>
+      r.id === openId ? { ...r, ended_at: endedAt(after.playback, openId) } : r);
+    expect(after.sets).toEqual(expectedSets);
+    expect(after.playback).toEqual(expectedPlayback);
+
+    // The other DJ's set is still live with its song open.
+    expect(after.sets.find((r) => r.id === otherSet)!.is_live).toBe(1);
+    expect(endedAt(after.playback, otherOpenId)).toBeNull();
+    expect(await orphanCount()).toBe(0);
+  }, 30000);
+
+  it('GET /dj/:id/live: the erased DJ has no live set; another live DJ is unaffected', async () => {
+    const dj = await register(rig, 'Test Selector', 'dj');
+    const other = await register(rig, 'Other Selector', 'dj');
+    const setId = await startSet(rig, dj);
+    await logTrack(rig, dj, setId, 'trk-a');
+    const otherSet = await startSet(rig, other);
+    const otherOpenId = await logTrack(rig, other, otherSet, 'trk-b');
+    expect((await live(dj.id)).live_set?.now_playing?.track.id).toBe('trk-a');
+
+    await erase(dj);
+
+    const body = (await live(dj.id)) as LiveBody & { dj: { id: string; name: string } };
+    expect(body.dj).toEqual({ id: dj.id, name: '[erased]' });
+    expect(body.live_set).toBeNull();
+    const otherLive = await live(other.id);
+    expect(otherLive.live_set?.id).toBe(otherSet);
+    expect(otherLive.live_set?.now_playing?.playback_event_id).toBe(otherOpenId);
   }, 30000);
 
   it('a playback event has no column that names a person', async () => {

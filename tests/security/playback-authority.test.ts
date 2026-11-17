@@ -9,6 +9,11 @@
  * Each refused call is checked twice: by its status and by the table being
  * exactly as it was.
  *
+ * Erasing the set's DJ ends the set (OW-219): their sessions are revoked, so
+ * the set must not stay live with nobody able to end it. After erasure the set
+ * is not live, its open event is closed and kept, and no one (the old session
+ * or another DJ) can log a song to it or reopen it.
+ *
  * Real router, real D1 (Miniflare), schema from migrations/.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -104,5 +109,35 @@ describe("a listener's own actions never move the song", () => {
     });
     expect(tap.status).toBe(201);
     await expectUnchanged();
+  }, 30000);
+});
+
+describe("erasing the set's DJ ends the set", () => {
+  it('the set stops being live, its open event closes, and nobody can move it after', async () => {
+    const other = await register(rig, 'Other Selector', 'dj');
+    const res = await call(rig, 'DELETE', `/api/contributors/${owner.id}/identity`, { cookie: owner.cookie });
+    expect(res.status).toBe(200);
+
+    // The open event is closed and kept: same row, only ended_at set.
+    const rows = await playbackRows(rig);
+    expect(rows.map((r) => r.id)).toEqual(before.map((r) => r.id));
+    expect(rows[0].ended_at).toEqual(expect.any(String));
+    expect(rows).toEqual([{ ...before[0], ended_at: rows[0].ended_at }]);
+    const set = await rig.db.prepare('SELECT is_live, ended_at FROM dj_sets WHERE id = ?').bind(setId)
+      .first<{ is_live: number; ended_at: string | null }>();
+    expect(set!.is_live).toBe(0);
+    expect(set!.ended_at).toEqual(expect.any(String));
+
+    const liveBody = (await (await call(rig, 'GET', `/dj/${owner.id}/live`)).json()) as { live_set: unknown };
+    expect(liveBody.live_set).toBeNull();
+
+    // The erased session is gone: 401. Another DJ finds no live set: 404.
+    const after = await playbackRows(rig);
+    expect((await call(rig, 'POST', `/api/sets/${setId}/tracks`, { cookie: owner.cookie, json: { track_id: 'trk-b' } })).status).toBe(401);
+    expect((await call(rig, 'POST', `/api/sets/${setId}/end`, { cookie: owner.cookie })).status).toBe(401);
+    expect((await call(rig, 'POST', '/api/sets', { cookie: owner.cookie, json: {} })).status).toBe(401);
+    expect((await call(rig, 'POST', `/api/sets/${setId}/tracks`, { cookie: other.cookie, json: { track_id: 'trk-b' } })).status).toBe(404);
+    expect((await call(rig, 'POST', `/api/sets/${setId}/end`, { cookie: other.cookie })).status).toBe(404);
+    expect(await playbackRows(rig)).toEqual(after);
   }, 30000);
 });

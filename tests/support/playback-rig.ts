@@ -96,6 +96,11 @@ export async function startRig(): Promise<Rig> {
 
 export async function resetRig(rig: Rig): Promise<void> {
   for (const table of DATA_TABLES) await rig.db.prepare(`DELETE FROM ${table}`).run();
+  // Every request in the rig comes from one caller, so the per-minute
+  // rate-limit windows (lib/rate-limit.ts, kept in KV here) would carry from
+  // one test into the next. Each test starts with fresh windows.
+  const { keys } = await rig.env.WKRP_KV.list({ prefix: 'wkrp:rl:' });
+  for (const key of keys) await rig.env.WKRP_KV.delete(key.name);
 }
 
 export interface CallOpts {
