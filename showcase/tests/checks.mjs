@@ -682,6 +682,78 @@ export async function pacingProblems(m) {
   return worst > m.showcase.PER_MINUTE ? [`${worst} scans in one 61 s window (limit ${m.showcase.PER_MINUTE})`] : [];
 }
 
+/**
+ * The seed's roll-up: triggered on the local worker's own scheduled route,
+ * then waited for until every seeded event has totals. A trigger that answers
+ * "ok" and writes nothing must stop the seed, never leave it minting empty
+ * reports. And the report total is read as OSE gives it: a number, or null
+ * when OSE has no total yet; a missing field is a broken contract.
+ */
+export async function rollUpProblems(m) {
+  const out = [];
+  const base = 'http://127.0.0.1:8917';
+  const want = `${base}/__scheduled?cron=0%203%20*%20*%20*`;
+  // A worker whose totals land one wait after the trigger, as a real roll-up does.
+  const worker = ({ status = 200, writes = true, missing = [] } = {}) => {
+    const calls = [];
+    let triggered = false;
+    let ticks = 0;
+    return {
+      calls,
+      fetch: async (url, init) => {
+        calls.push({ url, method: init?.method ?? 'GET' });
+        triggered = true;
+        return { ok: status >= 200 && status < 300, status };
+      },
+      countRolledUp: async (id) => (triggered && writes && ticks > 0 && !missing.includes(id) ? 4 : 0),
+      sleep: async () => { ticks++; },
+      ticksAt: () => ticks,
+    };
+  };
+  const run = (w, opts = {}) => m.showcase.runRollUp({ base, eventIds: ['evt_a0000001', 'evt_b0000002'], fetch: w.fetch, countRolledUp: w.countRolledUp, sleep: w.sleep, ...opts });
+
+  const good = worker();
+  try {
+    await run(good);
+    if (good.calls.length !== 1 || good.calls[0].url !== want || good.calls[0].method !== 'GET') out.push(`the roll-up was not one GET of ${want}: ${JSON.stringify(good.calls)}`);
+    if (good.ticksAt() < 1) out.push('the roll-up returned before its totals were written');
+  } catch (e) {
+    out.push(`a roll-up that wrote its totals failed: ${e.message}`);
+  }
+  for (const [what, w] of [
+    ['a trigger that writes nothing', worker({ writes: false })],
+    ['a roll-up that skips one event', worker({ missing: ['evt_b0000002'] })],
+    ['a trigger that answers 500', worker({ status: 500 })],
+  ]) {
+    let threw = null;
+    try { await run(w); } catch (e) { threw = e; }
+    if (!threw) out.push(`${what} let the seed carry on to empty reports`);
+    else if (what.includes('skips') && !threw.message.includes('evt_b0000002')) out.push(`${what}: the error does not name the event (${threw.message})`);
+  }
+  let reached = false;
+  try {
+    await m.showcase.runRollUp({ base: 'https://stg.oursharedevents.com', eventIds: ['evt_a0000001'], fetch: async () => { reached = true; return { ok: true, status: 200 }; }, countRolledUp: async () => 1, sleep: async () => {} });
+  } catch { /* refused, as it must be */ }
+  if (reached) out.push('the roll-up was sent to a worker that is not local');
+
+  const total = m.showcase.reportTotal;
+  if (total({ report: { distinct_scanners: 27 } }) !== 27) out.push('a report total of 27 was not read as 27');
+  try {
+    if (total({ report: { distinct_scanners: null } }) !== null) out.push('a withheld report total was not read as null');
+  } catch (e) {
+    out.push(`a withheld report total stopped the seed: ${e.message}`);
+  }
+  for (const [what, body] of [['no distinct_scanners', { report: {} }], ['a total that is text', { report: { distinct_scanners: '27' } }], ['no report', {}]]) {
+    let threw = false;
+    try { total(body); } catch { threw = true; }
+    if (!threw) out.push(`a report with ${what} passed the seed's contract check`);
+  }
+  const seed = readFileSync(join(SHOWCASE, 'seed-local.mjs'), 'utf8');
+  if (!/runRollUp\(/.test(seed)) out.push('seed-local.mjs does not run the roll-up through runRollUp');
+  if (!/reportTotal\(/.test(seed)) out.push('seed-local.mjs does not read report totals through reportTotal');
+  return out;
+}
+
 export function mergeProblems(m) {
   const stations = m.showcase.mergeStations(sample(), catalog().categories, seededReports());
   const out = [];

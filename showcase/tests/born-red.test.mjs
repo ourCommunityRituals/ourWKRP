@@ -90,6 +90,12 @@ const MUTANTS_LIST = [
   ['contract: a pop-up window not required', 'contractProblems', [{ file: SC, from: "if (e.intent === 'pop-up' && !e.until)", to: 'if (false)' }]],
   ['contract: slot kinds not checked', 'contractProblems', [{ file: SC, from: 'if (cat && !cat.eventKinds.includes(s.kind))', to: 'if (false)' }]],
   // 3. Unit
+  ['roll-up: a trigger that wrote nothing lets the seed carry on', 'rollUpProblems', [{ file: S, from: 'if (waited >= timeoutMs) throw new Error(`roll-up: no scan totals', to: 'if (waited >= timeoutMs) return; throw new Error(`roll-up: no scan totals' }]],
+  ['roll-up: reports minted before the totals are written', 'rollUpProblems', [{ file: S, from: 'let waiting = [...eventIds];', to: 'let waiting = [];' }]],
+  ['roll-up: a failed trigger passes', 'rollUpProblems', [{ file: S, from: 'if (!res.ok) throw new Error(`roll-up:', to: 'if (false) throw new Error(`roll-up:' }]],
+  ['roll-up: sent to a worker that is not local', 'rollUpProblems', [{ file: S, from: 'const url = `${assertLocalBase(base)}/__scheduled', to: 'const url = `${base}/__scheduled' }]],
+  ['report total: a withheld total stops the seed', 'rollUpProblems', [{ file: S, from: "if (n === null || typeof n === 'number') return n;", to: "if (typeof n === 'number') return n;" }]],
+  ['report total: a missing or text total passes', 'rollUpProblems', [{ file: S, from: "if (n === null || typeof n === 'number') return n;", to: 'return n;' }]],
   ['layout: a list still draws the dial', 'layoutProblems', [{ file: R, from: "const dial = layout === 'dial';", to: 'const dial = true;' }]],
   ['layout: a card loses its title', 'layoutProblems', [{ file: R, from: '${dial ? \'\' : `<span class="t">${esc(s.title)}</span>`}', to: '' }]],
   ['layout: station pages ignore the layout', 'layoutProblems', [{ file: R, from: "${tuner(c, stations, s, '../', opt.layout)}", to: "${tuner(c, stations, s, '../')}" }]],
