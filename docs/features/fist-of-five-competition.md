@@ -2,7 +2,33 @@
 
 **Status:** Concept — roadmap, not built
 **Product:** ourWKRP
-**Last updated:** 2026-11-17 (voting mechanic: resolve by playback-event id, OW-219)
+**Last updated:** 2026-11-18 (voting follows the owner's decisions of 2026-11-17 and 2026-11-18; see the note below)
+
+> **Voting is decided (owner, 2026-11-17 and 2026-11-18).** The decision record
+> is ADR-040 in the OurSharedEvents repository ("An anonymous vote is a counter
+> on an object, never a row about a voter"). Where this concept document says
+> otherwise, the decision record wins. In short:
+>
+> - **Votes are stored on OurSharedEvents, never on ourWKRP.** ourWKRP holds
+>   named people; a vote is anonymous. ourWKRP stores no vote, no voter and no
+>   tally.
+> - **There is no row per vote.** A vote is a counter on an object, with a
+>   one-vote marker that names nobody.
+> - **Each play of a song is one object.** ourWKRP keeps the link from its
+>   `playback_events` id to the object's id; OurSharedEvents stores no ourWKRP
+>   id and no name.
+> - **The room screen shows the event's own scan code on OurSharedEvents.** It
+>   is not an ourWKRP link and not a code per song. The vote page there lists
+>   the songs open now, and each vote button carries its song's object id.
+> - **No tally before the night is final, and none on any screen.** Afterwards
+>   only the night's winner is published, or "too close to call, the champion
+>   retains". No count per song, per team or of voters is published.
+> - **One vote per person per song**, by the one-vote marker, not by a profile.
+>
+> So these parts of this document no longer hold as written: results that
+> "surface immediately", published team vote totals and standings by votes,
+> "one vote per profile/device", the anti-abuse list, and mobile-link voting.
+> They are kept below as the original concept.
 
 ## Vision
 
@@ -40,14 +66,14 @@ one-off vote gives nobody a reason to return; a season does.
 
 ## Voting mechanic (the substrate)
 
-- **Resolve by the playback-event id carried in the code (binding).** Each
-  play of a song is a `playback_events` row with its own id (migration 0011,
-  OW-219); `GET /dj/:id/live` names the open one as `now_playing`. The code a
-  voter scans on the **room screen** carries that id, and the vote resolves to
-  it. There is **no timestamp intersection**: the server never works out the
-  song from *when* a scan arrived. The **wall poster stays static** (one QR per
-  venue); only the screen changes with the song. This is the scan-resolution
-  law in `artist-attribution-five-surfaces.md`.
+- **Resolve by an id, never by the clock (binding).** Each play of a song is a
+  `playback_events` row with its own id (migration 0011, OW-219);
+  `GET /dj/:id/live` names the open one as `now_playing`. Each play is one
+  votable object on OurSharedEvents, and a vote button carries that object's
+  id. There is **no timestamp intersection**: the server never works out the
+  song from *when* a tap arrived. The room screen shows the event's own scan
+  code (see the note at the top); the **wall poster stays static**. This is
+  the scan-resolution law in `artist-attribution-five-surfaces.md`.
 - **Server-side resolution only** — never trust a client clock.
 - **Dedup is per song-play** — one vote per profile/device per playback
   instance. Votes key to the **playback-event id**, not the bare track id, so a

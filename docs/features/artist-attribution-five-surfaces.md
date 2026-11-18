@@ -2,7 +2,7 @@
 
 **Status:** Architecture — substrate built, generalization not started
 **Products:** OSE (surfaces + events) · OW (attribution + catalog) — hybrid
-**Last updated:** 2026-11-17 (`playback_events` exists: migration 0011, OW-219)
+**Last updated:** 2026-11-18 (voting follows the owner's decisions; `playback_events` exists: migration 0011, OW-219)
 **Companion:** `fist-of-five-competition.md` (FOF is a *format* on top of this, not a peer)
 
 ## What this is
@@ -47,8 +47,19 @@ opens a new one in one D1 batch, on server time, and returns its id; a replay
 is a new event. A unique partial index keeps at most one open event per set;
 ending a set (or starting the DJ's next one) closes it. `GET /dj/:id/live`
 names the open event as `now_playing`. `brand_id` is the owning DJ's brand.
-Old `set_tracks` rows were not backfilled (they hold no replays). Votes, the
-scan contract and the screen key are not built yet.
+Old `set_tracks` rows were not backfilled (they hold no replays). Votes are
+not built yet.
+
+**Voting decided (owner, 2026-11-17 and 2026-11-18; ADR-040 in the
+OurSharedEvents repository).** Votes are stored on OurSharedEvents as counters
+on objects, never on ourWKRP and never as a row per vote. Each play is one
+object; ourWKRP keeps the link from its `playback_events` id to the object id.
+The room screen shows the event's own scan code, not a rotating key and not a
+code per song: the vote page lists the songs open now and each button carries
+its object id. No tally is shown before the night is final or on any display,
+and afterwards only the outcome is published, never a count. Where the lines
+above and the tables below say "rotating vote key", or list counts drawn from
+votes, the decision record wins.
 
 ## The five surfaces, per shape
 
