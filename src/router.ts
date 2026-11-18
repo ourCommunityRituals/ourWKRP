@@ -44,6 +44,17 @@
  *   DELETE /api/facets/:id                 → remove a facet
  *   (facets also fold into GET /api/contributors/:id)
  *
+ *   --- DJ live sets and attribution (WKRP-22; playback events OW-219) ---
+ *   POST /api/sets                  → start a live set (ends the DJ's previous live set)
+ *   POST /api/sets/:id/tracks       → the set's DJ logs the song now playing (new playback event)
+ *   POST /api/sets/:id/end          → end a live set (closes its open playback event)
+ *   POST /api/attributions          → a listener's tap: credit a DJ for a track
+ *   GET  /dj/:id/live               → live set JSON with now_playing (null when not live)
+ *   GET  /dj/:id/stats              → DJ stats (listener counts floored, K = 5)
+ *   GET  /dj/:id/poster             → printable QR poster page (HTML)
+ *   GET  /dj/:id                    → live set page (HTML)
+ *   (an erased DJ's live sets end with the erasure: lib/erasure.ts)
+ *
  *   --- Cross-product (OurSharedEvents; service token required) ---
  *   GET  /api/events/:eventId/music    → an event's sets, top tracks and floored counts
  *   GET  /api/sponsors/:eventId/report → sponsor report: floored counts per DJ, hour, track

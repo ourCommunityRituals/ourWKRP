@@ -13,7 +13,7 @@
     "src/lib/crypto.ts": 94,
     "src/lib/event-attributions.ts": 88,
     "src/lib/cursor.ts": 85,
-    "src/lib/erasure.ts": 72.41,
+    "src/lib/erasure.ts": 87.5,
     "src/lib/html.ts": 20.58,
     "src/lib/ids.ts": 100,
     "src/lib/origin-check.ts": 90.47,

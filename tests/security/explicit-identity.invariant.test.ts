@@ -185,6 +185,15 @@ describe('#26 wall (d) — the flag is always revocable', () => {
   it('erasure is recorded in the audit trail', () => {
     expect(read(ERASURE_MODULE)).toContain("action: 'privacy.erasure'");
   });
+
+  it("erasure ends the person's live sets by update, never by deleting set rows (OW-219)", () => {
+    const erasure = read(ERASURE_MODULE);
+    expect(erasure).toContain("UPDATE dj_sets SET is_live = 0, ended_at = datetime('now') WHERE dj_id = ? AND is_live = 1");
+    expect(erasure).toContain("UPDATE playback_events SET ended_at = datetime('now')");
+    for (const table of ['dj_sets', 'set_tracks', 'playback_events']) {
+      expect(erasure).not.toMatch(new RegExp(`DELETE\\s+FROM\\s+${table}\\b`, 'i'));
+    }
+  });
 });
 
 // ===========================================================================

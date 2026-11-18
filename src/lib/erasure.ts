@@ -19,6 +19,16 @@
  * a per-contributor session index (F3 auth hardening 2026-09-12) lets us
  * enumerate and delete every live session here rather than waiting out the
  * absolute/idle TTL (OW-81). Tokens — the sensitive material — are purged too.
+ *
+ * A live DJ set ends with the erasure (OW-219). Once the sessions are revoked
+ * nobody can end the set, so it would otherwise stay live on /dj/:id/live under
+ * the tombstoned name for good. Erasure ends every live set of the erased
+ * person and closes each one's open playback event, in one D1 batch with the
+ * playback close first (the same two statements POST /api/sets uses to end a
+ * DJ's previous live set). Rows are kept, as with every other contribution:
+ * nothing is deleted from dj_sets, set_tracks or playback_events; only a live
+ * set's is_live / ended_at and its open event's ended_at change. Sets already
+ * ended, and every other DJ's sets, are left as they were.
  */
 
 import type { Env } from '../types';
@@ -64,6 +74,20 @@ export async function eraseContributor(
     return { erased: false };
   }
 
+  // End the erased person's live sets (header comment). Playback first, while
+  // the set still reads as live; both in one batch so neither lands alone.
+  const [, setsEnded] = await env.WKRP_DB.batch([
+    env.WKRP_DB.prepare(
+      `UPDATE playback_events SET ended_at = datetime('now')
+        WHERE ended_at IS NULL
+          AND set_id IN (SELECT id FROM dj_sets WHERE dj_id = ? AND is_live = 1)`,
+    ).bind(contributorId),
+    env.WKRP_DB.prepare(
+      "UPDATE dj_sets SET is_live = 0, ended_at = datetime('now') WHERE dj_id = ? AND is_live = 1",
+    ).bind(contributorId),
+  ]);
+  const liveSetsEnded = setsEnded.meta.changes;
+
   // Self-declared facets are personal descriptors, not shared provenance — a
   // person's declared "(domain, depth)" pairs are theirs alone and carry no
   // catalog lineage, so they are hard-deleted on erasure (unlike contributions,
@@ -86,7 +110,7 @@ export async function eraseContributor(
     resourceId: contributorId,
     outcome: 'success',
     actorId: contributorId,
-    meta: { sessions_revoked: sessionsRevoked },
+    meta: { sessions_revoked: sessionsRevoked, live_sets_ended: liveSetsEnded },
   });
 
   return { erased: true };
