@@ -28,6 +28,13 @@
     </div>
 
     <div class="content">
+      <div aria-live="polite" data-testid="now-playing-live">
+        <section id="now-playing" class="now-playing section hidden" aria-labelledby="now-playing-label" data-testid="now-playing">
+          <div class="now-playing-label" id="now-playing-label" data-testid="now-playing-label">Now playing</div>
+          <div class="now-playing-track" id="now-playing-track" data-testid="now-playing-track"></div>
+          <div class="now-playing-artist" id="now-playing-artist" data-testid="now-playing-artist"></div>
+        </section>
+      </div>
       <div class="section-title">Set List</div>
       <div id="track-list" class="set-list" data-testid="track-list"></div>
     </div>
@@ -85,6 +92,7 @@
           document.getElementById('dj-name').textContent = data.dj.name;
           document.getElementById('venue').textContent = data.live_set.venue_name || '';
 
+          renderNowPlaying(data.live_set.now_playing);
           renderTracks(data.live_set.tracks, data.dj.id, data.live_set.id);
           document.getElementById('live-view').classList.remove('hidden');
 
@@ -104,21 +112,43 @@
           var res = await fetch('/dj/' + encodeURIComponent(djId) + '/live');
           var data = await res.json();
           if (data.ok && data.live_set) {
+            renderNowPlaying(data.live_set.now_playing);
             renderTracks(data.live_set.tracks, data.dj.id, data.live_set.id);
+          } else if (data.ok) {
+            renderNowPlaying(null); // the set ended: nothing is playing
           }
         } catch (e) { /* silent */ }
       }
 
+      // The song playing now (OW-219): the set's open playback event, or null.
+      // The DOM is touched only when the playback event id changes, so a poll
+      // that finds the same event announces nothing new; a replay of the same
+      // song is a new event with a new id, so it is shown again. Values go in
+      // as textContent, never as markup. The id is kept in a data- attribute
+      // and is never shown as text.
+      function renderNowPlaying(np) {
+        var block = document.getElementById('now-playing');
+        var id = (np && np.track && typeof np.playback_event_id === 'string') ? np.playback_event_id : '';
+        if (id === (block.getAttribute('data-playback-event-id') || '')) return;
+        if (!id) {
+          block.classList.add('hidden');
+          block.removeAttribute('data-playback-event-id');
+          return;
+        }
+        document.getElementById('now-playing-track').textContent = np.track.name || '';
+        document.getElementById('now-playing-artist').textContent = np.track.artist || '';
+        block.setAttribute('data-playback-event-id', id);
+        block.classList.remove('hidden');
+      }
+
       function renderTracks(tracks, currentDjId) {
         var list = document.getElementById('track-list');
-        list.innerHTML = tracks.map(function(t, i) {
-          var isNowPlaying = i === 0;
+        list.innerHTML = tracks.map(function(t) {
           var isAttributed = attributed[t.id];
           return '<div class="track-card" data-testid="track-card">' +
             (t.image_url ? '<img class="track-art" src="' + escapeHtml(t.image_url) + '" alt="" loading="lazy">' :
               '<div class="track-art"></div>') +
             '<div class="track-info">' +
-              (isNowPlaying ? '<div class="now-playing-label">Now Playing</div>' : '') +
               '<div class="track-name">' + escapeHtml(t.name) + '</div>' +
               '<div class="track-artist">' + escapeHtml(t.artist) + '</div>' +
             '</div>' +
