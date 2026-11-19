@@ -38,6 +38,7 @@ import { startSetBodySchema, addSetTrackBodySchema, createAttributionBodySchema 
 import { validateBody } from '../lib/validate';
 import { recordAudit } from '../lib/audit';
 import { log } from '../lib/logger';
+import { openSongVote, closeSongVote, songLabel } from '../lib/ose-vote-link';
 import { applyCountFloor, dropSubFloorRows, sumContributingBuckets, COUNT_FLOOR } from '../lib/count-floor';
 
 /**
@@ -93,6 +94,37 @@ export async function handleStartSet(request: Request, env: Env): Promise<Respon
   }, { status: 201 });
 }
 
+/** The vote link of the set's open play, or null (OW-219). */
+async function openPlayVote(env: Env, setId: string): Promise<string | null> {
+  const row = await env.WKRP_DB.prepare(
+    'SELECT vote_object_id FROM playback_events WHERE set_id = ? AND ended_at IS NULL'
+  ).bind(setId).first<{ vote_object_id: string | null }>();
+  return row?.vote_object_id ?? null;
+}
+
+/**
+ * After a song is logged: close the last play's vote on OurSharedEvents, open
+ * one for this play, and keep the link (lib/ose-vote-link.ts). Off by default;
+ * a failure leaves the link empty and never fails the DJ's request.
+ */
+async function linkPlayVote(
+  env: Env,
+  oseEventId: string | null,
+  previousObjectId: string | null,
+  playbackEventId: string,
+  trackId: string
+): Promise<void> {
+  await closeSongVote(env, oseEventId, previousObjectId);
+  if (!oseEventId) return;
+  const track = await env.WKRP_DB.prepare('SELECT name, artist FROM tracks WHERE id = ?')
+    .bind(trackId).first<{ name: string; artist: string | null }>();
+  if (!track?.name) return;
+  const objectId = await openSongVote(env, oseEventId, songLabel(track.name, track.artist));
+  if (!objectId) return;
+  await env.WKRP_DB.prepare('UPDATE playback_events SET vote_object_id = ? WHERE id = ?')
+    .bind(objectId, playbackEventId).run();
+}
+
 /**
  * POST /api/sets/:id/tracks
  * The set's DJ logs the song now playing.
@@ -110,8 +142,8 @@ export async function handleAddSetTrack(request: Request, env: Env, setId: strin
 
   // Verify ownership
   const set = await env.WKRP_DB.prepare(
-    'SELECT id, dj_id, is_live FROM dj_sets WHERE id = ? AND is_live = 1'
-  ).bind(setId).first();
+    'SELECT id, dj_id, is_live, event_id FROM dj_sets WHERE id = ? AND is_live = 1'
+  ).bind(setId).first<{ id: string; dj_id: string; is_live: number; event_id: string | null }>();
 
   if (!set) {
     return Response.json({ ok: false, error: 'Live set not found' }, { status: 404 });
@@ -131,6 +163,9 @@ export async function handleAddSetTrack(request: Request, env: Env, setId: strin
   ).bind(setId).first<{ next_pos: number }>();
 
   const playbackEventId = crypto.randomUUID();
+
+  // The song playing now, whose vote on OurSharedEvents closes with it (OW-219).
+  const previous = await openPlayVote(env, setId);
 
   const results = await env.WKRP_DB.batch([
     // 1. Close the song that was playing.
@@ -158,6 +193,8 @@ export async function handleAddSetTrack(request: Request, env: Env, setId: strin
     return Response.json({ ok: false, error: 'Live set not found' }, { status: 404 });
   }
 
+  await linkPlayVote(env, set.event_id, previous, playbackEventId, body.track_id);
+
   log('DJ_SET_TRACK_ADDED', { set_id: setId, track_id: body.track_id, playback_event_id: playbackEventId });
   await recordAudit(env, request, {
     action: 'set.track.add', resourceType: 'set', resourceId: setId,
@@ -177,8 +214,8 @@ export async function handleEndSet(request: Request, env: Env, setId: string): P
   if (auth instanceof Response) return auth;
 
   const set = await env.WKRP_DB.prepare(
-    'SELECT id, dj_id FROM dj_sets WHERE id = ? AND is_live = 1'
-  ).bind(setId).first();
+    'SELECT id, dj_id, event_id FROM dj_sets WHERE id = ? AND is_live = 1'
+  ).bind(setId).first<{ id: string; dj_id: string; event_id: string | null }>();
 
   if (!set) {
     return Response.json({ ok: false, error: 'Live set not found' }, { status: 404 });
@@ -186,6 +223,8 @@ export async function handleEndSet(request: Request, env: Env, setId: string): P
   if (set.dj_id !== auth.userId) {
     return Response.json({ ok: false, error: 'Not your set' }, { status: 403 });
   }
+
+  const previous = await openPlayVote(env, setId);
 
   // End the set and close its open playback event in one batch.
   await env.WKRP_DB.batch([
@@ -196,6 +235,8 @@ export async function handleEndSet(request: Request, env: Env, setId: string): P
       "UPDATE dj_sets SET is_live = 0, ended_at = datetime('now') WHERE id = ?"
     ).bind(setId),
   ]);
+
+  await closeSongVote(env, set.event_id, previous);
 
   log('DJ_SET_ENDED', { set_id: setId });
   await recordAudit(env, request, {

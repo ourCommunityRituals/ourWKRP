@@ -23,6 +23,13 @@ export interface Env {
   // Optional so unset environments FAIL CLOSED (401), never open. Injected as a
   // Doppler/Workers secret; documented placeholder in wrangler.toml.
   OSE_INTEGRATION_TOKEN?: string;
+  // Each play's vote on OurSharedEvents (OW-219, lib/ose-vote-link.ts). Off
+  // unless OSE_VOTE_LINK is "on" and all four are set. The Access service
+  // token pair is a secret the owner sets; never a [vars] value.
+  OSE_VOTE_LINK?: string;
+  OSE_VOTE_API_BASE?: string;
+  OSE_SERVICE_TOKEN_ID?: string;
+  OSE_SERVICE_TOKEN_SECRET?: string;
   // Admin service token (F1 auth hardening). Presented to POST /admin/roles/grant
   // and compared constant-time in admin-auth.ts. Optional so unset environments
   // FAIL CLOSED (401), never open. Injected as a Doppler/Workers secret;

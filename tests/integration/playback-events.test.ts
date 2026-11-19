@@ -417,6 +417,7 @@ describe('right to erasure: playback events follow dj_sets and set_tracks', () =
 
   it('a playback event has no column that names a person', async () => {
     const cols = await rig.db.prepare("SELECT name FROM pragma_table_info('playback_events') ORDER BY cid").all<{ name: string }>();
-    expect(cols.results.map((r) => r.name)).toEqual(['id', 'set_id', 'track_id', 'brand_id', 'started_at', 'ended_at']);
+    // vote_object_id (OW-219) is an OurSharedEvents object id, not a person.
+    expect(cols.results.map((r) => r.name)).toEqual(['id', 'set_id', 'track_id', 'brand_id', 'started_at', 'ended_at', 'vote_object_id']);
   }, 30000);
 });
