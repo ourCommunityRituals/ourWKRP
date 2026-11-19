@@ -17,6 +17,8 @@ import {
   floorTotalOfParts,
   flooredFields,
   groupSizes,
+  publishCount,
+  roundForPublish,
   sumContributingBuckets,
   withheldText,
 } from '../../src/lib/count-floor';
@@ -71,8 +73,10 @@ describe('sumContributingBuckets', () => {
 
 describe('floorTotalOfParts', () => {
   it('drops each part under the floor before it sums', () => {
-    expect(floorTotalOfParts([6, 3])).toEqual({ count: 6, suppressed: false, floor: COUNT_FLOOR });
-    expect(floorTotalOfParts([6, 5, 4])).toEqual({ count: 11, suppressed: false, floor: COUNT_FLOOR });
+    // Each surviving part is rounded down to a multiple of 5 as it is published.
+    expect(floorTotalOfParts([6, 3])).toEqual({ count: 5, suppressed: false, floor: COUNT_FLOOR });
+    expect(floorTotalOfParts([6, 5, 4])).toEqual({ count: 10, suppressed: false, floor: COUNT_FLOOR });
+    expect(floorTotalOfParts([7, 8])).toEqual({ count: 10, suppressed: false, floor: COUNT_FLOOR });
   });
 
   it('withholds a total made only of small parts (3 + 3 is not 6)', () => {
@@ -81,7 +85,7 @@ describe('floorTotalOfParts', () => {
 
   it('withholds an empty total, and reads null and undefined as 0', () => {
     expect(floorTotalOfParts([])).toEqual({ count: null, suppressed: true, floor: COUNT_FLOOR });
-    expect(floorTotalOfParts([null, undefined, 7])).toEqual({ count: 7, suppressed: false, floor: COUNT_FLOOR });
+    expect(floorTotalOfParts([null, undefined, 7])).toEqual({ count: 5, suppressed: false, floor: COUNT_FLOOR });
   });
 
   it('takes another floor when given one', () => {
@@ -93,7 +97,7 @@ describe('floorTotalOfParts', () => {
     fc.assert(
       fc.property(fc.array(fc.integer({ min: 0, max: 30 }), { maxLength: 6 }), (parts) => {
         const total = floorTotalOfParts(parts).count ?? 0;
-        const published = parts.filter((p) => p >= COUNT_FLOOR);
+        const published = parts.filter((p) => p >= COUNT_FLOOR).map(roundForPublish);
         let sums = [0];
         for (const p of published) sums = [...sums, ...sums.map((s) => s + p)];
         return sums.every((s) => {
@@ -190,9 +194,47 @@ describe('floorAcrossCuts', () => {
   });
 });
 
+describe('publishCount and roundForPublish (owner ruling 2026-11-18)', () => {
+  it.each([
+    [0, null],
+    [4, null],
+    [5, 5],
+    [9, 5],
+    [10, 10],
+    [12, 10],
+    [101, 100],
+  ])('%i publishes as %s', (raw, out) => {
+    expect(publishCount(raw)).toEqual({ count: out, suppressed: out === null, floor: COUNT_FLOOR });
+  });
+
+  it('the gate stays exact: applyCountFloor still returns 12 for 12', () => {
+    expect(applyCountFloor(12).count).toBe(12);
+  });
+
+  it('neighbours one apart inside a step of 5 read the same; a control crossing a step moves', () => {
+    for (const n of [5, 6, 7, 8, 10, 11, 12, 13]) {
+      expect(flooredFields('x', applyCountFloor(n + 1))).toEqual(flooredFields('x', applyCountFloor(n)));
+      expect(countText(n + 1)).toBe(countText(n));
+      expect(floorTotalOfParts([n + 1, 7])).toEqual(floorTotalOfParts([n, 7]));
+    }
+    expect(flooredFields('x', applyCountFloor(10))).not.toEqual(flooredFields('x', applyCountFloor(9)));
+  });
+
+  it('property: every published value is a multiple of 5', () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer({ min: 0, max: 200 }), { maxLength: 6 }), (parts) => {
+        const t = floorTotalOfParts(parts).count;
+        return (t === null || t % 5 === 0) && parts.every((p) => (publishCount(p).count ?? 0) % 5 === 0);
+      }),
+    );
+  });
+});
+
 describe('flooredFields', () => {
   it('writes the count and its _suppressed flag under one name', () => {
-    expect(flooredFields('dj_count', applyCountFloor(6))).toEqual({ dj_count: 6, dj_count_suppressed: false });
+    // Rounded down to a multiple of 5 at the wire (owner ruling 2026-11-18).
+    expect(flooredFields('dj_count', applyCountFloor(6))).toEqual({ dj_count: 5, dj_count_suppressed: false });
+    expect(flooredFields('dj_count', applyCountFloor(14))).toEqual({ dj_count: 10, dj_count_suppressed: false });
     expect(flooredFields('dj_count', applyCountFloor(0))).toEqual({ dj_count: null, dj_count_suppressed: true });
     expect(flooredFields('dj_count', applyCountFloor(3))).toEqual({ dj_count: null, dj_count_suppressed: true });
   });
@@ -208,7 +250,7 @@ describe('withheldText and countText', () => {
     [applyCountFloor(0), 'Fewer than 5'],
     [applyCountFloor(4), 'Fewer than 5'],
     [applyCountFloor(5), '5'],
-    [applyCountFloor(1234), '1234'],
+    [applyCountFloor(1234), '1230'],
     [{ count: 9, suppressed: true, floor: 5 }, 'Fewer than 5'],
     [null, 'Fewer than 5'],
     [undefined, 'Fewer than 5'],
@@ -216,7 +258,8 @@ describe('withheldText and countText', () => {
     [3, 'Fewer than 5'],
     [Number.NaN, 'Fewer than 5'],
     [5, '5'],
-    [6.8, '6'],
+    [6.8, '5'],
+    [12, '10'],
   ])('%j -> %s', (value, text) => {
     expect(countText(value as Parameters<typeof countText>[0])).toBe(text);
   });

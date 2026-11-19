@@ -440,7 +440,7 @@ describe('Catalog API Contracts', () => {
       expect(body.brands[0]).toMatchObject({
         contributor_count: null,
         contributor_count_suppressed: true,
-        track_count: 7,
+        track_count: 5, // 7, rounded down to a multiple of 5
         track_count_suppressed: false,
       });
     });

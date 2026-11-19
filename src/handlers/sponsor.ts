@@ -22,7 +22,7 @@
 import type { Env } from '../types';
 import { log } from '../lib/logger';
 import { requireCrossProductToken } from '../lib/cross-product-auth';
-import { applyCountFloor, dropSubFloorRows, flooredFields, sumContributingBuckets, COUNT_FLOOR } from '../lib/count-floor';
+import { dropSubFloorRows, flooredFields, floorTotalOfParts, roundForPublish, COUNT_FLOOR } from '../lib/count-floor';
 import {
   eventAttributionsQuery,
   summariseEventAttributions,
@@ -71,10 +71,12 @@ export async function handleSponsorReport(request: Request, env: Env, eventId: s
     (r) => r.attribution_count,
   );
 
-  // The total is the sum of the hourly rows that cleared the floor, floored
-  // again; with every row built from the same counted taps it equals the sum
-  // of the DJ rows and of all track rows too.
-  const totalAttributions = applyCountFloor(sumContributingBuckets(timeline.rows, (r) => r.count));
+  // The total is the sum of the hourly rows that cleared the floor, each rounded
+  // down to a multiple of 5 as it is published (owner ruling 2026-11-18), so
+  // the total equals the sum of the timeline rows shown beside it.
+  const totalAttributions = floorTotalOfParts(timeline.rows.map((r) => r.count));
+  const rounded = <T extends { attribution_count: number }>(rows: T[]): T[] =>
+    rows.map((r) => ({ ...r, attribution_count: roundForPublish(r.attribution_count) }));
 
   // Get event context from dj_sets if available
   const eventContext = await env.WKRP_DB.prepare(
@@ -96,9 +98,9 @@ export async function handleSponsorReport(request: Request, env: Env, eventId: s
         ...flooredFields('total_djs', counts.djs),
         reporting_floor: COUNT_FLOOR,
       },
-      top_tracks: topTracks.rows,
-      dj_breakdown: djBreakdown.rows,
-      timeline: timeline.rows,
+      top_tracks: rounded(topTracks.rows),
+      dj_breakdown: rounded(djBreakdown.rows),
+      timeline: timeline.rows.map((h) => ({ ...h, count: roundForPublish(h.count) })),
       generated_at: new Date().toISOString(),
     },
   });

@@ -38,7 +38,7 @@ import { startSetBodySchema, addSetTrackBodySchema, createAttributionBodySchema 
 import { validateBody } from '../lib/validate';
 import { recordAudit } from '../lib/audit';
 import { log } from '../lib/logger';
-import { applyCountFloor, dropSubFloorRows, sumContributingBuckets, COUNT_FLOOR } from '../lib/count-floor';
+import { dropSubFloorRows, floorTotalOfParts, publishCount, roundForPublish, COUNT_FLOOR } from '../lib/count-floor';
 
 /**
  * POST /api/sets
@@ -317,6 +317,9 @@ export async function handleCreateAttribution(request: Request, env: Env): Promi
  *     (drop before sum), so the total minus the listed tracks never gives a
  *     dropped track's count back.
  *   - total_sets: the DJ's own sets, exact (not listener-derived).
+ * Every published listener-derived count is rounded down to a multiple of 5
+ * (owner ruling 2026-11-18), the per-track counts included, and the total is
+ * the sum of the rounded tracks.
  */
 export async function handleGetDjStats(_request: Request, env: Env, djId: string): Promise<Response> {
   const [listenersResult, tracksResult, setsResult] = await env.WKRP_DB.batch([
@@ -342,8 +345,8 @@ export async function handleGetDjStats(_request: Request, env: Env, djId: string
 
   const countOf = (r: unknown): number => Number((r as Record<string, unknown>).attribution_count ?? 0);
   const tracks = tracksResult.results as Record<string, unknown>[];
-  const uniqueListeners = applyCountFloor(Number((listenersResult.results[0] as Record<string, unknown>)?.count ?? 0));
-  const totalAttributions = applyCountFloor(sumContributingBuckets(tracks, countOf));
+  const uniqueListeners = publishCount(Number((listenersResult.results[0] as Record<string, unknown>)?.count ?? 0));
+  const totalAttributions = floorTotalOfParts(tracks.map(countOf));
   const topTracks = dropSubFloorRows(tracks, countOf);
   const totalSets = Number((setsResult.results[0] as Record<string, unknown>)?.count ?? 0);
 
@@ -357,7 +360,9 @@ export async function handleGetDjStats(_request: Request, env: Env, djId: string
       unique_listeners: uniqueListeners.count,
       unique_listeners_suppressed: uniqueListeners.suppressed,
       total_sets: totalSets,
-      top_discovered_tracks: topTracks.rows.slice(0, 10),
+      top_discovered_tracks: topTracks.rows
+        .slice(0, 10)
+        .map((t) => ({ ...t, attribution_count: roundForPublish(countOf(t)) })),
       reporting_floor: uniqueListeners.floor,
     },
   });
