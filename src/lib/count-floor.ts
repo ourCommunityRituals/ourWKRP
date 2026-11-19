@@ -42,7 +42,7 @@ export const PUBLISH_ROUNDING = COUNT_FLOOR;
 
 /** A count rounded down to a multiple of PUBLISH_ROUNDING (12 → 10). One argument, so it can go to `.map`. */
 export function roundForPublish(n: number): number {
-  const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  const v = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
   return v - (v % PUBLISH_ROUNDING);
 }
 
@@ -181,6 +181,7 @@ export function withheldText(floor: number = COUNT_FLOOR): string {
  */
 export function countText(value: FlooredCount | number | null | undefined, floor: number = COUNT_FLOOR): string {
   const n = typeof value === 'object' && value !== null ? (value.suppressed ? null : value.count) : value;
-  if (typeof n !== 'number' || !Number.isFinite(n) || n < floor) return withheldText(floor);
-  return String(roundForPublish(n));
+  // roundForPublish reads NaN, Infinity and negatives as 0, so they are withheld too.
+  const shown = roundForPublish(Number(n ?? 0));
+  return shown < floor ? withheldText(floor) : String(shown);
 }

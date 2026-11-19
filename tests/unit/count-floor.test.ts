@@ -207,6 +207,31 @@ describe('publishCount and roundForPublish (owner ruling 2026-11-18)', () => {
     expect(publishCount(raw)).toEqual({ count: out, suppressed: out === null, floor: COUNT_FLOOR });
   });
 
+  it.each([
+    [0, 0],
+    [4.9, 0],
+    [7.9, 5],
+    [-3, 0],
+    [-12, 0],
+    [Number.NaN, 0],
+    [Infinity, 0],
+    [-Infinity, 0],
+  ])('roundForPublish(%s) is %s', (n, out) => {
+    expect(roundForPublish(n)).toBe(out);
+  });
+
+  it('flooredFields withholds a value marked suppressed, and one with no count', () => {
+    expect(flooredFields('x', { count: 9, suppressed: true, floor: 5 })).toEqual({ x: null, x_suppressed: true });
+    expect(flooredFields('x', { count: null, suppressed: false, floor: 5 })).toEqual({ x: null, x_suppressed: true });
+  });
+
+  it('countText withholds Infinity, and rounds under a stricter floor before it compares', () => {
+    expect(countText(Infinity)).toBe('Fewer than 5');
+    expect(countText(12, 10)).toBe('10');
+    expect(countText(14, 10)).toBe('10');
+    expect(countText(9, 10)).toBe('Fewer than 10');
+  });
+
   it('the gate stays exact: applyCountFloor still returns 12 for 12', () => {
     expect(applyCountFloor(12).count).toBe(12);
   });
