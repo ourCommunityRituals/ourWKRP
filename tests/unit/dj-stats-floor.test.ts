@@ -58,14 +58,19 @@ describe('GET /dj/:id/stats: one listener or attribution under the floor moves n
     });
   }
 
-  it('control: one more attribution on the track at 7 moves the answer', async () => {
-    expect(await read({ ...BASE, tracks: { ...BASE.tracks, 'trk-a': 8 } })).not.toBe(await read(BASE));
+  it('one more attribution on the track at 7 moves nothing: 7 and 8 both publish as 5', async () => {
+    expect(await read({ ...BASE, tracks: { ...BASE.tracks, 'trk-a': 8 } })).toBe(await read(BASE));
   });
 
-  it('the base publishes the track at 7 only, and its own sets exactly', async () => {
+  it('control: the track at 7 reaching 10 moves the answer', async () => {
+    expect(await read({ ...BASE, tracks: { ...BASE.tracks, 'trk-a': 10 } })).not.toBe(await read(BASE));
+  });
+
+  it('the base publishes the track at 7 only, rounded to 5, and its own sets exactly', async () => {
     const body = JSON.parse(await read(BASE)) as { stats: Record<string, unknown> };
-    expect(body.stats.total_attributions).toBe(7);
-    expect(body.stats.unique_listeners).toBe(7);
+    expect(body.stats.total_attributions).toBe(5);
+    expect(body.stats.unique_listeners).toBe(5);
+    expect((body.stats.top_discovered_tracks as { attribution_count: number }[])[0].attribution_count).toBe(5);
     expect((body.stats.top_discovered_tracks as { id: string }[]).map((t) => t.id)).toEqual(['trk-a']);
     expect(body.stats.total_sets).toBe(2);
     expect(body.stats.reporting_floor).toBe(5);

@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { eventAttributionsQuery, summariseEventAttributions, type EventAttributionRow } from '../../src/lib/event-attributions';
 import type { Env } from '../../src/types';
-import { COUNT_FLOOR } from '../../src/lib/count-floor';
+import { COUNT_FLOOR, roundForPublish } from '../../src/lib/count-floor';
 
 function taps(n: number, o: Partial<EventAttributionRow> & { named?: number } = {}): EventAttributionRow[] {
   const { named = 0, ...rest } = o;
@@ -40,7 +40,10 @@ describe('summariseEventAttributions', () => {
       ...taps(3, { dj_id: 'dx', dj_name: 'DJ X', track_id: 't1', hour: '2026-11-01 21:00', named: 3 }),
     ]);
     const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
-    expect(c.total.count).toBe(13);
+    // Every cut holds the same 13 counted taps; the total is published as the
+    // sum of the tracks each rounded down to a multiple of 5 (6 → 5, 7 → 5).
+    expect(c.total.count).toBe(10);
+    expect(sum(c.byTrack.map((t) => roundForPublish(t.attribution_count)))).toBe(10);
     expect(sum(c.byTrack.map((t) => t.attribution_count))).toBe(13);
     expect(sum(c.byDj.map((d) => d.attribution_count))).toBe(13);
     expect(sum(c.byHour.map((h) => h.count))).toBe(13);
@@ -99,7 +102,8 @@ describe('summariseEventAttributions', () => {
 
   it('counts anonymous taps but not as listeners', () => {
     const c = summariseEventAttributions(taps(9, { named: 4 }));
-    expect(c.total.count).toBe(9);
+    expect(c.byTrack[0].attribution_count).toBe(9);
+    expect(c.total.count).toBe(5); // published rounded down to a multiple of 5
     expect(c.distinctListeners).toEqual({ count: null, suppressed: true, floor: COUNT_FLOOR });
   });
 });

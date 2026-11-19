@@ -42,6 +42,8 @@ describe('Invariant uniform_count_floor (OW facet) — listener counts are floor
     expect(lib).toMatch(/export function floorTotalOfParts/);
     expect(lib).toMatch(/export function floorAcrossCuts/);
     expect(lib).toMatch(/export function withheldText/);
+    expect(lib).toMatch(/export function publishCount/);
+    expect(lib).toMatch(/export function roundForPublish/);
     // K is defined once: no other literal floor in the library.
     expect(lib.match(/= 5\b/g)).toHaveLength(1);
   });
@@ -56,11 +58,13 @@ describe('Invariant uniform_count_floor (OW facet) — listener counts are floor
     for (const h of COUNT_PUBLISHING_HANDLERS) {
       const src = read(h);
       expect(src, `${h} must import the count floor`).toMatch(/from '\.\.\/lib\/count-floor'/);
-      expect(src, `${h} must floor scalar counts`).toMatch(/applyCountFloor\s*\(/);
+      expect(src, `${h} must floor and round scalar counts`).toMatch(/(applyCountFloor|publishCount|floorTotalOfParts)\s*\(/);
       expect(src, `${h} must drop sub-floor rows, never mark them`).toMatch(/dropSubFloorRows\s*\(/);
       expect(src, `${h} totals must sum surviving buckets (differencing-safe)`).toMatch(
-        /sumContributingBuckets\s*\(/
+        /(sumContributingBuckets|floorTotalOfParts)\s*\(/
       );
+      // Owner ruling 2026-11-18: every published row count is rounded too.
+      expect(src, `${h} must round the counts of the rows it publishes`).toMatch(/roundForPublish\s*\(/);
     }
   });
 

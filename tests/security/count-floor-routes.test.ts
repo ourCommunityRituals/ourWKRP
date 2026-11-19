@@ -7,11 +7,13 @@
  * For each route:
  *   - a sweep over true values 0, 1, 4, 5, 6: 1 to 4 read as the withheld
  *     shape ({ <field>: null, <field>_suppressed: true }); 0 reads the same as
- *     1 to 4 on every route; 5 and 6 are published exactly;
+ *     1 to 4 on every route; from 5 up the count is published rounded down to
+ *     a multiple of 5 (owner ruling 2026-11-18): 5, 6 and 9 read 5, 10 reads 10;
  *   - a neighbour test: one more action inside a group under the floor leaves
  *     the whole response byte-identical;
- *   - a control: one more action in a group above the floor changes the
- *     response, so the harness can fail.
+ *   - a control: actions in a group above the floor that cross a multiple of
+ *     5 change the response, so the harness can fail; one more inside a step
+ *     of 5 changes nothing.
  *
  * The event routes also get the three-cut test: one DJ with 3 taps next to
  * DJs with many, and no sum or difference of the published numbers gives 3.
@@ -24,13 +26,13 @@ import { handleGetEventMusic } from '../../src/handlers/events';
 import { handleSponsorReport } from '../../src/handlers/sponsor';
 import { handleGetStats, handleGetBrands } from '../../src/handlers/catalog';
 import { handleGetDjStats } from '../../src/handlers/dj';
-import { COUNT_FLOOR } from '../../src/lib/count-floor';
+import { COUNT_FLOOR, roundForPublish } from '../../src/lib/count-floor';
 import type { Env } from '../../src/types';
 
 const MIGRATIONS_DIR = join(__dirname, '../../migrations');
 const TOKEN = 'test-ose-integration-token';
 const EVENT = 'evt-1';
-const SWEEP = [0, 1, 4, 5, 6] as const;
+const SWEEP = [0, 1, 4, 5, 6, 9, 10] as const;
 
 const DATA_TABLES = [
   'preferred_playlists', 'playlist_tracks', 'playlists', 'set_tracks', 'attributions',
@@ -205,7 +207,7 @@ type Obj = Record<string, unknown>;
 /** Assert one floored field: exact at or above the floor, the withheld shape under it (0 included). */
 function expectFloored(container: Obj, field: string, trueValue: number): void {
   if (trueValue >= COUNT_FLOOR) {
-    expect(container[field], `${field} at ${trueValue}`).toBe(trueValue);
+    expect(container[field], `${field} at ${trueValue}`).toBe(roundForPublish(trueValue));
     expect(container[`${field}_suppressed`], `${field}_suppressed at ${trueValue}`).toBe(false);
   } else {
     expect(container[field], `${field} at ${trueValue}`).toBeNull();
@@ -316,11 +318,19 @@ for (const [name, read] of [
       });
     }
 
-    it('control: one more tap for a DJ above the floor changes the response', async () => {
+    it('one more tap for a DJ above the floor, inside a step of 5, changes nothing', async () => {
       await seedTaps(busyEvent());
       const a = await read();
       await resetData();
       await seedTaps([...busyEvent(), ...taps(1, { dj: 'dj-b', track: 't-1', at: '2026-11-01 21:50:00', named: 1, listenerPrefix: 'lc' })]);
+      expect(await read()).toBe(a);
+    });
+
+    it('control: five more taps for a DJ above the floor change the response', async () => {
+      await seedTaps(busyEvent());
+      const a = await read();
+      await resetData();
+      await seedTaps([...busyEvent(), ...taps(5, { dj: 'dj-b', track: 't-1', at: '2026-11-01 21:50:00', named: 5, listenerPrefix: 'lc' })]);
       expect(await read()).not.toBe(a);
     });
 
@@ -428,8 +438,8 @@ describe('GET /api/stats: total_contributors is floored', () => {
     expect(await stats()).toBe(a);
   });
 
-  it('control: one more contributor above the floor changes the response', async () => {
-    await seedContributors(6);
+  it('control: one more contributor above the floor, crossing a multiple of 5, changes the response', async () => {
+    await seedContributors(9);
     const a = await stats();
     await seedContributors(1, 'wkrp', 'extra');
     expect(await stats()).not.toBe(a);
@@ -485,9 +495,9 @@ describe('GET /api/brands: contributor_count and track_count are floored', () =>
     expect(await brands()).toBe(a);
   });
 
-  it('control: one more contribution above the floor changes the response', async () => {
+  it('control: one more contribution above the floor, crossing a multiple of 5, changes the response', async () => {
     await seedContributors(6);
-    await seedContributions(6);
+    await seedContributions(9);
     const a = await brands();
     await seedContributions(1, 'c-wkrp-1');
     expect(await brands()).not.toBe(a);
@@ -520,8 +530,8 @@ describe('GET /dj/:id/stats: listener counts and attributions are floored', () =
     expect(await djStats()).toBe(a);
   });
 
-  it('control: one more tap on a track above the floor changes the response', async () => {
-    await seedTaps(taps(7, { named: 7 }));
+  it('control: one more tap on a track above the floor, crossing a multiple of 5, changes the response', async () => {
+    await seedTaps(taps(9, { named: 9 }));
     const a = await djStats();
     await seedTaps(taps(1, { listenerPrefix: 'lc' }));
     expect(await djStats()).not.toBe(a);
