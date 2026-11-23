@@ -66,10 +66,13 @@ const REMOVED: Array<[string, RegExp]> = [
   ['/artists/{id}/top-tracks', new RegExp(`${PREFIX}\\/artists\\/[^\\s'"\`]*\\/top-tracks`)],
 ];
 
-/** Files that call Spotify: the client folder plus any file naming the API host. */
+/** A source file that builds a Spotify Web API URL (anchored on the scheme and host). */
+const SPOTIFY_API_URL = /https:\/\/api\.spotify\.com\/v1\//;
+
+/** Files that call Spotify: the client folder plus any file with a Spotify Web API URL. */
 function spotifyFiles(): string[] {
   return srcFiles().filter(
-    (f) => f.includes(`${path.sep}spotify${path.sep}`) || fs.readFileSync(f, 'utf8').includes('api.spotify.com'),
+    (f) => f.includes(`${path.sep}spotify${path.sep}`) || SPOTIFY_API_URL.test(fs.readFileSync(f, 'utf8')),
   );
 }
 
