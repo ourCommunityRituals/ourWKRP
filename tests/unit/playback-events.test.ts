@@ -78,6 +78,11 @@ const CLIENT_TIME = '2001-01-01 00:00:00';
 const isClose = (s: Stmt) => /UPDATE playback_events SET ended_at = datetime\('now'\)/.test(s.sql) && /ended_at IS NULL/.test(s.sql);
 const isOpen = (s: Stmt) => /INSERT INTO playback_events/.test(s.sql);
 const touchesPlayback = (s: Stmt) => /playback_events/.test(s.sql);
+// OW-219: the vote link reads and writes only vote_object_id, never a play's
+// open or close state, so it may run outside the batch.
+const isVoteLink = (s: Stmt) =>
+  /vote_object_id/.test(s.sql) && !/ended_at\s*=|started_at\s*=|INSERT INTO playback_events/.test(s.sql);
+const touchesPlayState = (s: Stmt) => touchesPlayback(s) && !isVoteLink(s);
 
 describe('handleAddSetTrack', () => {
   it('closes the open event, opens the new one and writes set_tracks in one batch, in that order', async () => {
@@ -92,7 +97,7 @@ describe('handleAddSetTrack', () => {
     expect(isOpen(open)).toBe(true);
     expect(setTrack.sql).toMatch(/INSERT OR IGNORE INTO set_tracks/);
     // Nothing about playback runs outside the batch.
-    expect(r.single.filter(touchesPlayback)).toEqual([]);
+    expect(r.single.filter(touchesPlayState)).toEqual([]);
   });
 
   it('opens the event with a fresh id, guarded by owner and liveness at write time', async () => {
@@ -157,7 +162,7 @@ describe('handleEndSet', () => {
     expect(isClose(close)).toBe(true);
     expect(close.args).toEqual(['set-1']);
     expect(end.sql).toMatch(/UPDATE dj_sets SET is_live = 0/);
-    expect(r.single.filter(touchesPlayback)).toEqual([]);
+    expect(r.single.filter(touchesPlayState)).toEqual([]);
   });
 });
 
@@ -172,7 +177,7 @@ describe('handleStartSet', () => {
     expect(close.sql).toMatch(/SELECT id FROM dj_sets WHERE dj_id = \? AND is_live = 1/);
     expect(close.args).toEqual(['dj-user-1']);
     expect(end.sql).toMatch(/UPDATE dj_sets SET is_live = 0/);
-    expect(r.single.filter(touchesPlayback)).toEqual([]);
+    expect(r.single.filter(touchesPlayState)).toEqual([]);
   });
 });
 

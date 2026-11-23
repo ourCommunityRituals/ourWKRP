@@ -102,6 +102,12 @@ APP_URL = "https://stg.ourwkrp.com"
 # Last.fm -- get API key at https://www.last.fm/api/account/create
 LASTFM_API_KEY = ""
 LASTFM_SHARED_SECRET = ""
+# Each play's vote on OurSharedEvents (OW-219, src/lib/ose-vote-link.ts). Off.
+# It also needs the secrets OSE_SERVICE_TOKEN_ID and OSE_SERVICE_TOKEN_SECRET
+# (a Cloudflare Access service token the owner makes; never a [vars] value).
+# Production has none of these, so the link is off there.
+OSE_VOTE_LINK = "off"
+OSE_VOTE_API_BASE = "https://stg.oursharedevents.com"
 
 # KV Namespace for auth/session state
 [[kv_namespaces]]
