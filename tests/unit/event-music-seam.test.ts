@@ -117,11 +117,11 @@ describe('T-SEAM music export — listener-derived counts floored', () => {
     expect(stats.reporting_floor).toBe(COUNT_FLOOR);
   });
 
-  it('publishes distinct_listeners at/above the floor exactly', async () => {
+  it('publishes distinct_listeners at/above the floor, rounded down to a multiple of 5', async () => {
     const env = makeEnv([], tapsOf(ABOVE, { named: ABOVE }));
     const { music } = await musicOf(env);
     const stats = music.stats as Row;
-    expect(stats.distinct_listeners).toBe(ABOVE);
+    expect(stats.distinct_listeners).toBe(ABOVE - (ABOVE % 5));
     expect(stats.distinct_listeners_suppressed).toBe(false);
   });
 
@@ -297,10 +297,17 @@ describe('T-SEAM music export — total is the sum of floored tracks (OW-160)', 
     expect(b).toEqual(a);
   });
 
-  it('control: one attribution more on a track above the floor changes the total', async () => {
-    const a = await musicOf(envFor(ABOVE, BELOW));
-    const b = await musicOf(envFor(ABOVE + 1, BELOW));
-    expect((b.music.stats as Row).total_attributions).toBe(((a.music.stats as Row).total_attributions as number) + 1);
+  it('control: attributions on a track above the floor that cross a multiple of 5 change the total', async () => {
+    const a = await musicOf(envFor(9, BELOW));
+    const b = await musicOf(envFor(10, BELOW));
+    expect((a.music.stats as Row).total_attributions).toBe(5);
+    expect((b.music.stats as Row).total_attributions).toBe(10);
+  });
+
+  it('neighbours one attribution apart inside a step of 5 on a track above the floor publish the same thing', async () => {
+    const a = await musicOf(envFor(6, BELOW));
+    const b = await musicOf(envFor(7, BELOW));
+    expect(b).toEqual(a);
   });
 
   it('total minus the listed tracks never gives a dropped track back', async () => {
@@ -314,7 +321,7 @@ describe('T-SEAM music export — total is the sum of floored tracks (OW-160)', 
     const counts = Array.from({ length: 26 }, () => ABOVE);
     const { music } = await musicOf(envFor(...counts));
     expect(music.top_tracks as Row[]).toHaveLength(25);
-    expect((music.stats as Row).total_attributions).toBe(26 * ABOVE);
+    expect((music.stats as Row).total_attributions).toBe(26 * (ABOVE - (ABOVE % 5)));
   });
 
   it('is null and suppressed when no track clears the floor, even if the raw total would', async () => {

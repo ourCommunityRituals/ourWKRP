@@ -15,6 +15,14 @@
  *     "a small cohort was here", which is exactly the leak. Totals are the
  *     sum of SURVIVING buckets, so a published total can never be differenced
  *     against the row list the same reader sees.
+ *
+ * Rounding (owner ruling 2026-11-18, "rounding applies to the OW / OSE"; OSE's
+ * OSE-2151): from the floor up, a published count of people or of their
+ * actions is rounded DOWN to a multiple of 5 (`publishCount`), so two reads a
+ * moment apart never show one person's action (12 then 13). `applyCountFloor`
+ * stays exact: it is the gate. The wire formatters (`flooredFields`,
+ * `countText`) and `floorTotalOfParts` round, and a published row's count goes
+ * through `roundForPublish`.
  */
 
 /** Uniform K. Mirrors OSE's CORRIDOR_MAP_MIN_COUNT; keep the two in step. */
@@ -29,7 +37,27 @@ export interface FlooredCount {
   floor: number;
 }
 
-/** Apply the uniform floor to a single count. */
+/** Every published count is rounded down to a multiple of this (mirrors OSE's PUBLISH_ROUNDING). */
+export const PUBLISH_ROUNDING = COUNT_FLOOR;
+
+/** A count rounded down to a multiple of PUBLISH_ROUNDING (12 → 10). One argument, so it can go to `.map`. */
+export function roundForPublish(n: number): number {
+  const v = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  return v - (v % PUBLISH_ROUNDING);
+}
+
+/**
+ * The published form of a count: withheld under the floor exactly as
+ * `applyCountFloor` withholds it, rounded down to a multiple of 5 from the
+ * floor up. The gate is the exact value, so 5 to 9 publish as 5.
+ */
+export function publishCount(raw: number, floor: number = COUNT_FLOOR): FlooredCount {
+  const floored = applyCountFloor(raw, floor);
+  if (floored.count === null) return floored;
+  return { ...floored, count: roundForPublish(floored.count) };
+}
+
+/** Apply the uniform floor to a single count (exact; the gate). */
 export function applyCountFloor(raw: number, floor: number = COUNT_FLOOR): FlooredCount {
   const n = Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 0;
   if (n < floor) return { count: null, suppressed: true, floor };
@@ -78,8 +106,10 @@ export function floorTotalOfParts(
   floor: number = COUNT_FLOOR
 ): FlooredCount {
   let sum = 0;
-  for (const part of parts) sum += applyCountFloor(part ?? 0, floor).count ?? 0;
-  return applyCountFloor(sum, floor);
+  // Each part is rounded as it is published, so the total agrees with the
+  // parts listed beside it and is itself a multiple of 5 (7 and 8 → 5 + 5 = 10).
+  for (const part of parts) sum += publishCount(part ?? 0, floor).count ?? 0;
+  return publishCount(sum, floor);
 }
 
 /**
@@ -126,13 +156,15 @@ export function groupSizes<T>(rows: readonly T[], key: (row: T) => string): Map<
  * The wire shape of one floored count: `{ <name>: n, <name>_suppressed: false }`
  * at or above the floor, `{ <name>: null, <name>_suppressed: true }` under it
  * (0 included). Every route uses this shape for a count of people or of
- * people's actions.
+ * people's actions. The number is rounded down to a multiple of 5 here, at
+ * the wire, whichever helper produced it (rounding twice changes nothing).
  */
 export function flooredFields<N extends string>(
   name: N,
   value: FlooredCount
 ): Record<N, number | null> & Record<`${N}_suppressed`, boolean> {
-  return { [name]: value.count, [`${name}_suppressed`]: value.suppressed } as Record<N, number | null> &
+  const count = value.suppressed || value.count === null ? null : roundForPublish(value.count);
+  return { [name]: count, [`${name}_suppressed`]: count === null } as Record<N, number | null> &
     Record<`${N}_suppressed`, boolean>;
 }
 
@@ -144,10 +176,12 @@ export function withheldText(floor: number = COUNT_FLOOR): string {
 /**
  * Text for one published count. A withheld count, a missing value, or any
  * number under the floor reads in words ("Fewer than 5"); never 0, never
- * blank, never the true number.
+ * blank, never the true number. From the floor up it is rounded down to a
+ * multiple of 5.
  */
 export function countText(value: FlooredCount | number | null | undefined, floor: number = COUNT_FLOOR): string {
   const n = typeof value === 'object' && value !== null ? (value.suppressed ? null : value.count) : value;
-  if (typeof n !== 'number' || !Number.isFinite(n) || n < floor) return withheldText(floor);
-  return String(Math.floor(n));
+  // roundForPublish reads NaN, Infinity and negatives as 0, so they are withheld too.
+  const shown = roundForPublish(Number(n ?? 0));
+  return shown < floor ? withheldText(floor) : String(shown);
 }

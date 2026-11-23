@@ -11,7 +11,7 @@
 import type { Env } from '../types';
 import { sanitizeForExport, coarsenSets } from '../lib/privacy';
 import { requireCrossProductToken } from '../lib/cross-product-auth';
-import { dropSubFloorRows, flooredFields, COUNT_FLOOR } from '../lib/count-floor';
+import { dropSubFloorRows, flooredFields, roundForPublish, COUNT_FLOOR } from '../lib/count-floor';
 import {
   eventAttributionsQuery,
   summariseEventAttributions,
@@ -100,7 +100,9 @@ export async function handleGetEventMusic(request: Request, env: Env, eventId: s
         ...flooredFields('dj_count', counts.djs),
         reporting_floor: COUNT_FLOOR,
       },
-      top_tracks: topTracks.rows,
+      // Each listed track's count is rounded down to a multiple of 5, like every
+      // count above (owner ruling 2026-11-18).
+      top_tracks: topTracks.rows.map((t) => ({ ...t, attribution_count: roundForPublish(Number(t.attribution_count)) })),
     },
     links: {
       sponsor_report: `/api/sponsors/${eventId}/report`,
