@@ -34,6 +34,7 @@
 import type { Env } from '../types';
 import { deleteTokens, deleteLastfmSession, deleteLastSync, deleteAllSessions } from './kv-storage';
 import { recordAudit } from './audit';
+import { eraseLinkedAccounts } from './linked-accounts';
 
 export interface ErasureResult {
   erased: boolean; // false when no contributor row matched the id
@@ -98,6 +99,7 @@ export async function eraseContributor(
 
   // Purge KV identity material. Best-effort per key; a missing key is a no-op.
   await deleteTokens(env.WKRP_KV, contributorId);
+  await eraseLinkedAccounts(env, contributorId);
   await deleteLastfmSession(env.WKRP_KV, contributorId);
   await deleteLastSync(env.WKRP_KV, contributorId);
 

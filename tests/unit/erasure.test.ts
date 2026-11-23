@@ -39,7 +39,9 @@ function makeEnv(
   seed: ContributorRow[],
   kvSeed: Record<string, string> = {},
   live: { sets?: SetRow[]; playback?: PlaybackRow[] } = {},
+  linked: Array<{ id: string; contributor_id: string; role: 'source' | 'mirror' }> = [],
 ) {
+  const linkedAccounts = linked.map((r) => ({ ...r }));
   const contributors = new Map(seed.map((c) => [c.id, { ...c }]));
   const audit: Array<Record<string, unknown>> = [];
   const kvDeletes: string[] = [];
@@ -78,7 +80,21 @@ function makeEnv(
           return {
             sql,
             args,
+            // Linked accounts (migration 0013).
+            async all() {
+              if (/FROM linked_accounts/.test(sql)) {
+                return { results: linkedAccounts.filter((r) => r.contributor_id === args[0]) };
+              }
+              throw new Error(`unexpected .all() in erasure: ${sql}`);
+            },
             async run() {
+              if (/DELETE FROM linked_accounts/.test(sql)) {
+                const before = linkedAccounts.length;
+                for (let i = linkedAccounts.length - 1; i >= 0; i--) {
+                  if (linkedAccounts[i].contributor_id === args[0]) linkedAccounts.splice(i, 1);
+                }
+                return { meta: { changes: before - linkedAccounts.length } };
+              }
               if (/UPDATE contributors/.test(sql)) {
                 const id = args[args.length - 1] as string;
                 const row = contributors.get(id);
@@ -117,7 +133,7 @@ function makeEnv(
   };
 
   const env = { WKRP_DB: db, WKRP_KV: kv } as unknown as Env;
-  return { env, contributors, audit, kvDeletes, sets, playback, batches };
+  return { env, contributors, audit, kvDeletes, sets, playback, batches, linkedAccounts };
 }
 
 const seedRow = (id: string): ContributorRow => ({
@@ -149,6 +165,19 @@ describe('right-to-erasure', () => {
     expect(kvDeletes).toContain('wkrp:tokens:c1');
     expect(kvDeletes).toContain('wkrp:lastfm:c1');
     expect(kvDeletes).toContain('wkrp:last_sync:c1');
+  });
+
+  it('removes every linked account and the mirror accounts\' tokens (two-account sync)', async () => {
+    const { env, kvDeletes, linkedAccounts } = makeEnv([seedRow('c1')], {}, {}, [
+      { id: 's1', contributor_id: 'c1', role: 'source' },
+      { id: 'm1', contributor_id: 'c1', role: 'mirror' },
+      { id: 'm9', contributor_id: 'c9', role: 'mirror' },
+    ]);
+    await eraseContributor(env, req(), 'c1');
+    expect(kvDeletes).toContain('wkrp:tokens:c1');
+    expect(kvDeletes).toContain('wkrp:tokens:la:m1');
+    expect(kvDeletes).not.toContain('wkrp:tokens:la:m9');
+    expect(linkedAccounts).toEqual([{ id: 'm9', contributor_id: 'c9', role: 'mirror' }]);
   });
 
   it('audits a successful erasure', async () => {

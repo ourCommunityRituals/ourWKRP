@@ -37,6 +37,7 @@ export const MUTATION_EXCLUDED_SPECS = [
   'tests/integration/vanity-slug.test.ts',
   'tests/security/vanity-slug-security.test.ts',
   'tests/security/count-floor-routes.test.ts',
+  'tests/integration/linked-accounts.test.ts',
 ];
 
 /**

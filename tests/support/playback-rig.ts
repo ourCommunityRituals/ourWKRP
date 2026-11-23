@@ -19,7 +19,7 @@ export const BASE_URL = 'http://localhost:8787';
 // Children before parents, so foreign keys never block the reset.
 const DATA_TABLES = [
   'playback_events', 'set_tracks', 'attributions', 'dj_sets', 'flag_facets',
-  'preferred_playlists', 'playlist_tracks', 'playlists', 'contributions',
+  'preferred_playlists', 'linked_accounts', 'playlist_tracks', 'playlists', 'contributions',
   'track_identifiers', 'contributor_roles', 'tracks', 'contributors',
 ];
 
@@ -50,8 +50,12 @@ function splitSqlStatements(sql: string): string[] {
   return statements;
 }
 
-async function applyMigrations(db: D1Database): Promise<void> {
-  const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
+/**
+ * Apply the migrations in order. `only` limits the run to the files it
+ * accepts, so a test can stop before a migration, seed rows, then apply it.
+ */
+export async function applyMigrations(db: D1Database, only: (file: string) => boolean = () => true): Promise<void> {
+  const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort().filter(only);
   for (const file of files) {
     const sql = readFileSync(join(MIGRATIONS_DIR, file), 'utf-8');
     for (const stmt of splitSqlStatements(sql)) {
