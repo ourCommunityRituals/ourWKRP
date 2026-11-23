@@ -237,7 +237,8 @@ export interface StoredTokens {
 export interface SpotifyUserProfile {
   id: string;
   display_name: string | null;
-  email?: string;
+  // email, country, product, followers and explicit_content were removed
+  // from the user object in Spotify's February 2026 change. Do not add them.
   images?: Array<{ url: string }>;
 }
 
@@ -245,7 +246,15 @@ export interface SpotifyPlaylist {
   id: string;
   name: string;
   description: string | null;
-  tracks: { total: number };
+  /**
+   * Track count. Spotify renamed `tracks` to `items` in February 2026 and
+   * omits it for playlists the user neither owns nor collaborates on.
+   * Read it through `playlistTrackTotal()`, never directly.
+   */
+  items?: { total: number };
+  /** Deprecated alias of `items`; extended-quota apps may still receive it. */
+  tracks?: { total: number };
+  collaborative?: boolean;
   snapshot_id: string;
   images: Array<{ url: string }>;
   owner: { id: string };

@@ -144,20 +144,55 @@ export async function getUserPlaylists(accessToken: string): Promise<SpotifyPlay
   return fetchAllPages<SpotifyPlaylist>('/me/playlists', accessToken);
 }
 
+/**
+ * One entry of GET /playlists/{id}/items as Spotify returns it.
+ *
+ * Spotify's February 2026 Web API change (development-mode apps, in force
+ * from 2026-03-09) moved the track from `track` to `item`; `track` is kept
+ * only as a deprecated alias that extended-quota apps may still receive.
+ * Entries can also be podcast episodes, which carry no album or ISRC.
+ */
+interface SpotifyPlaylistItemEntry {
+  item?: (SpotifyTrack & { type?: string }) | null;
+  track?: (SpotifyTrack & { type?: string }) | null;
+  added_at: string;
+  added_by: { id: string };
+}
+
+/**
+ * Fetch the tracks of one playlist via GET /playlists/{id}/items.
+ *
+ * Spotify only serves this for playlists the user owns or collaborates on;
+ * any other playlist answers 403, surfaced as a `not_entitled` SpotifyApiError.
+ */
 export async function getPlaylistTracks(
   playlistId: string,
   accessToken: string,
 ): Promise<Array<{ track: SpotifyTrack; added_at: string; added_by: { id: string } }>> {
-  const items = await fetchAllPages<{
-    track: SpotifyTrack | null;
-    added_at: string;
-    added_by: { id: string };
-  }>(`/playlists/${playlistId}/tracks`, accessToken);
-
-  // Filter out null tracks (deleted/unavailable)
-  return items.filter((item): item is { track: SpotifyTrack; added_at: string; added_by: { id: string } } =>
-    item.track !== null && item.track.id !== null
+  const entries = await fetchAllPages<SpotifyPlaylistItemEntry>(
+    `/playlists/${playlistId}/items`,
+    accessToken,
   );
+
+  const tracks: Array<{ track: SpotifyTrack; added_at: string; added_by: { id: string } }> = [];
+  for (const entry of entries) {
+    const track = entry.item ?? entry.track ?? null;
+    // Deleted/unavailable tracks come back null; episodes are not tracks.
+    if (!track || track.id === null || (track.type !== undefined && track.type !== 'track')) continue;
+    tracks.push({ track, added_at: entry.added_at, added_by: entry.added_by });
+  }
+  return tracks;
+}
+
+/**
+ * How many tracks a playlist holds, from the listing in GET /me/playlists.
+ *
+ * Since February 2026 the count lives at `items.total` (it was
+ * `tracks.total`). Spotify omits it for playlists the user neither owns nor
+ * collaborates on, so this falls back to the old field and then to 0.
+ */
+export function playlistTrackTotal(playlist: SpotifyPlaylist): number {
+  return playlist.items?.total ?? playlist.tracks?.total ?? 0;
 }
 
 /**
@@ -248,17 +283,20 @@ export async function getAudioFeatures(
 }
 
 /**
- * Create a new playlist on Spotify
+ * Create a new playlist in the current user's Spotify account.
+ *
+ * POST /me/playlists. Spotify removed POST /users/{user_id}/playlists in its
+ * February 2026 Web API change, so the playlist is always created for the
+ * user the access token belongs to.
  */
 export async function createPlaylist(
-  userId: string,
   name: string,
   description: string,
   isPublic: boolean,
   accessToken: string,
 ): Promise<SpotifyPlaylist> {
   return spotifyFetch<SpotifyPlaylist>(
-    `/users/${userId}/playlists`,
+    '/me/playlists',
     accessToken,
     {
       method: 'POST',
@@ -268,7 +306,9 @@ export async function createPlaylist(
 }
 
 /**
- * Add tracks to a playlist (max 100 per request)
+ * Add tracks to a playlist (max 100 per request).
+ *
+ * POST /playlists/{id}/items; the `/tracks` form was removed in February 2026.
  */
 export async function addTracksToPlaylist(
   playlistId: string,
@@ -280,7 +320,7 @@ export async function addTracksToPlaylist(
   for (let i = 0; i < trackUris.length; i += BATCH_SIZE) {
     const batch = trackUris.slice(i, i + BATCH_SIZE);
     await spotifyFetch<{ snapshot_id: string }>(
-      `/playlists/${playlistId}/tracks`,
+      `/playlists/${playlistId}/items`,
       accessToken,
       {
         method: 'POST',

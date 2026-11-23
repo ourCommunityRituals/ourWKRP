@@ -9,7 +9,7 @@
 
 import type { Env } from '../types';
 import type { AudioFeaturesStatus } from './client';
-import { getUserPlaylists, getPlaylistTracks, getAudioFeatures } from './client';
+import { getUserPlaylists, getPlaylistTracks, getAudioFeatures, isNotEntitledError, playlistTrackTotal } from './client';
 import { storeLastSync } from '../lib/kv-storage';
 import { normalizeTitle, normalizeArtist, extractReleaseYear } from '../lib/normalize';
 import { log, logError } from '../lib/logger';
@@ -84,7 +84,7 @@ export async function syncContributor(
       contributorId,
       playlist.name,
       playlist.description,
-      playlist.tracks.total,
+      playlistTrackTotal(playlist),
       playlist.snapshot_id,
       playlist.images?.[0]?.url ?? null,
       new Date().toISOString(),
@@ -210,6 +210,15 @@ export async function syncContributor(
         tracks: playlistTracks.length,
       });
     } catch (err) {
+      if (isNotEntitledError(err)) {
+        // Spotify serves playlist contents only for playlists the user owns
+        // or collaborates on (February 2026). A followed playlist is not an
+        // error: its metadata is kept, its tracks are not ours to import.
+        result.playlists_synced--;
+        result.playlists_skipped++;
+        log('SYNC_PLAYLIST_NOT_OWNED', { playlist: playlist.id });
+        continue;
+      }
       logError('SYNC_PLAYLIST_ERROR', err, { playlist: playlist.id });
     }
   }

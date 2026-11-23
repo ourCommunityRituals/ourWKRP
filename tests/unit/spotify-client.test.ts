@@ -290,3 +290,97 @@ describe('access token never leaks through a failure (OW-120)', () => {
     });
   });
 });
+
+// ============================================
+// Spotify February 2026 Web API change
+// https://developer.spotify.com/documentation/web-api/references/changes/february-2026
+// ============================================
+
+describe('playlist endpoints after the February 2026 change', () => {
+  const track = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    name: `Song ${id}`,
+    artists: [{ id: 'a1', name: 'Artist' }],
+    album: { name: 'Album', images: [] },
+    duration_ms: 1000,
+    preview_url: null,
+    external_ids: { isrc: `USRC1${id}` },
+    type: 'track',
+    ...extra,
+  });
+
+  test('createPlaylist POSTs to /me/playlists, never /users/{id}/playlists', async () => {
+    const { createPlaylist } = await import('../../src/spotify/client');
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'pl-1', name: 'N' }, 201));
+
+    const created = await createPlaylist('N', 'D', false, 'tok');
+
+    expect(created.id).toBe('pl-1');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.spotify.com/v1/me/playlists');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ name: 'N', description: 'D', public: false });
+  });
+
+  test('addTracksToPlaylist POSTs to /playlists/{id}/items in batches of 100', async () => {
+    const { addTracksToPlaylist } = await import('../../src/spotify/client');
+    fetchMock.mockImplementation(async () => jsonResponse({ snapshot_id: 's' }, 201));
+    const uris = Array.from({ length: 150 }, (_, i) => `spotify:track:t${i}`);
+
+    await addTracksToPlaylist('pl-1', uris, 'tok');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const [url, init] of fetchMock.mock.calls as Array<[string, RequestInit]>) {
+      expect(url).toBe('https://api.spotify.com/v1/playlists/pl-1/items');
+      expect(init.method).toBe('POST');
+    }
+    const sizes = (fetchMock.mock.calls as Array<[string, RequestInit]>).map(
+      ([, init]) => JSON.parse(init.body as string).uris.length,
+    );
+    expect(sizes).toEqual([100, 50]);
+  });
+
+  test('getPlaylistTracks reads /playlists/{id}/items and the new `item` key, keeping ISRC', async () => {
+    const { getPlaylistTracks } = await import('../../src/spotify/client');
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        items: [
+          { item: track('t1'), added_at: '2026-01-01T00:00:00Z', added_by: { id: 'u' } },
+          // extended-quota apps may still get the deprecated `track` key
+          { track: track('t2'), added_at: '2026-01-02T00:00:00Z', added_by: { id: 'u' } },
+          { item: null, added_at: '2026-01-03T00:00:00Z', added_by: { id: 'u' } },
+          { item: track('e1', { type: 'episode' }), added_at: '2026-01-04T00:00:00Z', added_by: { id: 'u' } },
+        ],
+        next: null,
+        total: 4,
+      }),
+    );
+
+    const rows = await getPlaylistTracks('pl-1', 'tok');
+
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(new URL(url).pathname).toBe('/v1/playlists/pl-1/items');
+    expect(rows.map((r) => r.track.id)).toEqual(['t1', 't2']);
+    expect(rows[0].track.external_ids?.isrc).toBe('USRC1t1');
+    expect(rows[1].added_at).toBe('2026-01-02T00:00:00Z');
+  });
+
+  test('getPlaylistTracks on a playlist the user does not own surfaces not_entitled', async () => {
+    const { getPlaylistTracks } = await import('../../src/spotify/client');
+    fetchMock.mockResolvedValueOnce(errorResponse(403, 'Forbidden'));
+
+    const err = await getPlaylistTracks('followed', 'tok').catch((e: unknown) => e);
+
+    expect(isNotEntitledError(err)).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('playlistTrackTotal prefers items.total, falls back to tracks.total, then 0', async () => {
+    const { playlistTrackTotal } = await import('../../src/spotify/client');
+    const base = { id: 'p', name: 'n', description: null, snapshot_id: 's', images: [], owner: { id: 'o' } };
+    expect(playlistTrackTotal({ ...base, items: { total: 7 } })).toBe(7);
+    expect(playlistTrackTotal({ ...base, tracks: { total: 3 } })).toBe(3);
+    expect(playlistTrackTotal({ ...base, items: { total: 7 }, tracks: { total: 3 } })).toBe(7);
+    expect(playlistTrackTotal(base)).toBe(0);
+  });
+});
