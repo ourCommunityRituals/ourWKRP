@@ -7,14 +7,16 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // Mock spotify client with realistic response sizes
-vi.mock('../../src/spotify/client', () => ({
+vi.mock('../../src/spotify/client', async (importOriginal) => ({
+  // Keep the real pure helpers (playlistTrackTotal, isNotEntitledError).
+  ...(await importOriginal<typeof import('../../src/spotify/client')>()),
   getUserPlaylists: vi.fn(async () => {
     // Simulate 20 playlists
     return Array.from({ length: 20 }, (_, i) => ({
       id: `playlist-${i}`,
       name: `Playlist ${i}`,
       description: `Description ${i}`,
-      tracks: { total: 50 },
+      items: { total: 50 },
       snapshot_id: `snap-${i}-${Date.now()}`,
       images: [{ url: `https://img.spotify.com/${i}` }],
       owner: { id: 'owner-1' },

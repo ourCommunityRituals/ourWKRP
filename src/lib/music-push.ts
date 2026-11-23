@@ -73,7 +73,10 @@ export async function pushTrackToLibrary(
 
 /**
  * Save a track to the listener's Spotify library.
- * Uses the Spotify Web API PUT /me/tracks endpoint.
+ * Uses the Spotify Web API PUT /me/library endpoint, which replaced
+ * PUT /me/tracks in February 2026. It takes Spotify URIs as a
+ * comma-separated `uris` query parameter and needs the user-library-modify
+ * scope.
  */
 async function pushToSpotify(
   kv: KVNamespace,
@@ -95,13 +98,13 @@ async function pushToSpotify(
     }
 
     // Save to library
-    const response = await fetch('https://api.spotify.com/v1/me/tracks', {
+    const libraryUrl = new URL('https://api.spotify.com/v1/me/library');
+    libraryUrl.searchParams.set('uris', spotifyUri);
+    const response = await fetch(libraryUrl.toString(), {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ids: [spotifyUri.replace('spotify:track:', '')] }),
     });
 
     if (response.ok) {

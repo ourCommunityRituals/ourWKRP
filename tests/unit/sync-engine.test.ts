@@ -4,13 +4,15 @@
 import { describe, it, expect, vi } from 'vitest';
 
 // Mock the spotify client
-vi.mock('../../src/spotify/client', () => ({
+vi.mock('../../src/spotify/client', async (importOriginal) => ({
+  // Keep the real pure helpers (playlistTrackTotal, isNotEntitledError).
+  ...(await importOriginal<typeof import('../../src/spotify/client')>()),
   getUserPlaylists: vi.fn(async () => [
     {
       id: 'playlist-1',
       name: 'Test Playlist',
       description: 'A test playlist',
-      tracks: { total: 2 },
+      items: { total: 2 },
       snapshot_id: 'snap-1',
       images: [{ url: 'https://img.spotify.com/1' }],
       owner: { id: 'owner-1' },
@@ -168,5 +170,47 @@ describe('audio-features stage outcome (OW-120)', () => {
     // The whole sync still resolves — a features failure is not a sync failure.
     expect(result.tracks_synced).toBe(1);
     expect(result.audio_features_status).toBe('unavailable');
+  });
+
+  it('counts a playlist Spotify will not list (not owned, February 2026) as skipped, not as an error', async () => {
+    const client = await import('../../src/spotify/client');
+    vi.mocked(client.getPlaylistTracks).mockRejectedValueOnce(
+      new client.SpotifyApiError(403, '/playlists/playlist-1/items', 'Forbidden'),
+    );
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { syncContributor } = await import('../../src/spotify/sync-engine');
+    const result = await syncContributor(mockEnv() as never, 'contributor-123', 'token');
+
+    expect(result.playlists_synced).toBe(0);
+    expect(result.playlists_skipped).toBe(1);
+    expect(result.tracks_synced).toBe(0);
+    expect(errors.mock.calls.flat().join(' ')).not.toContain('SYNC_PLAYLIST_ERROR');
+    errors.mockRestore();
+  });
+
+  it('still reports any other playlist failure as an error', async () => {
+    const client = await import('../../src/spotify/client');
+    vi.mocked(client.getPlaylistTracks).mockRejectedValueOnce(new Error('network down'));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { syncContributor } = await import('../../src/spotify/sync-engine');
+    const result = await syncContributor(mockEnv() as never, 'contributor-123', 'token');
+
+    expect(result.playlists_skipped).toBe(0);
+    expect(errors.mock.calls.flat().join(' ')).toContain('SYNC_PLAYLIST_ERROR');
+    errors.mockRestore();
+  });
+
+  it('stores the track count from the renamed items.total field', async () => {
+    const env = mockEnv();
+    const { syncContributor } = await import('../../src/spotify/sync-engine');
+    await syncContributor(env as never, 'contributor-123', 'token');
+
+    const binds = env.WKRP_DB.prepare.mock.results
+      .map((r) => (r.value as { bind: ReturnType<typeof vi.fn> }).bind.mock.calls)
+      .flat();
+    const playlistUpsert = binds.find((args) => args[0] === 'playlist-1' && args[1] === 'contributor-123');
+    expect(playlistUpsert?.[4]).toBe(2);
   });
 });
