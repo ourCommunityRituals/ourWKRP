@@ -19,6 +19,12 @@ import base from './vitest.config';
 //     mutants errored in one run. A floor cannot stand on a score that moves.
 //     Their kills (cors.ts, html.ts, erasure.ts) are a follow-up: the same
 //     cases at the unit layer.
+//   - the specs that start Miniflare through tests/support/playback-rig.ts
+//     (the four playback specs and linked-accounts). They route requests
+//     through the whole router, so every schemas.ts mutant reran them: the
+//     schemas pass took 18 minutes on main and ran past its 20 minute limit
+//     on PR #130. Without them it takes under 2 minutes in a session
+//     container, and schemas.ts scores the same (48.13).
 // Leaving a spec out can only lose kills, never add one, so a pass is never
 // easier than the full suite: a mutant only an excluded spec kills shows as
 // survived and fails its floor.
@@ -37,6 +43,11 @@ export const MUTATION_EXCLUDED_SPECS = [
   'tests/integration/vanity-slug.test.ts',
   'tests/security/vanity-slug-security.test.ts',
   'tests/security/count-floor-routes.test.ts',
+  'tests/integration/linked-accounts.test.ts',
+  'tests/integration/playback-events.test.ts',
+  'tests/integration/playback-vote-link.test.ts',
+  'tests/security/playback-authority.test.ts',
+  'tests/contract/playback-contract.test.ts',
 ];
 
 /**

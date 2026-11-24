@@ -179,7 +179,10 @@ describe('the mutation project runs exactly the specs it says', () => {
   it('no spec in the mutation project starts a local Miniflare', () => {
     // Built from parts, so this file's own text does not match it.
     const mf = ['Mini', 'flare'].join('');
-    const startsOne = new RegExp(`new ${mf}\\b|from ['"]${mf.toLowerCase()}['"]`);
+    // A spec can also start one through the shared rig (tests/support/playback-rig.ts):
+    // four rig specs slipped past the direct check and took the schemas pass past
+    // its 20 minute limit (PR #130).
+    const startsOne = new RegExp(`new ${mf}\\b|from ['"]${mf.toLowerCase()}['"]|from ['"][./]*support/playback-rig['"]`);
     const starters = mutationProjectSpecs()
       .filter(({ source }) => startsOne.test(source))
       .map(({ path: p }) => p);

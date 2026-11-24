@@ -12,6 +12,7 @@
 
 import type { Env, SpotifyUserProfile, StoredTokens } from '../types';
 import { exchangeCodeForTokens } from '../auth/spotify-oauth';
+import { ensureSourceAccount } from '../lib/linked-accounts';
 import { getAuthState, deleteAuthState, storeSession, storeTokens, indexSession } from '../lib/kv-storage';
 import { newSessionData } from '../lib/session';
 import { buildSessionCookie } from '../lib/session-cookie';
@@ -74,6 +75,10 @@ export async function handleAuthCallback(request: Request, env: Env): Promise<Re
     const contributorId = await upsertContributor(env, profile, authState.name, authState.gen, authState.role);
 
     log('AUTH_CALLBACK_CONTRIBUTOR_UPSERTED', { contributorId, name: authState.name });
+
+    // The Spotify account signed in with is this contributor's source account
+    // (two-account sync). A conflict is logged and changes nothing here.
+    await ensureSourceAccount(env, contributorId, 'spotify', profile.id, profile.display_name ?? null);
 
     // Store tokens in KV (keyed by our contributor ID)
     const storedTokens: StoredTokens = {
