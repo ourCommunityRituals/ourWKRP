@@ -259,6 +259,15 @@ jobs:
         env:
           OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
       - run: npm ci
+      # The same apt cache the E2E job keeps (ci.yml), so a stalled mirror
+      # cannot hold this job (install-playwright-browsers.test.ts).
+      - name: Restore Playwright system package cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pw-apt-archives
+          key: ${{ runner.os }}-pw-apt-chromium-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pw-apt-chromium-
       - name: Install Playwright Chromium
         timeout-minutes: 10
         run: bash scripts/ci/install-playwright-browsers.sh chromium
