@@ -27,6 +27,8 @@ export interface Env {
   // unless OSE_VOTE_LINK is "on" and all four are set. The Access service
   // token pair is a secret the owner sets; never a [vars] value.
   OSE_VOTE_LINK?: string;
+  // Launch switch (lib/launch-switch.ts): "off" closes Spotify and DJ.
+  SPOTIFY_AND_DJ?: string;
   OSE_VOTE_API_BASE?: string;
   OSE_SERVICE_TOKEN_ID?: string;
   OSE_SERVICE_TOKEN_SECRET?: string;
