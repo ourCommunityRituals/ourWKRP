@@ -25,6 +25,7 @@
     <div class="profile-header" data-testid="profile-header">
       <div class="profile-avatar" id="profile-avatar" data-testid="profile-avatar"></div>
       <div class="profile-name" id="profile-name" data-testid="profile-name"></div>
+      <div class="profile-type hidden" id="profile-type" data-testid="profile-type"></div>
       <div id="profile-roles" class="profile-roles" data-testid="profile-roles"></div>
       <div class="profile-slug hidden" id="profile-slug" data-testid="profile-slug"></div>
       <div class="profile-generation" id="profile-generation" data-testid="profile-generation"></div>
@@ -188,6 +189,13 @@
         }
 
         document.getElementById('profile-generation').textContent = c.generation;
+        // Profile type (migration 0014): shown only when one was chosen.
+        var typeLabels = { artist: 'Artist', sports: 'Sports' };
+        if (typeLabels[c.profile_type]) {
+          var typeEl = document.getElementById('profile-type');
+          typeEl.textContent = typeLabels[c.profile_type];
+          typeEl.classList.remove('hidden');
+        }
         document.getElementById('profile-joined').textContent = 'Joined ' + formatDate(c.created_at);
 
         document.getElementById('stat-tracks').textContent = data.track_count || 0;

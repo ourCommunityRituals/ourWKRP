@@ -63,8 +63,18 @@ export const spotifyTrackIdSchema = z.string().regex(
 // Role + generation default so the simplest sign-up is just a name. Sign-up may
 // only self-assign an unprivileged role (F1); dj/curator are granted via
 // POST /admin/roles/grant (grantRoleBodySchema below).
+// Profile types at launch (profiles-and-voting design, story 2; migration 0014).
+export const PROFILE_TYPES = ['artist', 'sports'] as const;
+export const profileTypeSchema = z.enum(PROFILE_TYPES, { message: 'Profile type must be: artist or sports' });
+
+export const setProfileTypeBodySchema = z.object({
+  // null clears the type.
+  profile_type: profileTypeSchema.nullable(),
+});
+
 export const registerBodySchema = z.object({
   name: nameSchema,
+  profile_type: profileTypeSchema.optional(),
   role: selfAssignableRoleSchema.default('contributor'),
   generation: generationSchema.default('founder'),
 });

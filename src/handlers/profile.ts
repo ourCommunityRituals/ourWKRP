@@ -11,7 +11,7 @@
 
 import type { Env } from '../types';
 import { requireSession } from '../lib/require-session';
-import { claimSlugBodySchema } from '../lib/schemas';
+import { claimSlugBodySchema, setProfileTypeBodySchema } from '../lib/schemas';
 import { validateBody } from '../lib/validate';
 import { recordAudit } from '../lib/audit';
 import { log } from '../lib/logger';
@@ -130,4 +130,45 @@ export async function handleClaimProfileSlug(request: Request, env: Env): Promis
 function isUniqueConstraintError(err: unknown): boolean {
   const msg = String(err instanceof Error ? err.message : err);
   return /UNIQUE constraint failed|SQLITE_CONSTRAINT_UNIQUE/i.test(msg);
+}
+
+/**
+ * POST /api/profile/type — body { profile_type: 'artist' | 'sports' | null }.
+ *
+ * The signed-in contributor sets, changes or clears their own profile type
+ * (profiles-and-voting design, story 2; migration 0014).
+ *
+ * Status contract:
+ *   200 — set (or already that value)
+ *   400 — not a launch type (from setProfileTypeBodySchema)
+ *   401 — no session
+ *   404 — session points at a contributor row that no longer exists
+ */
+export async function handleSetProfileType(request: Request, env: Env): Promise<Response> {
+  const auth = await requireSession(request, env);
+  if (auth instanceof Response) return auth;
+
+  const parsed = await validateBody(request, setProfileTypeBodySchema);
+  if (parsed instanceof Response) return parsed;
+
+  const profileType = parsed.profile_type;
+  const result = await env.WKRP_DB.prepare(
+    'UPDATE contributors SET profile_type = ? WHERE id = ?',
+  ).bind(profileType, auth.userId).run();
+
+  if (!result.meta?.changes) {
+    return Response.json({ ok: false, error: 'Contributor not found' }, { status: 404 });
+  }
+
+  await recordAudit(env, request, {
+    action: 'profile.type.set',
+    resourceType: 'contributor',
+    resourceId: auth.userId,
+    outcome: 'success',
+    actorId: auth.userId,
+    meta: { profile_type: profileType },
+  });
+  log('PROFILE_TYPE_SET', { contributorId: auth.userId, profileType });
+
+  return Response.json({ ok: true, profile_type: profileType });
 }
