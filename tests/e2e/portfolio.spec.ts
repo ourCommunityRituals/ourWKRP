@@ -42,7 +42,11 @@ test.describe('Portfolio — preferred playlists', () => {
     await page.getByTestId('portfolio-url').fill('https://example.com/not-a-playlist');
     await page.getByTestId('portfolio-add-btn').click();
 
+    // The server's own refusal, word for word in substance: a 500 from a
+    // handler that skipped the check also shows an error, but not this one
+    // (end-to-end mutant `portfolio-accepts-any-link`).
     await expect(page.getByTestId('portfolio-error')).toBeVisible();
+    await expect(page.getByTestId('portfolio-error')).toContainText('Not a recognized Spotify playlist link');
     await expect(page.getByTestId('portfolio-item')).toHaveCount(0);
   });
 
@@ -50,7 +54,15 @@ test.describe('Portfolio — preferred playlists', () => {
     // Register via the request fixture's own context so the page stays anonymous.
     const { id } = await registerAs(request, { name: 'Someone Else', role: 'curator', generation: 'gen2' });
 
+    // The page decides who owns it after it loads (it asks /auth/session/me,
+    // then reads the portfolio). Checking "hidden" before that finishes would
+    // pass for any page, an owner's too (end-to-end mutant
+    // `portfolio-controls-for-everyone` survived that), so wait for both.
+    const sessionRead = page.waitForResponse((r) => r.url().endsWith('/auth/session/me'));
+    const portfolioRead = page.waitForResponse((r) => r.url().endsWith(`/api/contributors/${id}/portfolio`));
     await page.goto(`/contributor/${id}`);
+    await Promise.all([sessionRead, portfolioRead]);
+    await page.waitForLoadState('networkidle');
     await expect(page.getByTestId('profile-view')).toBeVisible();
     await expect(page.getByTestId('portfolio-add')).toBeHidden();
   });

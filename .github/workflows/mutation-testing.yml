@@ -6,7 +6,7 @@
 # and privacy guards and reruns the tests that cover it. A mutant that survives
 # is a fault the suite would let ship.
 #
-# Three jobs:
+# The jobs (the last two are the layers above unit, see the bottom):
 #   Mutation scope        decides whether this change needs a run
 #                         (scripts/ci/mutation-scope.mjs, fail closed), and on a
 #                         pull request checks that no floor in
@@ -188,3 +188,89 @@ jobs:
       - name: Per-file mutation floor
         if: needs.scope.outputs.run != 'false'
         run: node scripts/ci/mutation-file-floor.mjs reports-in/mutation-report-main/mutation.json reports-in/mutation-report-schemas/mutation.json
+
+  # ── The layers above unit ────────────────────────────────────────────────
+  # The jobs above mutate the guards in src/lib and judge them with the unit,
+  # security, fuzz, contract and in-process integration specs. The two jobs
+  # below carry mutation up the pyramid:
+  #
+  #   Mutation pass (integration)  Stryker on the route handlers behind the
+  #                                launch surfaces, judged by the specs that run
+  #                                them on a real D1 and KV from Miniflare
+  #                                (stryker.integration.conf.mjs).
+  #   Mutation pass (end to end)   hand-written faults in rules a person sees
+  #                                (mutation/e2e-mutants.json), each written into
+  #                                a local Worker that the Playwright journeys
+  #                                must then fail against
+  #                                (scripts/ci/e2e-mutation.mjs).
+  #
+  # Nightly and on manual dispatch only, and not part of the required
+  # `Mutation` check: the integration pass runs one mutant at a time (about 27
+  # minutes), and the end-to-end pass starts a Worker per mutant. Each job is
+  # red on its own when its layer is hollow. Make them required once a few
+  # nightly runs have shown they hold steady.
+  integration:
+    name: Mutation pass (integration)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    # Measured at 27 minutes in a session container (373 mutants, one at
+    # a time). 45 leaves room for a slow runner.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
+      - run: npm ci
+      - name: Run Stryker (integration)
+        run: npm run test:mutation:integration
+      # Every handler at or above its own floor (mutation-floors.integration.json).
+      - name: Per-file mutation floor (integration)
+        run: node scripts/ci/mutation-file-floor.mjs reports/mutation-integration/mutation.json --floors mutation-floors.integration.json
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-mutation-integration
+          path: reports/mutation-integration/
+          retention-days: 30
+          if-no-files-found: error
+
+  e2e:
+    name: Mutation pass (end to end)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Stage @ocr/ui package
+        run: bash scripts/ci-stage-ocr-workspace.sh
+        env:
+          OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
+      - run: npm ci
+      - name: Install Playwright Chromium
+        timeout-minutes: 10
+        run: bash scripts/ci/install-playwright-browsers.sh chromium
+      # A baseline run on the unchanged source first (it must pass), then one
+      # run per mutant, each on a fresh local D1. Every mutant must be killed.
+      - name: Run the end-to-end mutants
+        run: npm run test:mutation:e2e
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-mutation-e2e
+          path: reports/mutation-e2e/
+          retention-days: 30
+          if-no-files-found: error

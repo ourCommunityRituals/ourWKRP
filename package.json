@@ -32,6 +32,8 @@
     "test:fuzz": "vitest run tests/fuzz",
     "test:mutation": "stryker run",
     "test:mutation:schemas": "stryker run stryker.schemas.conf.mjs",
+    "test:mutation:integration": "stryker run stryker.integration.conf.mjs",
+    "test:mutation:e2e": "node scripts/ci/e2e-mutation.mjs",
     "test:mutation:floor": "node scripts/ci/mutation-file-floor.mjs reports/mutation/mutation.json reports/mutation-schemas/mutation.json",
     "test:e2e": "node scripts/seed-local-d1.mjs && playwright test tests/e2e",
     "test:mobile-workability": "node scripts/seed-local-d1.mjs && playwright test tests/playwright",
