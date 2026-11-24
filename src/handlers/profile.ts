@@ -11,7 +11,7 @@
 
 import type { Env } from '../types';
 import { requireSession } from '../lib/require-session';
-import { claimSlugBodySchema, setProfileTypeBodySchema } from '../lib/schemas';
+import { claimSlugBodySchema, setProfileTypeBodySchema, setVotableBodySchema } from '../lib/schemas';
 import { validateBody } from '../lib/validate';
 import { recordAudit } from '../lib/audit';
 import { log } from '../lib/logger';
@@ -171,4 +171,50 @@ export async function handleSetProfileType(request: Request, env: Env): Promise<
   log('PROFILE_TYPE_SET', { contributorId: auth.userId, profileType });
 
   return Response.json({ ok: true, profile_type: profileType });
+}
+
+/**
+ * POST /api/profile/votable — body { votable: boolean }.
+ *
+ * "People may vote for me" (profiles-and-voting design, story 3; migration
+ * 0015). Off by default. The signed-in contributor opts in, which records the
+ * date, or withdraws, which clears it. Only an opted-in profile may be put on
+ * an event's vote set. Erasure clears it too (lib/erasure.ts).
+ *
+ * Opting in again while already opted in keeps the first date.
+ *
+ * Status contract:
+ *   200 — { ok, votable }
+ *   400 — votable missing or not a boolean
+ *   401 — no session
+ *   404 — session points at a contributor row that no longer exists
+ */
+export async function handleSetVotable(request: Request, env: Env): Promise<Response> {
+  const auth = await requireSession(request, env);
+  if (auth instanceof Response) return auth;
+
+  const parsed = await validateBody(request, setVotableBodySchema);
+  if (parsed instanceof Response) return parsed;
+
+  const votable = parsed.votable;
+  const result = await env.WKRP_DB.prepare(
+    votable
+      ? "UPDATE contributors SET votable_since = COALESCE(votable_since, datetime('now')) WHERE id = ?"
+      : 'UPDATE contributors SET votable_since = NULL WHERE id = ?',
+  ).bind(auth.userId).run();
+
+  if (!result.meta?.changes) {
+    return Response.json({ ok: false, error: 'Contributor not found' }, { status: 404 });
+  }
+
+  await recordAudit(env, request, {
+    action: votable ? 'profile.votable.opt_in' : 'profile.votable.withdraw',
+    resourceType: 'contributor',
+    resourceId: auth.userId,
+    outcome: 'success',
+    actorId: auth.userId,
+  });
+  log('PROFILE_VOTABLE_SET', { contributorId: auth.userId, votable });
+
+  return Response.json({ ok: true, votable });
 }
