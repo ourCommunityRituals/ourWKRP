@@ -37,6 +37,7 @@
         <option value="sports">Sports (team or athlete)</option>
       </select>
 
+      <!-- music:start -->
       <div class="ow-actions">
         <button type="button" class="btn btn-primary btn-block" id="btn-bring" data-testid="btn-bring">
           Bring Your Music
@@ -46,14 +47,20 @@
         </a>
       </div>
 
-      <!-- spotify-dj:start -->
       <div class="ow-alt">
         <button type="button" class="btn-link" id="btn-connect" data-testid="btn-connect">
           Or connect with Spotify
         </button>
         <div class="ow-alt-note">5 seats available</div>
       </div>
-      <!-- spotify-dj:end -->
+      <!-- music:end -->
+      <!-- music-off:start -->
+      <div class="ow-actions">
+        <button type="button" class="btn btn-primary btn-block" id="btn-profile" data-testid="btn-profile">
+          Make Your Profile
+        </button>
+      </div>
+      <!-- music-off:end -->
     </form>
 
     <div class="ow-signoff">
@@ -68,9 +75,6 @@
       var form = document.getElementById('connect-form');
       var errorBanner = document.getElementById('error-banner');
       var nameInput = document.getElementById('name');
-      var btnBring = document.getElementById('btn-bring');
-      var btnBrowse = document.getElementById('btn-browse');
-      var btnConnect = document.getElementById('btn-connect');
 
       // Surface error param from URL (after a failed OAuth round-trip)
       var params = new URLSearchParams(window.location.search);
@@ -86,15 +90,31 @@
         window.history.replaceState({}, '', '/');
       }
 
-      // If already signed in, jump straight to the catalog. 401 = silent (not signed in).
+      // Where a signed-in person lands: the catalog, or with music off
+      // (lib/music-switch.ts) their own profile.
+      function homeFor(contributor) {
+        /* music:start */
+        return '/catalog';
+        /* music:end */
+        /* music-off:start */
+        return '/contributor/' + encodeURIComponent(contributor.id);
+        /* music-off:end */
+      }
+
+      // If already signed in, go home. 401 = silent (not signed in).
       fetch('/auth/session/me', { credentials: 'same-origin' })
         .then(function(r) { return r.ok ? r.json() : null; })
         .then(function(data) {
           if (data && data.ok && data.contributor) {
-            window.location.href = '/catalog';
+            window.location.href = homeFor(data.contributor);
           }
         })
         .catch(function() { /* network hiccup — stay on the page */ });
+
+      /* music:start */
+      var btnBring = document.getElementById('btn-bring');
+      var btnBrowse = document.getElementById('btn-browse');
+      var btnConnect = document.getElementById('btn-connect');
 
       // Browse — always available, no name required.
       btnBrowse.addEventListener('click', function(e) {
@@ -131,7 +151,6 @@
           });
       });
 
-      /* spotify-dj:start */
       // Spotify — requires a name (Spotify needs it for the contributor record).
       btnConnect.addEventListener('click', function() {
         var name = nameInput.value.trim();
@@ -146,13 +165,61 @@
         var q = new URLSearchParams({ name: name, gen: 'founder' });
         window.location.href = '/auth/start?' + q.toString();
       });
-      /* spotify-dj:end */
 
       // Form submit (e.g. Enter key) defaults to Bring Your Music.
       form.addEventListener('submit', function(e) {
         e.preventDefault();
         btnBring.click();
       });
+
+      function setBusy(busy) {
+        btnBring.disabled = busy;
+        btnConnect.disabled = busy;
+        btnBrowse.style.pointerEvents = busy ? 'none' : '';
+        btnBrowse.style.opacity = busy ? '0.6' : '';
+        if (busy) btnBring.textContent = 'One moment...';
+        else btnBring.textContent = 'Bring Your Music';
+      }
+      /* music:end */
+
+      /* music-off:start */
+      var btnProfile = document.getElementById('btn-profile');
+
+      // Make Your Profile — requires a name, registers, lands on the new profile.
+      btnProfile.addEventListener('click', function() {
+        var name = nameInput.value.trim();
+        if (!name) {
+          showError('Please enter your name first.');
+          nameInput.focus();
+          return;
+        }
+        setBusy(true);
+        register(name)
+          .then(function(data) {
+            if (data && data.ok && data.contributor) {
+              window.location.href = homeFor(data.contributor);
+            } else {
+              setBusy(false);
+              showError((data && data.error) || 'Could not sign you in. Please try again.');
+            }
+          })
+          .catch(function() {
+            setBusy(false);
+            showError('Something went wrong. Please try again.');
+          });
+      });
+
+      // Form submit (e.g. Enter key) makes the profile.
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        btnProfile.click();
+      });
+
+      function setBusy(busy) {
+        btnProfile.disabled = busy;
+        btnProfile.textContent = busy ? 'One moment...' : 'Make Your Profile';
+      }
+      /* music-off:end */
 
       // The profile type is optional; an empty choice sends none.
       function registerBody(name) {
@@ -169,17 +236,6 @@
           credentials: 'same-origin',
           body: JSON.stringify(registerBody(name)),
         }).then(function(r) { return r.json(); });
-      }
-
-      function setBusy(busy) {
-        btnBring.disabled = busy;
-        /* spotify-dj:start */
-        btnConnect.disabled = busy;
-        /* spotify-dj:end */
-        btnBrowse.style.pointerEvents = busy ? 'none' : '';
-        btnBrowse.style.opacity = busy ? '0.6' : '';
-        if (busy) btnBring.textContent = 'One moment...';
-        else btnBring.textContent = 'Bring Your Music';
       }
 
       function showError(message) {

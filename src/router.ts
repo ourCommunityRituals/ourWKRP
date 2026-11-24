@@ -8,6 +8,10 @@
  *   GET  /                          → connect page (or catalog if session)
  *   GET  /catalog                   → catalog page
  *   GET  /create                    → playlist creation page
+ *   GET  /import                    → CSV import page
+ *   GET  /dashboard                 → DJ dashboard page
+ *   GET  /stats                     → catalog stats page
+ *   POST /auth/register             → sign up by name (no Spotify) → contributor + session
  *   GET  /auth/start                → initiate Spotify OAuth + PKCE
  *   GET  /auth/callback             → Spotify redirect handler
  *   POST /auth/logout               → clear session cookie + KV
@@ -28,6 +32,9 @@
  *   GET  /api/playlists/:id         → contributor playlists (by contributor) or single playlist (by UUID)
  *   GET  /api/stats                 → catalog statistics (contributor count floored, K = 5)
  *   GET  /api/brands                → all brands with counts (both counts floored, K = 5)
+ *   GET  /api/layers                → track counts per layer
+ *   GET  /api/export/tracks         → export the catalog's tracks (WKRP-29)
+ *   DELETE /api/contributors/:id/identity → right to erasure (lib/erasure.ts)
  *
  *   --- Playlist Builder (WKRP-7 MVP) ---
  *   POST   /api/playlists              → create curated playlist
@@ -68,6 +75,14 @@
  *   GET  /lastfm/status/:userId     → check Last.fm connection status
  *
  *   *                               → 404
+ *
+ * Music switch (lib/music-switch.ts, OW-224): with MUSIC_ENABLED = "off" every
+ * music route above answers the 404 at the bottom of this table. Kept on:
+ * /health, /ui.css, /, sign-up, session, logout, the admin role grant,
+ * profiles (/contributor/:id, /c/:slug, /api/contributors[/:id[/brands]],
+ * /api/profile/*), /api/brands, facets and erasure.
+ * tests/unit/music-switch.test.ts reads this table, so a new route here is
+ * closed by the switch unless that test names it as kept.
  */
 
 import type { Env } from './types';
@@ -122,7 +137,7 @@ import { enforceRateLimit } from './lib/rate-limit';
 import { isAllowedMutation } from './lib/origin-check';
 import { extractUuid, UUID_RE } from './lib/route-path';
 import { log } from './lib/logger';
-import { spotifyAndDjOff, isSpotifyOrDjRoute } from './lib/launch-switch';
+import { musicOff, isMusicPath } from './lib/music-switch';
 
 export async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -154,9 +169,9 @@ export async function route(request: Request, env: Env): Promise<Response> {
 
   let response: Response;
 
-  // Launch switch (lib/launch-switch.ts): with SPOTIFY_AND_DJ = "off", the
-  // Spotify and DJ routes answer exactly like a route that does not exist.
-  if (spotifyAndDjOff(env) && isSpotifyOrDjRoute(method, path)) {
+  // Music switch (lib/music-switch.ts): with MUSIC_ENABLED = "off", every
+  // music route answers exactly like a route that does not exist.
+  if (musicOff(env) && isMusicPath(path)) {
     response = Response.json({ ok: false, status: 404, error: 'Not found' }, { status: 404 });
   }
   // Health

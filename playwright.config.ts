@@ -36,7 +36,10 @@ export default defineConfig({
     // makes `wrangler dev` rewrite the request Origin to that host, which the
     // OW-81 CSRF allowlist rejects — breaking every browser mutation. See the
     // header of wrangler.e2e.toml for the full root cause.
-    command: 'npx wrangler dev -c wrangler.e2e.toml --port 8787',
+    // MUSIC_ENABLED=off in the environment boots the worker with music off
+    // (OW-224): CI's second page smoke. wrangler.e2e.toml itself says "on".
+    command: 'npx wrangler dev -c wrangler.e2e.toml --port 8787' +
+      (process.env.MUSIC_ENABLED === 'off' ? ' --var MUSIC_ENABLED:off' : ''),
     url: 'http://localhost:8787/health',
     reuseExistingServer: !process.env.CI,
     timeout: 30000,

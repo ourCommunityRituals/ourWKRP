@@ -45,6 +45,7 @@ export const MUTATION_EXCLUDED_SPECS = [
   'tests/security/count-floor-routes.test.ts',
   'tests/integration/linked-accounts.test.ts',
   'tests/integration/profile-type.test.ts',
+  'tests/integration/music-off.test.ts',
   'tests/integration/playback-events.test.ts',
   'tests/integration/playback-vote-link.test.ts',
   'tests/security/playback-authority.test.ts',

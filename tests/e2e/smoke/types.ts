@@ -40,6 +40,10 @@ export interface RouteSpec {
   fixtureEnv?: string;
   /** Skip the no-horizontal-scroll check (e.g. print-oriented poster). */
   allowHScroll?: boolean;
+  /** A music page (WKRP, OW-224). When the smoke runs with MUSIC_ENABLED=off
+   *  it expects the router's 404 here, and runs the full checks on the
+   *  kept pages only. */
+  music?: boolean;
 }
 
 export interface AppManifest {

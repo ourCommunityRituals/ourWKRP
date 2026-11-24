@@ -308,13 +308,23 @@ jobs:
         run: node scripts/seed-local-d1.mjs
       # Tier-1 page smoke: 9 surfaces, 8 assertions each, one mobile browser.
       # Runs before the Tier-2 journeys so a broken page surface fails fast.
-      - name: Tier-1 page smoke
+      # It runs twice (OW-224, src/lib/music-switch.ts): music on, as local dev
+      # and the journeys run, and music off, as staging and production run.
+      - name: Tier-1 page smoke (music on)
         # pw-guarded.sh (propagated from OSE PR #423 / OSE-852) counts discovery
         # before running: a positional path that falls outside the config's
         # testDir discovers zero tests and would otherwise exit green.
         env:
           SMOKE_APP: wkrp
-          PW_LABEL: 'Tier-1 page smoke (wkrp)'
+          PW_LABEL: 'Tier-1 page smoke (wkrp, music on)'
+        run: bash scripts/pw-guarded.sh tests/e2e/smoke/tier1.spec.ts --project="Mobile Safari"
+      # Music off: playwright.config.ts boots wrangler with --var MUSIC_ENABLED:off.
+      # The kept pages get every check; each music page must answer 404.
+      - name: Tier-1 page smoke (music off)
+        env:
+          SMOKE_APP: wkrp
+          MUSIC_ENABLED: 'off'
+          PW_LABEL: 'Tier-1 page smoke (wkrp, music off)'
         run: bash scripts/pw-guarded.sh tests/e2e/smoke/tier1.spec.ts --project="Mobile Safari"
       # The Playwright half of `npm run test:e2e` (the D1 seed is the step above),
       # through the same zero-test guard as the smoke: discovery is counted first

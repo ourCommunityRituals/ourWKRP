@@ -108,11 +108,12 @@ LASTFM_SHARED_SECRET = ""
 # Production has none of these, so the link is off there.
 OSE_VOTE_LINK = "off"
 OSE_VOTE_API_BASE = "https://stg.oursharedevents.com"
-# Launch switch (src/lib/launch-switch.ts): ourWKRP launches without Spotify
-# and DJ (owner, 2026-11-23); the code is kept. "off" closes their routes and
-# page links. tests/security/launch-switch.invariant.spec.ts keeps this "off"
-# here and in [env.production.vars].
-SPOTIFY_AND_DJ = "off"
+# Music switch (src/lib/music-switch.ts, OW-224): ourWKRP launches as the
+# named side without its music slice (owner, 2026-11-24; ADR-040 decision 12).
+# No code or table is removed. "off" closes every music route and page link;
+# "on" brings music back with no rebuild. tests/security/music-switch.invariant
+# .spec.ts keeps this "off" here and in [env.production.vars].
+MUSIC_ENABLED = "off"
 
 # KV Namespace for auth/session state
 [[kv_namespaces]]
@@ -173,11 +174,12 @@ SPOTIFY_REDIRECT_URI = "https://ourwkrp.com/auth/callback"
 APP_URL = "https://ourwkrp.com"
 LASTFM_API_KEY = ""
 LASTFM_SHARED_SECRET = ""
-# Launch switch (src/lib/launch-switch.ts): ourWKRP launches without Spotify
-# and DJ (owner, 2026-11-23); the code is kept. "off" closes their routes and
-# page links. tests/security/launch-switch.invariant.spec.ts keeps this "off"
-# here and in [env.production.vars].
-SPOTIFY_AND_DJ = "off"
+# Music switch (src/lib/music-switch.ts, OW-224): ourWKRP launches as the
+# named side without its music slice (owner, 2026-11-24; ADR-040 decision 12).
+# No code or table is removed. "off" closes every music route and page link;
+# "on" brings music back with no rebuild. tests/security/music-switch.invariant
+# .spec.ts keeps this "off" here and in [env.production.vars].
+MUSIC_ENABLED = "off"
 
 # Durable Object rate limiter DEFERRED in production too -- KV is the live backend
 # at launch (see the staging note above). Reactivate with a SQLite-backed

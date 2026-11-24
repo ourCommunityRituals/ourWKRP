@@ -33,6 +33,7 @@
     </div>
 
     <div class="stats-row" data-testid="stats-row">
+      <!-- music:start -->
       <div class="stat-card">
         <div class="stat-value" id="stat-tracks" data-testid="stat-tracks">0</div>
         <div class="stat-label">Tracks</div>
@@ -41,6 +42,7 @@
         <div class="stat-value" id="stat-playlists" data-testid="stat-playlists">0</div>
         <div class="stat-label">Playlists</div>
       </div>
+      <!-- music:end -->
       <div class="stat-card">
         <div class="stat-value" id="stat-brands" data-testid="stat-brands">0</div>
         <div class="stat-label">Brands</div>
@@ -52,6 +54,7 @@
       <div class="genre-list" id="facet-list" data-testid="facet-list"></div>
     </div>
 
+    <!-- music:start -->
     <div class="section" id="genres-section" data-testid="genres-section">
       <div class="section-title">Top Genres</div>
       <div class="genre-list" id="genre-list" data-testid="genre-list"></div>
@@ -86,12 +89,14 @@
       <div class="section-title">Sources</div>
       <div class="source-list" id="source-list" data-testid="source-list"></div>
     </div>
+    <!-- music:end -->
 
     <div class="section" id="brands-section" data-testid="brands-section">
       <div class="section-title">Communities</div>
       <div id="brand-list" data-testid="brand-list"></div>
     </div>
 
+    <!-- music:start -->
     <nav class="bottom-nav" id="bottom-nav" data-testid="bottom-nav">
       <a href="/catalog" class="nav-item" data-testid="nav-catalog">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>
@@ -106,14 +111,17 @@
         Import
       </a>
     </nav>
+    <!-- music:end -->
   </div>
 
+  <!-- music:start -->
   <!-- Genre Discovery Popup -->
   <div class="genre-popup-backdrop" id="genre-backdrop" data-testid="genre-backdrop"></div>
   <div class="genre-popup" id="genre-popup" data-testid="genre-popup">
     <div class="genre-popup-title" id="genre-popup-title"></div>
     <div class="genre-popup-links" id="genre-popup-links"></div>
   </div>
+  <!-- music:end -->
 
   <script nonce="__CSP_NONCE__">
     (function() {
@@ -123,7 +131,7 @@
       fetch('/auth/session/me', { credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          /* spotify-dj:start */
+          /* music:start */
           if (data.ok && data.contributor && data.contributor.role === 'dj') {
             var nav = document.getElementById('bottom-nav');
             var dashLink = document.createElement('a');
@@ -132,7 +140,7 @@
             dashLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3"/></svg>Dashboard';
             nav.appendChild(dashLink);
           }
-          /* spotify-dj:end */
+          /* music:end */
         })
         .catch(function() {});
 
@@ -160,7 +168,9 @@
           }
 
           renderProfile(data);
+          /* music:start */
           loadPortfolio(id);
+          /* music:end */
         } catch (err) {
           console.error('[WKRP] Profile load error:', err);
           showNotFound();
@@ -198,8 +208,10 @@
         }
         document.getElementById('profile-joined').textContent = 'Joined ' + formatDate(c.created_at);
 
+        /* music:start */
         document.getElementById('stat-tracks').textContent = data.track_count || 0;
         document.getElementById('stat-playlists').textContent = data.playlist_count || 0;
+        /* music:end */
         document.getElementById('stat-brands').textContent = (data.brands || []).length;
 
         // Facets — self-declared (domain, depth) chips (OW-121)
@@ -216,6 +228,7 @@
           }).join('');
         }
 
+        /* music:start */
         // Genres
         var genreList = document.getElementById('genre-list');
         var genres = data.top_genres || [];
@@ -259,6 +272,7 @@
             return '<span class="source-badge" data-testid="source-badge">' + escapeHtml(s) + '</span>';
           }).join('');
         }
+        /* music:end */
 
         // Brands
         var brandListEl = document.getElementById('brand-list');
@@ -269,7 +283,9 @@
           brandListEl.innerHTML = brands.map(function(b) {
             return '<div class="list-item" data-testid="brand-item">' +
               '<span class="list-name">' + escapeHtml(b.name) + '</span>' +
+              /* music:start */
               '<span class="list-sub">' + b.track_count + ' tracks</span>' +
+              /* music:end */
               '</div>';
           }).join('');
         }
@@ -302,6 +318,7 @@
         return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
       }
 
+      /* music:start */
       // --- Preferred Playlists portfolio ---
       async function loadPortfolio(id) {
         var isOwner = false;
@@ -441,6 +458,7 @@
           openGenrePopup(tag.dataset.genre);
         }
       });
+      /* music:end */
     })();
   </script>
 </body>
