@@ -59,7 +59,7 @@ Kept on:
 - The admin role grant (`POST /admin/roles/grant`)
 - Profiles: `/contributor/:id`, `/c/:slug`, `/api/contributors`,
   `/api/contributors/:id`, `/api/contributors/:id/brands`,
-  `POST /api/profile/slug`, `POST /api/profile/type`
+  `POST /api/profile/slug`, `POST /api/profile/type`, `POST /api/profile/votable`
 - `/api/brands`
 - Facets: `POST /api/facets`, `DELETE /api/facets/:id`
 - Erasure: `DELETE /api/contributors/:id/identity`
@@ -89,7 +89,7 @@ With music off:
 - **Profile page.** The track and playlist counts, genres, playlists,
   portfolio, DJ influence, sources, the bottom navigation to music pages and
   the genre pop-up are left out, with the scripts that drive them. The header,
-  facets and communities stay.
+  facets, the "people may vote for me" choice and communities stay.
 
 The words on the front door are the next story's (OW-225).
 

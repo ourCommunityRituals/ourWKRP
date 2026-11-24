@@ -72,6 +72,11 @@ export const setProfileTypeBodySchema = z.object({
   profile_type: profileTypeSchema.nullable(),
 });
 
+/** POST /api/profile/votable: opt in to, or withdraw from, being voted on. */
+export const setVotableBodySchema = z.object({
+  votable: z.boolean({ message: 'votable must be true or false' }),
+});
+
 export const registerBodySchema = z.object({
   name: nameSchema,
   profile_type: profileTypeSchema.optional(),

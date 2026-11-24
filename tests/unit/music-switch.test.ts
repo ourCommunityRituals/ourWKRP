@@ -75,6 +75,7 @@ const KEPT = new Set([
   'GET /c/:slug',
   'POST /api/profile/slug',
   'POST /api/profile/type',
+  'POST /api/profile/votable',
   'GET /api/brands',
   'POST /api/facets',
   'DELETE /api/facets/:id',
@@ -172,6 +173,7 @@ describe('pages follow the switch', () => {
       expect(html, id).not.toContain(`id="${id}"`);
     }
     expect(html).toContain('id="facets-section"');
+    expect(html).toContain('id="vote-optin-section"');
   });
 
   it('strips each kind of marked block, in markup and in scripts, and nothing else', () => {

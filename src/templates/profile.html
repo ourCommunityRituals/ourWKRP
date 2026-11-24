@@ -54,6 +54,13 @@
       <div class="genre-list" id="facet-list" data-testid="facet-list"></div>
     </div>
 
+    <div class="section hidden" id="vote-optin-section" data-testid="vote-optin-section">
+      <div class="section-title">Voting</div>
+      <p id="vote-optin-status" data-testid="vote-optin-status"></p>
+      <button type="button" id="vote-optin-btn" data-testid="vote-optin-btn" class="btn btn-secondary"></button>
+      <div id="vote-optin-error" data-testid="vote-optin-error" class="form-error hidden"></div>
+    </div>
+
     <!-- music:start -->
     <div class="section" id="genres-section" data-testid="genres-section">
       <div class="section-title">Top Genres</div>
@@ -171,6 +178,7 @@
           /* music:start */
           loadPortfolio(id);
           /* music:end */
+          loadVoteOptIn(id, data.contributor.votable === true);
         } catch (err) {
           console.error('[WKRP] Profile load error:', err);
           showNotFound();
@@ -316,6 +324,47 @@
         var div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      // --- "People may vote for me" (owner only; off by default) ---
+      async function loadVoteOptIn(id, votable) {
+        try {
+          var sres = await fetch('/auth/session/me', { credentials: 'same-origin' });
+          var sdata = await sres.json();
+          if (!(sdata.ok && sdata.contributor && sdata.contributor.id === id)) return;
+        } catch (e) { return; }
+
+        var btn = document.getElementById('vote-optin-btn');
+        var errEl = document.getElementById('vote-optin-error');
+        function render() {
+          document.getElementById('vote-optin-status').textContent = votable
+            ? 'People may vote for you at events. Only results are shown, never counts.'
+            : 'People cannot vote for you. Turn this on to be part of event votes.';
+          btn.textContent = votable ? 'Stop letting people vote for me' : 'Let people vote for me';
+        }
+        render();
+        document.getElementById('vote-optin-section').classList.remove('hidden');
+
+        btn.addEventListener('click', async function() {
+          btn.disabled = true;
+          errEl.classList.add('hidden');
+          try {
+            var res = await fetch('/api/profile/votable', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify({ votable: !votable }),
+            });
+            var data = await res.json();
+            if (!data.ok) throw new Error(data.error || 'failed');
+            votable = data.votable === true;
+            render();
+          } catch (e) {
+            errEl.textContent = 'Could not save that. Please try again.';
+            errEl.classList.remove('hidden');
+          }
+          btn.disabled = false;
+        });
       }
 
       /* music:start */
