@@ -93,6 +93,7 @@ export const MUTATION_PATHS = Object.freeze([
   'tests/unit/kv-storage-encryption.test.ts',
   'tests/unit/origin-check.test.ts',
   'tests/unit/pages-replace-dollar.test.ts',
+  'tests/unit/profile-type-schema.test.ts',
   'tests/unit/rate-limit.test.ts',
   'tests/unit/rate-limiter-do.test.ts',
   'tests/unit/require-session.test.ts',
