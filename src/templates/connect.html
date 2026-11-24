@@ -30,6 +30,13 @@
         data-testid="input-name"
       >
 
+      <label for="profile-type">What kind of profile?</label>
+      <select id="profile-type" class="input" name="profile_type" data-testid="select-profile-type">
+        <option value="">Not sure yet</option>
+        <option value="artist">Artist</option>
+        <option value="sports">Sports (team or athlete)</option>
+      </select>
+
       <div class="ow-actions">
         <button type="button" class="btn btn-primary btn-block" id="btn-bring" data-testid="btn-bring">
           Bring Your Music
@@ -147,12 +154,20 @@
         btnBring.click();
       });
 
+      // The profile type is optional; an empty choice sends none.
+      function registerBody(name) {
+        var body = { name: name };
+        var type = document.getElementById('profile-type').value;
+        if (type) body.profile_type = type;
+        return body;
+      }
+
       function register(name) {
         return fetch('/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify({ name: name }),
+          body: JSON.stringify(registerBody(name)),
         }).then(function(r) { return r.json(); });
       }
 

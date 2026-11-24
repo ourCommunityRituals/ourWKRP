@@ -4,7 +4,7 @@
  * Simple registration — create a contributor and session WITHOUT Spotify.
  * This is the CSV-first path: name + role + generation → session cookie → ready to import.
  *
- * Body: { name: string, role: string, generation: string }
+ * Body: { name: string, role?: string, generation?: string, profile_type?: 'artist' | 'sports' }
  *
  * No third-party auth required. The act of registering is the consent.
  */
@@ -23,15 +23,16 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
   if (parsed instanceof Response) return parsed;
 
   const { name, role, generation } = parsed;
+  const profileType = parsed.profile_type ?? null;
 
   const brandId = extractBrandId(request);
   const contributorId = crypto.randomUUID();
 
   // Create contributor in D1
   await env.WKRP_DB.prepare(`
-    INSERT INTO contributors (id, name, generation, brand_id, role, status, created_at)
-    VALUES (?, ?, ?, ?, ?, 'active', datetime('now'))
-  `).bind(contributorId, name, generation, brandId, role).run();
+    INSERT INTO contributors (id, name, generation, brand_id, role, status, profile_type, created_at)
+    VALUES (?, ?, ?, ?, ?, 'active', ?, datetime('now'))
+  `).bind(contributorId, name, generation, brandId, role, profileType).run();
 
   // Also add to contributor_roles table
   await env.WKRP_DB.prepare(`
@@ -56,7 +57,7 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
 
   return new Response(JSON.stringify({
     ok: true,
-    contributor: { id: contributorId, name, role, generation },
+    contributor: { id: contributorId, name, role, generation, profile_type: profileType },
     // Self-service sign-up only mints contributor/listener (F1), so this path
     // always lands on the catalog; the DJ dashboard is reached after a
     // privileged-role grant (lib/roles.ts), not at registration.

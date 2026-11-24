@@ -24,6 +24,7 @@
  *   GET  /contributor/:id             → contributor profile page (HTML)
  *   GET  /c/:slug                     → same profile page via vanity slug (OW-122)
  *   POST /api/profile/slug            → claim/change own vanity slug (OW-122)
+ *   POST /api/profile/type            → set/change/clear own profile type (artist | sports)
  *   GET  /api/playlists/:id         → contributor playlists (by contributor) or single playlist (by UUID)
  *   GET  /api/stats                 → catalog statistics (contributor count floored, K = 5)
  *   GET  /api/brands                → all brands with counts (both counts floored, K = 5)
@@ -107,7 +108,7 @@ import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, 
 import { handleEraseIdentity } from './handlers/privacy';
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleAddPortfolioPlaylist, handleGetPortfolio, handleRemovePortfolioPlaylist } from './handlers/portfolio';
-import { handleClaimProfileSlug } from './handlers/profile';
+import { handleClaimProfileSlug, handleSetProfileType } from './handlers/profile';
 import { handleDeclareFacet, handleRemoveFacet } from './handlers/facets';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
 import { handleStartSet, handleAddSetTrack, handleEndSet, handleCreateAttribution, handleGetDjStats, handleGetLiveSet } from './handlers/dj';
@@ -299,6 +300,10 @@ export async function route(request: Request, env: Env): Promise<Response> {
   // --- Profile vanity slug (OW-122) ---
   else if (method === 'POST' && path === '/api/profile/slug') {
     response = await handleClaimProfileSlug(request, env);
+  }
+  // --- Profile type (profiles-and-voting launch, story 2) ---
+  else if (method === 'POST' && path === '/api/profile/type') {
+    response = await handleSetProfileType(request, env);
   }
 
   // --- Flag Facets (declared domains + depth) ---

@@ -398,7 +398,8 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
     // `slug` is additive (OW-122): the vanity URL is public, so the profile
     // page can render it. `slug_locked` is deliberately NOT exposed here — it
     // is an owner-only control flag, returned by POST /api/profile/slug.
-    'SELECT id, name, generation, role, brand_id, status, slug, created_at FROM contributors WHERE id = ?'
+    // `profile_type` (migration 0014) is public: it is what the profile is.
+    'SELECT id, name, generation, role, brand_id, status, slug, profile_type, created_at FROM contributors WHERE id = ?'
   ).bind(contributorId).first();
 
   if (!contributor) {
