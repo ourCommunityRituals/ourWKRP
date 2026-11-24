@@ -399,7 +399,9 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
     // page can render it. `slug_locked` is deliberately NOT exposed here — it
     // is an owner-only control flag, returned by POST /api/profile/slug.
     // `profile_type` (migration 0014) is public: it is what the profile is.
-    'SELECT id, name, generation, role, brand_id, status, slug, profile_type, created_at FROM contributors WHERE id = ?'
+    // `votable` (migration 0015) is public as a yes/no only: whether the owner
+    // lets people vote for them. The date they opted in stays private.
+    'SELECT id, name, generation, role, brand_id, status, slug, profile_type, CASE WHEN votable_since IS NULL THEN 0 ELSE 1 END AS votable, created_at FROM contributors WHERE id = ?'
   ).bind(contributorId).first();
 
   if (!contributor) {
@@ -453,7 +455,7 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
 
   return Response.json({
     ok: true,
-    contributor,
+    contributor: { ...contributor, votable: contributor.votable === 1 },
     roles: allRoles,
     track_count: trackCount,
     playlist_count: playlistCount,

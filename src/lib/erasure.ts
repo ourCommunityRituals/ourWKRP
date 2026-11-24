@@ -55,6 +55,7 @@ export async function eraseContributor(
             apple_music_id = NULL,
             lastfm_username = NULL,
             slug = NULL,
+            votable_since = NULL,
             status = 'departed'
       WHERE id = ?`,
   )

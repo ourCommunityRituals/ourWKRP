@@ -102,6 +102,7 @@ export const MUTATION_PATHS = Object.freeze([
   'tests/unit/session.test.ts',
   'tests/unit/slug.test.ts',
   'tests/unit/validation.test.ts',
+  'tests/unit/votable-schema.test.ts',
   'tests/unit/withheld-count-pages.test.ts',
   // What the run is built from: the Stryker config, the Vitest projects, the
   // mutation-only setup, the dependencies.
