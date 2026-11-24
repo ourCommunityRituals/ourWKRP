@@ -121,6 +121,7 @@ import { enforceRateLimit } from './lib/rate-limit';
 import { isAllowedMutation } from './lib/origin-check';
 import { extractUuid, UUID_RE } from './lib/route-path';
 import { log } from './lib/logger';
+import { spotifyAndDjOff, isSpotifyOrDjRoute } from './lib/launch-switch';
 
 export async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -152,8 +153,13 @@ export async function route(request: Request, env: Env): Promise<Response> {
 
   let response: Response;
 
+  // Launch switch (lib/launch-switch.ts): with SPOTIFY_AND_DJ = "off", the
+  // Spotify and DJ routes answer exactly like a route that does not exist.
+  if (spotifyAndDjOff(env) && isSpotifyOrDjRoute(method, path)) {
+    response = Response.json({ ok: false, status: 404, error: 'Not found' }, { status: 404 });
+  }
   // Health
-  if (method === 'GET' && path === '/health') {
+  else if (method === 'GET' && path === '/health') {
     response = await handleHealth(request, env);
   }
   // Shared design system CSS

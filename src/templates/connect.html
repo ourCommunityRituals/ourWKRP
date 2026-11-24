@@ -39,12 +39,14 @@
         </a>
       </div>
 
+      <!-- spotify-dj:start -->
       <div class="ow-alt">
         <button type="button" class="btn-link" id="btn-connect" data-testid="btn-connect">
           Or connect with Spotify
         </button>
         <div class="ow-alt-note">5 seats available</div>
       </div>
+      <!-- spotify-dj:end -->
     </form>
 
     <div class="ow-signoff">
@@ -122,6 +124,7 @@
           });
       });
 
+      /* spotify-dj:start */
       // Spotify — requires a name (Spotify needs it for the contributor record).
       btnConnect.addEventListener('click', function() {
         var name = nameInput.value.trim();
@@ -136,6 +139,7 @@
         var q = new URLSearchParams({ name: name, gen: 'founder' });
         window.location.href = '/auth/start?' + q.toString();
       });
+      /* spotify-dj:end */
 
       // Form submit (e.g. Enter key) defaults to Bring Your Music.
       form.addEventListener('submit', function(e) {
@@ -154,7 +158,9 @@
 
       function setBusy(busy) {
         btnBring.disabled = busy;
+        /* spotify-dj:start */
         btnConnect.disabled = busy;
+        /* spotify-dj:end */
         btnBrowse.style.pointerEvents = busy ? 'none' : '';
         btnBrowse.style.opacity = busy ? '0.6' : '';
         if (busy) btnBring.textContent = 'One moment...';
