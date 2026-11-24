@@ -3,13 +3,13 @@ variables:
   - name: baseUrl
     value: http://localhost:8787
   - name: session_cookie
-    value: ""
+    value: wkrp_session=9c14d56f-5912-4a40-9b52-b9cb7ffa5290
   - name: contributor_id
-    value: ""
+    value: 8c38b82b-7990-4b26-993e-4c7563835984
   - name: playlist_id
-    value: ""
+    value: 867f6fa8-fd3f-4f50-85bf-798d0144e197
   - name: track_ids
-    value: "[]"
+    value: '["41b508a3-bea4-4e1d-b653-d878bcb02019","6f828d92-24a4-4f82-86a5-77160023f7af","8220efc9-c522-4b5d-8bbe-6eeacaea2027","920be762-d9d4-46b7-80a8-dda54302189b"]'
   - name: track_id
     value: ""
   - name: set_id

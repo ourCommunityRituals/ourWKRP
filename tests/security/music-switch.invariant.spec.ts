@@ -45,6 +45,11 @@ describe('music switch: music stays off in every deployed environment', () => {
     expect(varIn(read('wrangler.e2e.toml'), 'vars', 'MUSIC_ENABLED')).toBe('on');
   });
 
+  it('the Bruno API contract boots wrangler.toml with music on, so it keeps covering the music API', () => {
+    const pkg = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
+    expect(pkg.scripts['test:bruno']).toContain('--var MUSIC_ENABLED:on');
+  });
+
   it('the old SPOTIFY_AND_DJ setting is gone, so one setting decides', () => {
     for (const file of ['wrangler.toml', 'wrangler.e2e.toml', 'src/types.ts']) {
       expect(read(file), file).not.toContain('SPOTIFY_AND_DJ');

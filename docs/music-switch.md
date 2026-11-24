@@ -31,6 +31,7 @@ Spotify and DJ. Music is the larger set, so one setting now closes all of it.
 | staging | `wrangler.toml` `[vars]` | `"off"` |
 | production | `wrangler.toml` `[env.production.vars]` | `"off"` |
 | local dev and e2e | `wrangler.e2e.toml` `[vars]`; add `MUSIC_ENABLED=on` to `.dev.vars` when running against `wrangler.toml` | `"on"` |
+| Bruno API contract (`npm run test:bruno`) | `wrangler dev --var MUSIC_ENABLED:on`, since it boots `wrangler.toml` and covers the music API | `"on"` |
 | CI music-off smoke | `wrangler dev --var MUSIC_ENABLED:off` (`playwright.config.ts`, when `MUSIC_ENABLED=off` is in the environment) | `"off"` |
 
 To bring music back on staging or production, change that environment's value
