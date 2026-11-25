@@ -17,6 +17,7 @@
  *   POST /auth/logout               → clear session cookie + KV
  *   GET  /auth/session/me           → get contributor profile from session cookie
  *   POST /admin/roles/grant         → admin-token-gated grant of dj/curator (F1)
+ *   POST /admin/skins/grant         → admin-token-gated custom-looks add-on, on or off
  *   POST /spotify/sync/:userId      → sync playlists/tracks/audio-features
  *   POST /import/:contributorId     → import CSV library file
  *
@@ -82,7 +83,7 @@
  *
  * Music switch (lib/music-switch.ts, OW-224): with MUSIC_ENABLED = "off" every
  * music route above answers the 404 at the bottom of this table. Kept on:
- * /health, /ui.css, /, sign-up, session, logout, the admin role grant,
+ * /health, /ui.css, /, sign-up, session, logout, the admin role and skins grants,
  * profiles (/contributor/:id, /c/:slug, /api/contributors[/:id[/brands]],
  * /api/profile/* incl. votable and layout), the /look skin editor,
  * /api/brands, facets and erasure.
@@ -136,6 +137,7 @@ import { handleExportTracks } from './handlers/export';
 import { handleSponsorReport } from './handlers/sponsor';
 import { handleGetEventMusic } from './handlers/events';
 import { handleGrantRole } from './handlers/admin-roles';
+import { handleGrantSkins } from './handlers/admin-skins';
 import { addCorsHeaders } from './lib/cors';
 import { addSecurityHeaders } from './lib/security-headers';
 import { enforceRateLimit } from './lib/rate-limit';
@@ -194,6 +196,9 @@ export async function route(request: Request, env: Env): Promise<Response> {
   // Admin: confer a privileged role (dj/curator) — token-gated, F1.
   else if (method === 'POST' && path === '/admin/roles/grant') {
     response = await handleGrantRole(request, env);
+  }
+  else if (method === 'POST' && path === '/admin/skins/grant') {
+    response = await handleGrantSkins(request, env);
   }
   else if (method === 'GET' && path === '/auth/start') {
     response = await handleAuthStart(request, env);

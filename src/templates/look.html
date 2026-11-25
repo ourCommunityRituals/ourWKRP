@@ -24,6 +24,11 @@
           Colors and text size stay with the design system, so your page stays easy to read, and a count under 5 is never shown.</p>
       </div>
 
+      <div class="section hidden" id="add-on-note" data-testid="look-add-on">
+        <p id="add-on-text"></p>
+        <p>You can try every look below and see it in the preview. The standard look is free and always works.</p>
+      </div>
+
       <div class="section">
         <div class="section-title">Start from</div>
         <div class="row" id="skin-buttons" data-testid="look-skins"></div>
@@ -50,7 +55,7 @@
 
       <div class="section">
         <div class="section-title">Skin file</div>
-        <label for="skin-md">The same skin file ourSharedEvents uses. You can edit it here too; notes below the second --- line are not saved.</label>
+        <label for="skin-md">The same skin file ourSharedEvents uses. You can edit it here too, and keep blocks for your ourSharedEvents pages in the same file. Notes are not saved.</label>
         <textarea id="skin-md" class="input" rows="9" spellcheck="false" data-testid="look-markdown"></textarea>
       </div>
 
@@ -71,6 +76,8 @@
 
       var options = null;
       var layout = null;
+      var entitled = false;
+      var baseSkin = 'standard';
       var mdBox = document.getElementById('skin-md');
 
       init();
@@ -86,6 +93,12 @@
           if (!data.ok) throw new Error(data.error || 'failed');
           options = data.options;
           layout = data.layout;
+          entitled = data.entitled === true;
+          baseSkin = data.base_skin || 'standard';
+          if (!entitled) {
+            document.getElementById('add-on-text').textContent = data.add_on_message;
+            document.getElementById('add-on-note').classList.remove('hidden');
+          }
           mdBox.value = data.markdown;
           document.getElementById('editor').classList.remove('hidden');
           buildSkinButtons();
@@ -226,21 +239,45 @@
           preview.appendChild(card);
         });
 
-        if (writeFile) mdBox.value = writeSkin(layout, notesOf(mdBox.value));
+        if (writeFile) mdBox.value = withProfileBlock(mdBox.value, layout);
+
+        // Without the add-on only the free standard look can be saved; the
+        // server holds the same rule (PUT /api/profile/layout answers 403).
+        var saveBtn = document.getElementById('save-btn');
+        var locked = !entitled && layout.skin !== baseSkin;
+        saveBtn.disabled = locked;
+        saveBtn.textContent = locked ? 'Save (add-on)' : 'Save';
       }
 
-      // The skin file, in the same form the server writes (lib/layout-skin-md.ts).
-      function writeSkin(l, notes) {
-        var head = ['---', 'surface: ' + l.surface, 'skin: ' + l.skin, 'columns: ' + l.columns,
-          'order: ' + l.order.join(', '), ('wide: ' + l.wide.join(', ')).trim(), '---'].join('\n');
-        return notes ? head + '\n' + notes + '\n' : head + '\n';
+      // The profile block, in the same form the server writes (lib/layout-skin-md.ts).
+      function profileBlock(l) {
+        return ['---', 'surface: ' + l.surface, 'skin: ' + l.skin, 'columns: ' + l.columns,
+          'order: ' + l.order.join(', '), ('wide: ' + l.wide.join(', ')).trim(), '---'];
       }
 
-      function notesOf(text) {
+      // Put the profile block into the file in place. A file can hold blocks
+      // for ourSharedEvents pages too (one file for a client on both
+      // products), and those and the notes are kept as they are. Same block
+      // rule as the server: "---", then "surface: ..." as the next line with
+      // text, up to the next "---".
+      function withProfileBlock(text, l) {
         var lines = text.split(/\r?\n/);
-        var first = lines.findIndex(function(l) { return l.trim() === '---'; });
-        var second = first === -1 ? -1 : lines.findIndex(function(l, i) { return i > first && l.trim() === '---'; });
-        return second === -1 ? '' : lines.slice(second + 1).join('\n').trim();
+        for (var i = 0; i < lines.length; i++) {
+          if (lines[i].trim() !== '---') continue;
+          var j = i + 1;
+          while (j < lines.length && lines[j].trim() === '') j++;
+          var m = (lines[j] || '').trim().match(/^surface\s*:\s*(.*)$/i);
+          if (!m) continue;
+          var close = -1;
+          for (var k = i + 1; k < lines.length; k++) { if (lines[k].trim() === '---') { close = k; break; } }
+          if (close === -1) break;
+          if (m[1].trim() === 'profile') {
+            return lines.slice(0, i).concat(profileBlock(l), lines.slice(close + 1)).join('\n');
+          }
+          i = close;
+        }
+        var rest = text.trim();
+        return profileBlock(l).join('\n') + '\n' + (rest ? rest + '\n' : '');
       }
 
       function setStatus(text) {
@@ -263,10 +300,9 @@
           });
           var data = await res.json();
           if (data.ok) {
-            var notes = notesOf(mdBox.value);
             layout = data.layout;
             render(false);
-            mdBox.value = writeSkin(layout, notes);
+            mdBox.value = withProfileBlock(mdBox.value, layout);
             setStatus('Saved. Your page now uses this look.');
           } else {
             setStatus('Not saved.');
@@ -280,7 +316,7 @@
         } catch (e) {
           setStatus('Could not save that. Please try again.');
         }
-        btn.disabled = false;
+        render(false);
       });
     })();
   </script>

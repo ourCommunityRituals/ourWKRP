@@ -82,6 +82,12 @@ export const layoutBodySchema = z.object({
   markdown: z.string({ message: 'markdown must be the skin file as text' }).max(8192, 'The skin file must be at most 8192 bytes'),
 });
 
+/** POST /admin/skins/grant: turn the custom-looks add-on on or off for a person. */
+export const grantSkinsBodySchema = z.object({
+  contributorId: uuidSchema,
+  on: z.boolean({ message: 'on must be true or false' }),
+});
+
 export const registerBodySchema = z.object({
   name: nameSchema,
   profile_type: profileTypeSchema.optional(),

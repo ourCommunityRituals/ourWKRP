@@ -9,7 +9,7 @@
  * under the floor of 5).
  */
 import { describe, it, expect } from 'vitest';
-import { parseSkinMarkdown, writeSkinMarkdown } from '../../src/lib/layout-skin-md';
+import { parseSkinFile, parseSkinMarkdown, writeSkinMarkdown } from '../../src/lib/layout-skin-md';
 import { SURFACES, defaultLayout, layoutProblems, readyMadeLayout, SKIN_FILE_MAX_BYTES } from '../../src/lib/layout-skins';
 
 function file(header: string, notes = ''): string {
@@ -33,7 +33,7 @@ describe('reading a skin file', () => {
   });
 
   it('reads [a, b] lists, skips blank and # lines, and allows wide to be left out', () => {
-    const r = parseSkinMarkdown(file('# my page\n\nsurface: profile\nskin: custom\ncolumns: 1\norder: [voting, stats, domains, communities]'));
+    const r = parseSkinMarkdown(file('\nsurface: profile\n# my page\n\nskin: custom\ncolumns: 1\norder: [voting, stats, domains, communities]'));
     expect(r.ok && r.layout.order).toEqual(['voting', 'stats', 'domains', 'communities']);
     expect(r.ok && r.layout.wide).toEqual([]);
   });
@@ -54,17 +54,21 @@ describe('reading a skin file', () => {
   });
 
   it('needs the two --- lines', () => {
-    expect(problems('surface: profile')[0]).toMatch(/start with a line of three dashes/);
-    expect(problems('---\nsurface: profile\n')[0]).toMatch(/second line of three dashes/);
+    expect(problems('surface: profile')[0]).toMatch(/names no page this product arranges/);
+    expect(problems('---\nsurface: profile\n')[0]).toMatch(/^line 1: this header must end with a line of three dashes/);
   });
 
   it('needs surface, skin, columns and order, each once', () => {
-    expect(problems(file('surface: profile'))).toEqual(['"skin" is required.', '"columns" is required.', '"order" is required.']);
+    expect(problems(file('surface: profile'))).toEqual([
+      'the profile block (line 1): "skin" is required.',
+      'the profile block (line 1): "columns" is required.',
+      'the profile block (line 1): "order" is required.',
+    ]);
     expect(problems(file(`${CUSTOM}\ncolumns: 1`))).toContain('line 7: "columns" is set more than once.');
   });
 
   it('takes columns of 1 or 2 only', () => {
-    expect(problems(file(CUSTOM.replace('columns: 2', 'columns: 3')))).toContain('"columns" must be 1 or 2.');
+    expect(problems(file(CUSTOM.replace('columns: 2', 'columns: 3')))).toContain('the profile block (line 1): "columns" must be 1 or 2.');
   });
 
   it('refuses a file over 8192 bytes', () => {
@@ -72,7 +76,35 @@ describe('reading a skin file', () => {
   });
 
   it('refuses a surface it does not know', () => {
-    expect(problems(file(CUSTOM.replace('surface: profile', 'surface: report')))[0]).toMatch(/"surface" must be one of: profile/);
+    expect(problems(file(CUSTOM.replace('surface: profile', 'surface: report')))[0]).toMatch(/names no page this product arranges \(here: profile\)/);
+  });
+});
+
+describe('one file for every page of a client on both products', () => {
+  const REPORT = '---\nsurface: report\nskin: side_by_side\ncolumns: 2\norder: map, stats\nwide: map\n---\nNotes for the report.\n---\nnot a block, just a rule in the notes\n';
+
+  it('reads the profile block and skips blocks for ourSharedEvents pages', () => {
+    const r = parseSkinFile(REPORT + file(CUSTOM, 'Notes.'));
+    expect(r.ok && Object.keys(r.layouts)).toEqual(['profile']);
+    expect(parseSkinMarkdown(REPORT + file(CUSTOM)).ok).toBe(true);
+  });
+
+  it('does not check blocks it skips, but does check its own, with line numbers', () => {
+    const p = problems(REPORT.replace('wide: map', 'color: red') + file(`${CUSTOM}\nfont: big`));
+    expect(p).toHaveLength(1);
+    expect(p[0]).toMatch(/^line 17: font is not taken/);
+  });
+
+  it('refuses a file that names the same page twice', () => {
+    expect(problems(file(CUSTOM) + file(CUSTOM))[0]).toMatch(/names the profile page 2 times/);
+  });
+
+  it('refuses a file with no page this product arranges', () => {
+    expect(problems(REPORT)[0]).toMatch(/names no page this product arranges/);
+  });
+
+  it('has standard and side_by_side, the names shared with every ourSharedEvents page', () => {
+    expect(Object.keys(SURFACES.profile.skins)).toEqual(expect.arrayContaining(['standard', 'side_by_side']));
   });
 });
 
@@ -120,7 +152,7 @@ describe('a skin arranges, nothing else', () => {
   it('refuses any other key, and lines that are not key: value', () => {
     expect(problems(file(`${CUSTOM}\nlink: https://example.com`))[0]).toMatch(/^line 7: link is not part of a layout. Use only: surface, skin, columns, order, wide/);
     expect(problems(file(`${CUSTOM}\n<script>alert(1)</script>`))[0]).toMatch(/^line 7: this header line is not "key: value"/);
-    expect(problems(file(CUSTOM.replace('columns', 'Columns')))).toContain('"columns" is required.');
+    expect(problems(file(CUSTOM.replace('columns', 'Columns')))).toContain('the profile block (line 1): "columns" is required.');
   });
 });
 

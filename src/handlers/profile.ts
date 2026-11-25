@@ -14,6 +14,7 @@ import { requireSession } from '../lib/require-session';
 import { claimSlugBodySchema, setProfileTypeBodySchema, setVotableBodySchema, layoutBodySchema } from '../lib/schemas';
 import { parseSkinMarkdown, writeSkinMarkdown } from '../lib/layout-skin-md';
 import { SURFACES, cleanLayout, defaultLayout, type Layout } from '../lib/layout-skins';
+import { ADD_ON_MESSAGE, BASE_SKIN, hasCustomSkins } from '../lib/skin-entitlement';
 import { validateBody } from '../lib/validate';
 import { recordAudit } from '../lib/audit';
 import { log } from '../lib/logger';
@@ -225,9 +226,12 @@ export async function handleSetVotable(request: Request, env: Env): Promise<Resp
  * The stored profile layout, checked again on the way out, or the standard
  * skin when there is none (or what is stored no longer passes the checks).
  * Used by the public profile read too (handlers/catalog.ts).
+ *
+ * Without the custom-looks add-on (lib/skin-entitlement.ts) this is always
+ * the standard skin, so taking the add-on away puts the base look back.
  */
-export function readProfileLayout(stored: unknown): Layout {
-  if (typeof stored === 'string' && stored) {
+export function readProfileLayout(stored: unknown, entitled: boolean): Layout {
+  if (entitled && typeof stored === 'string' && stored) {
     try {
       const layout = cleanLayout(JSON.parse(stored));
       if (layout && layout.surface === 'profile') return layout;
@@ -263,8 +267,12 @@ export async function handleGetProfileLayout(request: Request, env: Env): Promis
     return Response.json({ ok: false, error: 'Contributor not found' }, { status: 404 });
   }
 
-  const layout = readProfileLayout(row.profile_layout);
-  return Response.json({ ok: true, layout, markdown: writeSkinMarkdown(layout), options: editorOptions() });
+  const entitled = await hasCustomSkins(env, auth.userId);
+  const layout = readProfileLayout(row.profile_layout, entitled);
+  return Response.json({
+    ok: true, layout, markdown: writeSkinMarkdown(layout), options: editorOptions(),
+    entitled, base_skin: BASE_SKIN, add_on_message: ADD_ON_MESSAGE,
+  });
 }
 
 /**
@@ -279,6 +287,7 @@ export async function handleGetProfileLayout(request: Request, env: Env): Promis
  *   200 — { ok, layout, markdown }
  *   400 — not a valid skin file: { ok: false, error, problems: string[] }
  *   401 — no session
+ *   403 — a skin other than standard without the custom-looks add-on
  *   404 — session points at a contributor row that no longer exists
  */
 export async function handlePutProfileLayout(request: Request, env: Env): Promise<Response> {
@@ -303,6 +312,17 @@ export async function handlePutProfileLayout(request: Request, env: Env): Promis
   }
 
   const layout = skin.layout;
+  // The base skin is free for everyone; anything else is the add-on.
+  if (layout.skin !== BASE_SKIN && !(await hasCustomSkins(env, auth.userId))) {
+    await recordAudit(env, request, {
+      action: 'profile.layout.set', resourceType: 'contributor', resourceId: auth.userId,
+      outcome: 'denied', actorId: auth.userId, meta: { reason: 'no_custom_skins', skin: layout.skin },
+    });
+    return Response.json(
+      { ok: false, error: ADD_ON_MESSAGE, problems: [ADD_ON_MESSAGE], entitled: false },
+      { status: 403 },
+    );
+  }
   const result = await env.WKRP_DB.prepare(
     'UPDATE contributors SET profile_layout = ? WHERE id = ?',
   ).bind(JSON.stringify(layout), auth.userId).run();

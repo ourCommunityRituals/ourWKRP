@@ -67,6 +67,7 @@ const KEPT = new Set([
   'POST /auth/logout',
   'GET /auth/session/me',
   'POST /admin/roles/grant',
+  'POST /admin/skins/grant',
   'GET /api/contributors',
   'GET /api/contributors/:id',
   'GET /api/contributors/:id/brands',

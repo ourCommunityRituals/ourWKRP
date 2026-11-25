@@ -8,6 +8,7 @@
  */
 
 import { readProfileLayout } from './profile';
+import { hasCustomSkins } from '../lib/skin-entitlement';
 import type { Env } from '../types';
 import { extractBrandId } from '../lib/brand';
 import { encodeCursor, decodeCursor, parsePaginationParams } from '../lib/cursor';
@@ -459,7 +460,8 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
     // `profile_layout` (migration 0016) leaves as `layout`: the checked
     // arrangement only (lib/layout-skins.ts), never the stored text itself.
     contributor: (({ profile_layout: _stored, ...rest }) => ({ ...rest, votable: contributor.votable === 1 }))(contributor as Record<string, unknown>),
-    layout: readProfileLayout(contributor.profile_layout),
+    // Without the custom-looks add-on the page shows the standard skin.
+    layout: readProfileLayout(contributor.profile_layout, await hasCustomSkins(env, contributorId)),
     roles: allRoles,
     track_count: trackCount,
     playlist_count: playlistCount,

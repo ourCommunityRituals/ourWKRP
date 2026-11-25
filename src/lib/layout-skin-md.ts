@@ -17,9 +17,13 @@
  * message is picked without regard to case, so `Color:` is told why); blank lines and lines starting with # are
  * skipped; lists are comma separated, and [a, b] is read too. The whole file is
  * at most 8192 bytes. The arrangement is then checked by lib/layout-skins.ts.
+ *
+ * One file may hold several blocks, one per surface, so a client on both
+ * ourSharedEvents and ourWKRP can keep one file for all their pages (see
+ * parseSkinFile). A one-block file is the common case.
  */
 
-import { CUSTOM_SKIN, SKIN_FILE_MAX_BYTES, layoutProblems, type Layout } from './layout-skins';
+import { CUSTOM_SKIN, SKIN_FILE_MAX_BYTES, SURFACES, layoutProblems, type Layout } from './layout-skins';
 
 const KEYS = ['surface', 'skin', 'columns', 'order', 'wide'] as const;
 const REQUIRED = ['surface', 'skin', 'columns', 'order'] as const;
@@ -43,28 +47,39 @@ function readList(value: string): string[] {
   return v.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
-export function parseSkinMarkdown(text: unknown): SkinParse {
-  if (typeof text !== 'string') return { ok: false, problems: ['The skin file must be text.'] };
-  if (new TextEncoder().encode(text).length > SKIN_FILE_MAX_BYTES) {
-    return { ok: false, problems: [`The skin file must be at most ${SKIN_FILE_MAX_BYTES} bytes.`] };
-  }
+/** One header block: where it starts and ends (line indexes of its --- lines). */
+interface Block { open: number; close: number; surface: string }
 
-  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
-  let start = 0;
-  while (start < lines.length && lines[start].trim() === '') start++;
-  if (lines[start]?.trim() !== '---') {
-    return { ok: false, problems: ['The skin file must start with a line of three dashes (---).'] };
-  }
-  const end = lines.findIndex((line, i) => i > start && line.trim() === '---');
-  if (end === -1) {
-    return { ok: false, problems: ['The header must end with a second line of three dashes (---).'] };
-  }
+const SURFACE_LINE = /^surface\s*:\s*(.*)$/i;
 
+/**
+ * Find the header blocks. A block starts at a line "---" whose next non-blank
+ * line is "surface: ...", and ends at the next "---". Anything else, a "---"
+ * rule inside the notes included, is notes. (Same rule as ourSharedEvents.)
+ */
+function findBlocks(lines: string[]): { blocks: Block[]; unclosed: number | null } {
+  const blocks: Block[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() !== '---') continue;
+    let j = i + 1;
+    while (j < lines.length && lines[j].trim() === '') j++;
+    const m = lines[j]?.trim().match(SURFACE_LINE);
+    if (!m) continue;
+    const close = lines.findIndex((line, k) => k > i && line.trim() === '---');
+    if (close === -1) return { blocks, unclosed: i };
+    blocks.push({ open: i, close, surface: m[1].trim() });
+    i = close;
+  }
+  return { blocks, unclosed: null };
+}
+
+/** Read the key: value lines of one block into a checked layout. */
+function readBlock(lines: string[], block: Block): SkinParse {
   const problems: string[] = [];
   const seen = new Map<string, string>();
-  for (const [i, raw] of lines.slice(start + 1, end).entries()) {
-    const at = `line ${start + 2 + i}: `;
-    const line = raw.trim();
+  for (let n = block.open + 1; n < block.close; n++) {
+    const at = `line ${n + 1}: `;
+    const line = lines[n].trim();
     if (line === '' || line.startsWith('#')) continue;
     const m = line.match(/^([A-Za-z_]+)\s*:\s*(.*)$/);
     if (!m) {
@@ -89,8 +104,9 @@ export function parseSkinMarkdown(text: unknown): SkinParse {
     seen.set(key, value.trim());
   }
 
+  const where = `the ${block.surface} block (line ${block.open + 1})`;
   for (const key of REQUIRED) {
-    if (!seen.has(key)) problems.push(`"${key}" is required.`);
+    if (!seen.has(key)) problems.push(`${where}: "${key}" is required.`);
   }
   if (problems.length) return { ok: false, problems };
 
@@ -104,8 +120,62 @@ export function parseSkinMarkdown(text: unknown): SkinParse {
   };
 
   const checked = layoutProblems(layout);
-  if (checked.length) return { ok: false, problems: checked };
+  if (checked.length) return { ok: false, problems: checked.map((c) => `${where}: ${c}`) };
   return { ok: true, layout: layout as Layout };
+}
+
+export type SkinFileParse =
+  | { ok: true; layouts: Record<string, Layout> }
+  | { ok: false; problems: string[] };
+
+/**
+ * Read a skin file that may hold several blocks, one per surface, so a client
+ * on both products can keep one file for all their pages. Blocks for surfaces
+ * this product does not arrange (ourSharedEvents' report, vote_screen) are
+ * skipped, not refused. Each surface may appear once.
+ */
+export function parseSkinFile(text: unknown): SkinFileParse {
+  if (typeof text !== 'string') return { ok: false, problems: ['The skin file must be text.'] };
+  if (new TextEncoder().encode(text).length > SKIN_FILE_MAX_BYTES) {
+    return { ok: false, problems: [`The skin file must be at most ${SKIN_FILE_MAX_BYTES} bytes.`] };
+  }
+
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+  const { blocks, unclosed } = findBlocks(lines);
+  if (unclosed !== null) {
+    return { ok: false, problems: [`line ${unclosed + 1}: this header must end with a line of three dashes (---).`] };
+  }
+
+  const problems: string[] = [];
+  const counted = new Map<string, number>();
+  for (const b of blocks) counted.set(b.surface, (counted.get(b.surface) ?? 0) + 1);
+  for (const [surface, n] of counted) {
+    if (n > 1) problems.push(`The file names the ${surface} page ${n} times; name each page once.`);
+  }
+  if (problems.length) return { ok: false, problems };
+
+  const known = blocks.filter((b) => Object.prototype.hasOwnProperty.call(SURFACES, b.surface));
+  if (known.length === 0) {
+    return { ok: false, problems: [`The file names no page this product arranges (here: ${Object.keys(SURFACES).join(', ')}).`] };
+  }
+
+  const layouts: Record<string, Layout> = {};
+  for (const b of known) {
+    const r = readBlock(lines, b);
+    if (r.ok) layouts[b.surface] = r.layout;
+    else problems.push(...r.problems);
+  }
+  if (problems.length) return { ok: false, problems };
+  return { ok: true, layouts };
+}
+
+/** The one layout for a surface from a skin file (the API reads profile). */
+export function parseSkinMarkdown(text: unknown, surface = 'profile'): SkinParse {
+  const r = parseSkinFile(text);
+  if (!r.ok) return r;
+  const layout = r.layouts[surface];
+  if (!layout) return { ok: false, problems: [`The file has no ${surface} block.`] };
+  return { ok: true, layout };
 }
 
 /** The file for a layout, in the canonical form, with optional notes. */

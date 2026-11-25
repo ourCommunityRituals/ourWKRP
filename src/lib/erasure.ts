@@ -57,6 +57,7 @@ export async function eraseContributor(
             slug = NULL,
             votable_since = NULL,
             profile_layout = NULL,
+            custom_skins_since = NULL,
             status = 'departed'
       WHERE id = ?`,
   )
