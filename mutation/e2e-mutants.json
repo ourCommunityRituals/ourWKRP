@@ -1,0 +1,59 @@
+{
+  "about": [
+    "The end-to-end layer's mutants, run by scripts/ci/e2e-mutation.mjs (npm run test:mutation:e2e).",
+    "Stryker mutates the code the unit and integration specs load in-process. It cannot plant a fault in a running Worker and then drive a browser at it, so this layer's mutants are written by hand: each is one small fault in a rule a person would notice on the page or in the API, and the end-to-end specs named in `kill` must fail on it.",
+    "Each `find` must occur exactly once in its `file` (the runner refuses the catalog otherwise, so a mutant cannot go stale silently). `kill` lists the Playwright specs that must catch it.",
+    "The gate is every mutant killed. A mutant that survives is a rule the browser suite would let ship: add the end-to-end case that catches it, never drop the mutant."
+  ],
+  "project": "Mobile Chrome",
+  "mutants": [
+    {
+      "id": "count-floor-gate-off",
+      "rule": "Never who, only how many: a count under 5 is withheld and reads \"Fewer than 5\".",
+      "file": "src/lib/count-floor.ts",
+      "find": "if (n < floor) return { count: null, suppressed: true, floor };",
+      "replace": "if (false) return { count: null, suppressed: true, floor };",
+      "kill": ["tests/e2e/withheld-counts.spec.ts"]
+    },
+    {
+      "id": "rate-limit-never-refuses",
+      "rule": "A burst from one caller is refused with 429 and Retry-After.",
+      "file": "src/lib/rate-limit.ts",
+      "find": "if (state.c >= limit) {",
+      "replace": "if (false) {",
+      "kill": ["tests/e2e/rate-limit.spec.ts"]
+    },
+    {
+      "id": "name-keeps-markup",
+      "rule": "Markup typed into a name is stripped, never stored raw.",
+      "file": "src/lib/schemas.ts",
+      "find": ".transform(s => stripHtmlTags(s).trim());",
+      "replace": ".transform(s => s.trim());",
+      "kill": ["tests/e2e/contributor-journey.spec.ts"]
+    },
+    {
+      "id": "name-not-trimmed",
+      "rule": "A name padded with spaces is trimmed on the contributor record.",
+      "file": "src/lib/schemas.ts",
+      "find": ".transform(s => stripHtmlTags(s).trim());",
+      "replace": ".transform(s => stripHtmlTags(s));",
+      "kill": ["tests/e2e/contributor-journey.spec.ts"]
+    },
+    {
+      "id": "portfolio-accepts-any-link",
+      "rule": "A portfolio takes Spotify playlist links only, and says so clearly.",
+      "file": "src/handlers/portfolio.ts",
+      "find": "if (!playlist) {",
+      "replace": "if (false) {",
+      "kill": ["tests/e2e/portfolio.spec.ts"]
+    },
+    {
+      "id": "portfolio-controls-for-everyone",
+      "rule": "Only the owner of a profile sees the controls to change it.",
+      "file": "src/templates/profile.html",
+      "find": "isOwner = !!(sdata.ok && sdata.contributor && sdata.contributor.id === id);",
+      "replace": "isOwner = true;",
+      "kill": ["tests/e2e/portfolio.spec.ts"]
+    }
+  ]
+}

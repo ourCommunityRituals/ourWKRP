@@ -83,6 +83,21 @@ test.describe('Signup / opt-in — Bring Your Music', () => {
     await expect(page.getByTestId('user-badge')).toHaveText('Trim Tina');
   });
 
+  // The page trims the name before it sends it, so the case above cannot see
+  // the server's own trim. A caller that is not the page (an app, a script)
+  // reaches the server untrimmed: this case is that caller, and it reads the
+  // stored record back. (End-to-end mutant `name-not-trimmed`,
+  // mutation/e2e-mutants.json, survived without it.)
+  test('the server trims a padded name itself, for a caller that is not the page', async ({ request }) => {
+    const res = await request.post('/auth/register', { data: { name: '  Pad Pat  ' } });
+    expect(res.status()).toBe(201);
+    const { contributor } = (await res.json()) as { contributor: { id: string; name: string } };
+    expect(contributor.name).toBe('Pad Pat');
+    const read = await request.get(`/api/contributors/${contributor.id}`);
+    expect(read.ok()).toBe(true);
+    expect(JSON.stringify(await read.json())).toContain('"name":"Pad Pat"');
+  });
+
   test('markup typed into the name is sanitized, not stored raw', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('input-name').fill('Real<i>Name</i>');

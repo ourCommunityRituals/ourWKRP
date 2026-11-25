@@ -6,6 +6,8 @@
 
 ## 1. What is ourWKRP?
 
+> **Music is switched off on staging and production** (`MUSIC_ENABLED = "off"`, OW-224, owner 2026-11-24). ourWKRP launches as the named, plant-your-flag side: sign-up by name, profiles, slugs, facets and erasure. Every music route answers 404 and the code stays in place. See [docs/music-switch.md](docs/music-switch.md).
+
 Mobile-first community music catalog platform. Contributors register with just a name (`POST /auth/register` — no third-party account required; "the act of registering is the consent") and may optionally link Spotify (OAuth PKCE), Last.fm, or CSV-import their library. Linked libraries sync progressively (playlists -> tracks -> audio features where available), and anyone can browse, filter, and create playlists from analyzed data. Public surfaces need no session at all: the catalog, contributor profiles (`/contributor/:id`), portfolios, and DJ live/poster pages are open.
 
 Designed to scale from a local community (50-100 people) to white-labeled instances per neighborhood/venue:
@@ -72,6 +74,9 @@ Every template links `/ui.css` (served by `router.ts` via `serveCss` from `@ocr/
 
 **Pin and token hygiene (CCR OSE-1393, 2026-09-29).** Pinned at hub `b039d2f`. `scripts/ci-stage-ocr-workspace.sh` refuses a pin that is not on hub `main` and prints `::error::` on failure. `OCR_HUB_READ` is a read-only token (Contents: read on the hub and OCR-docs; it replaced the all-repository write token, OSE-1695), and it still lives only as step-scoped `env:` on the staging steps, passed as a transient `http.extraheader` — never workflow-level, never in a clone URL. On PRs the design check runs with `--base-config` (main's `.ocr-design-check.json`), so a PR cannot raise its own baseline. `mobile-workability.yml` stages the pin before `npm ci`. `tests/security/adr008-wiring.invariant.spec.ts` locks all of this. `/ui.css` revalidates by ETag (`tests/unit/ui-css-cache.test.ts`), so a pin bump reaches browsers immediately.
 
+### The music switch (OW-224)
+One `[vars]` setting, `MUSIC_ENABLED`, in `src/lib/music-switch.ts`. With `"off"` (staging and production), every music route answers the router's own 404 before dispatch, and pages swap their `music:` marked blocks for their `music-off:` blocks. It replaced the 2026-11-23 `SPOTIFY_AND_DJ` switch. The router's header comment is the route table the switch is tested against (`tests/unit/music-switch.test.ts`): a new route there is closed unless that test names it as kept. CI runs the Tier-1 page smoke with music on and with music off. Full list of what closes and what stays: [docs/music-switch.md](docs/music-switch.md).
+
 ### Endpoints (core subset — see `src/router.ts` header for the full ~54-route table)
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -110,7 +115,7 @@ Counts below are a static count of `it()`/`test()` blocks (incl. `.each`/`.skip`
 | Unit | Vitest | ~553 / 51 |
 | Security | Vitest | ~371 / 30 |
 | Integration | Vitest | ~90 / 9 |
-| E2E | Playwright | ~48 / 13 |
+| E2E | Playwright | ~48 / 13 (the Tier-1 page smoke runs twice in CI: music on and music off) |
 | Contract | Vitest (Pact-style) | ~28 / 3 |
 | Fuzz / Property | Vitest (fast-check) | ~18 / 4 |
 | Performance | Vitest + k6 | ~13 / 2 (+ k6 scenarios) |
@@ -167,6 +172,7 @@ Runtime configs: `dev`, `stg`, `prd`. Deploy keys live in a separate Doppler pro
 | SPOTIFY_CLIENT_ID | `wrangler.toml` `[vars]` (public) | Spotify app ID (`b0af039c67b14c2fbeb1f5ab0b5ff662`) |
 | SPOTIFY_REDIRECT_URI | `wrangler.toml` `[vars]`, per env (public) | OAuth callback URL |
 | APP_URL | `wrangler.toml` `[vars]`, per env (public) | Frontend base URL; must pass that env's redirect allowlist |
+| MUSIC_ENABLED | `wrangler.toml` `[vars]`, per env (public) | `"off"` closes the music slice (OW-224, `docs/music-switch.md`); staging and production are locked to `"off"` |
 | CLOUDFLARE_API_TOKEN_OW | Doppler `ourwkrp-deploy/stg` + `ourwkrp-deploy/prd` only (secret) | Deploys and migrates. The Cloudflare token is named `ourwkrp-ci-deploy` and rotated every 90 days with `npm run deploy-keys` (PLAYBOOK 4.5). `scripts/ci/wrangler-ci.sh` checks the config and hands it to wrangler as `CLOUDFLARE_API_TOKEN`. GitHub holds only the read-only service tokens `DOPPLER_TOKEN_STG` / `DOPPLER_TOKEN_PRD`, as environment secrets, one per deploy config |
 | KV namespace ID | wrangler.toml | Auth/session state (CF infra, not a secret) |
 | D1 database ID | wrangler.toml | Catalog data (CF infra, not a secret) |
@@ -200,6 +206,7 @@ npm run deploy:prod
 SPOTIFY_CLIENT_ID=b0af039c67b14c2fbeb1f5ab0b5ff662
 SPOTIFY_REDIRECT_URI=http://localhost:8787/auth/callback
 APP_URL=http://localhost:8787
+MUSIC_ENABLED=on
 ```
 
 **stg:**
@@ -207,6 +214,7 @@ APP_URL=http://localhost:8787
 SPOTIFY_CLIENT_ID=b0af039c67b14c2fbeb1f5ab0b5ff662
 SPOTIFY_REDIRECT_URI=https://stg.ourwkrp.com/auth/callback
 APP_URL=https://stg.ourwkrp.com
+MUSIC_ENABLED=off
 ```
 
 **prd:**
@@ -214,6 +222,7 @@ APP_URL=https://stg.ourwkrp.com
 SPOTIFY_CLIENT_ID=b0af039c67b14c2fbeb1f5ab0b5ff662
 SPOTIFY_REDIRECT_URI=https://ourwkrp.com/auth/callback
 APP_URL=https://ourwkrp.com
+MUSIC_ENABLED=off
 ```
 
 ---

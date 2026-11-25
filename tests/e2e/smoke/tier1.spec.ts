@@ -36,6 +36,11 @@ const manifest: AppManifest =
 
 const HAS_ADMIN = !!process.env.SMOKE_ADMIN_READY; // set when config injects auth headers
 
+// WKRP music switch (OW-224, src/lib/music-switch.ts). CI runs this smoke twice:
+// music on (every page) and MUSIC_ENABLED=off, where a `music` page must answer
+// the router's 404 and only the kept pages get the full page checks.
+const MUSIC_OFF = process.env.MUSIC_ENABLED === 'off';
+
 for (const route of manifest.routes) {
   const title = `[T1:${manifest.app}] ${route.name}`;
 
@@ -49,7 +54,8 @@ for (const route of manifest.routes) {
 
     const resp = await page.goto(path!, { waitUntil: 'domcontentloaded' });
     expect(resp, 'response received').toBeTruthy();
-    expect(resp!.status(), 'status code').toBe(route.status ?? 200);
+    expect(resp!.status(), 'status code').toBe(MUSIC_OFF && route.music ? 404 : (route.status ?? 200));
+    if (MUSIC_OFF && route.music) return; // closed: the status was the whole assertion
 
     const ctype = resp!.headers()['content-type'] ?? '';
     if (route.anchor !== 'body' || ctype.includes('text/html')) {

@@ -32,6 +32,8 @@
     "test:fuzz": "vitest run tests/fuzz",
     "test:mutation": "stryker run",
     "test:mutation:schemas": "stryker run stryker.schemas.conf.mjs",
+    "test:mutation:integration": "stryker run stryker.integration.conf.mjs",
+    "test:mutation:e2e": "node scripts/ci/e2e-mutation.mjs",
     "test:mutation:floor": "node scripts/ci/mutation-file-floor.mjs reports/mutation/mutation.json reports/mutation-schemas/mutation.json",
     "test:e2e": "node scripts/seed-local-d1.mjs && playwright test tests/e2e",
     "test:mobile-workability": "node scripts/seed-local-d1.mjs && playwright test tests/playwright",
@@ -45,7 +47,7 @@
     "test:showcase:e2e": "playwright test --config showcase/playwright.config.mjs",
     "test:load": "k6 run k6/sync-load.js",
     "db:seed:local": "node scripts/seed-local-d1.mjs",
-    "test:bruno": "node scripts/seed-local-d1.mjs && node -e \"require('fs').mkdirSync('.test-results',{recursive:true})\" && start-server-and-test \"npx wrangler dev --port 8787 --var WKRP_ADMIN_TOKEN:bruno-admin-token\" http-get://localhost:8787/health \"cd bruno/wkrp-api && npx bru run . -r --env wkrp-local --reporter-junit ../../.test-results/bru-api-junit.xml\"",
+    "test:bruno": "node scripts/seed-local-d1.mjs && node -e \"require('fs').mkdirSync('.test-results',{recursive:true})\" && start-server-and-test \"npx wrangler dev --port 8787 --var WKRP_ADMIN_TOKEN:bruno-admin-token --var MUSIC_ENABLED:on\" http-get://localhost:8787/health \"cd bruno/wkrp-api && npx bru run . -r --env wkrp-local --reporter-junit ../../.test-results/bru-api-junit.xml\"",
     "test:all": "npm run typecheck && npm run lint && npm run test && npm run test:e2e",
     "ci": "npm run typecheck && npm run lint && npm run test",
     "contract:staging": "node scripts/contract-staging.mjs"
