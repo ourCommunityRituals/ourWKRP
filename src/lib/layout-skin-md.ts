@@ -50,7 +50,7 @@ function readList(value: string): string[] {
 /** One header block: where it starts and ends (line indexes of its --- lines). */
 interface Block { open: number; close: number; surface: string }
 
-const SURFACE_LINE = /^surface\s*:\s*(.*)$/i;
+const SURFACE_LINE = /^surface\s*:(.*)$/i;
 
 /**
  * Find the header blocks. A block starts at a line "---" whose next non-blank
@@ -81,7 +81,7 @@ function readBlock(lines: string[], block: Block): SkinParse {
     const at = `line ${n + 1}: `;
     const line = lines[n].trim();
     if (line === '' || line.startsWith('#')) continue;
-    const m = line.match(/^([A-Za-z_]+)\s*:\s*(.*)$/);
+    const m = line.match(/^([A-Za-z_]+)\s*:(.*)$/);
     if (!m) {
       problems.push(`${at}this header line is not "key: value": ${line.slice(0, 60)}`);
       continue;

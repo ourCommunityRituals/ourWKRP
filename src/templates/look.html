@@ -266,7 +266,7 @@
           if (lines[i].trim() !== '---') continue;
           var j = i + 1;
           while (j < lines.length && lines[j].trim() === '') j++;
-          var m = (lines[j] || '').trim().match(/^surface\s*:\s*(.*)$/i);
+          var m = (lines[j] || '').trim().match(/^surface\s*:(.*)$/i);
           if (!m) continue;
           var close = -1;
           for (var k = i + 1; k < lines.length; k++) { if (lines[k].trim() === '---') { close = k; break; } }

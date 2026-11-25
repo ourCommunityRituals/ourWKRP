@@ -71,6 +71,13 @@ describe('reading a skin file', () => {
     expect(problems(file(CUSTOM.replace('columns: 2', 'columns: 3')))).toContain('the profile block (line 1): "columns" must be 1 or 2.');
   });
 
+  it('reads a header line full of spaces in linear time (CodeQL polynomial regex)', () => {
+    const pad = ' '.repeat(8000);
+    const t = Date.now();
+    parseSkinFile(`---\nsurface:${pad}x\nA:${pad}x\n---\n`);
+    expect(Date.now() - t).toBeLessThan(200);
+  });
+
   it('refuses a file over 8192 bytes', () => {
     expect(problems(file(CUSTOM, 'x'.repeat(SKIN_FILE_MAX_BYTES)))[0]).toMatch(/at most 8192 bytes/);
   });
