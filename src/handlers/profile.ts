@@ -245,7 +245,7 @@ export function readProfileLayout(stored: unknown, entitled: boolean): Layout {
 /** What the editor needs to draw its controls. */
 function editorOptions() {
   const def = SURFACES.profile;
-  return { parts: def.parts, labels: def.labels, skins: def.skins };
+  return { parts: def.parts, required: def.required, labels: def.labels, skins: def.skins };
 }
 
 /**

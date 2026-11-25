@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>ourWKRP — Contributor</title>
   <link rel="stylesheet" href="/ui.css">
-  <style>.stats-row{gap:12px;padding:20px}.section{padding:16px 20px;border-top:1px solid var(--border)}.section-title{font-size:.85rem}#portfolio-error{margin-bottom:10px;font-size:.85rem}@media(min-width:720px){.skin-cols-2{display:grid;grid-template-columns:1fr 1fr;column-gap:16px}.skin-cols-2>.skin-wide{grid-column:1/-1}}</style>
+  <style>.stats-row{gap:12px;padding:20px}.section{padding:16px 20px;border-top:1px solid var(--border)}.section-title{font-size:.85rem}#portfolio-error{margin-bottom:10px;font-size:.85rem}@media(min-width:720px){.skin-cols-2{display:grid;grid-template-columns:1fr 1fr;column-gap:16px}.skin-cols-2>.skin-wide{grid-column:1/-1}}#skin-parts>.skin-off{display:none}</style>
 </head>
 <body>
   <!-- Loading State -->
@@ -333,15 +333,18 @@
 
       // --- "People may vote for me" (owner only; off by default) ---
       // Arrange the parts as the owner's skin says (lib/layout-skins.ts). The
-      // server sends only a checked arrangement, and every part is always
-      // shown: a skin moves parts, it never hides them. A phone always shows
-      // one column (the media query in the page style).
+      // server sends only a checked arrangement: required parts are always in
+      // it, and an optional part left out of it is hidden. A skin never adds
+      // anything. A phone always shows one column (the page style).
       function applySkin(layout) {
         var box = document.getElementById('skin-parts');
         if (!layout || !Array.isArray(layout.order)) return;
         var byPart = {};
         Array.prototype.forEach.call(box.children, function(el) {
           byPart[el.getAttribute('data-part')] = el;
+        });
+        Object.keys(byPart).forEach(function(part) {
+          byPart[part].classList.toggle('skin-off', layout.order.indexOf(part) === -1);
         });
         layout.order.forEach(function(part) {
           if (Object.prototype.hasOwnProperty.call(byPart, part)) box.appendChild(byPart[part]);

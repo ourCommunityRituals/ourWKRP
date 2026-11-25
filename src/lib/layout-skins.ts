@@ -8,9 +8,14 @@
  * surfaces (report, vote_screen); ourWKRP adds its own in the same shape.
  * Mirrors OSE workers/oursharedevents/src/lib/layout-skins.ts.
  *
+ * The shared part is the abstraction, not the layouts (Matt, 2026-11-25):
+ * each surface has its own catalogue of parts, each part required or
+ * optional, and its own ready-made skins. Nothing is copied between surfaces.
+ *
  * A skin arranges, nothing else:
- *   - order lists every part of the surface exactly once, so nothing can be
- *     hidden and nothing can be added;
+ *   - order lists the parts that are shown, each at most once. Every required
+ *     part must be in it; an optional part left out is hidden. Nothing can be
+ *     added;
  *   - wide is a subset of order, used only when columns is 2; a phone always
  *     shows one column;
  *   - no colors, fonts, sizes, markup, links or counts. Colors and text sizes
@@ -33,6 +38,8 @@ export interface Layout {
 export interface SurfaceDef {
   /** Parts in their standard order. */
   parts: readonly string[];
+  /** Parts every layout must show. The others are optional and may be hidden. */
+  required: readonly string[];
   /** Plain names for the editor. */
   labels: Readonly<Record<string, string>>;
   /** Ready-made skins; the first is the default. */
@@ -47,6 +54,9 @@ export interface SurfaceDef {
  */
 const PROFILE: SurfaceDef = {
   parts: ['stats', 'domains', 'voting', 'communities'],
+  // Declared domains are the flag a person plants, and voting is what the
+  // launch is for, so both always show. Numbers and communities may be hidden.
+  required: ['domains', 'voting'],
   labels: {
     stats: 'Numbers',
     domains: 'Declared domains',
@@ -108,8 +118,8 @@ export function layoutProblems(input: unknown): string[] {
     if (unknown.length) problems.push(`"order" names parts this page does not have: ${unknown.join(', ')}.`);
     const repeated = order.filter((p, i) => order.indexOf(p) !== i);
     if (repeated.length) problems.push(`"order" lists a part more than once: ${[...new Set(repeated)].join(', ')}.`);
-    const missing = def.parts.filter((p) => !order.includes(p));
-    if (missing.length) problems.push(`"order" must list every part, so nothing is hidden. Missing: ${missing.join(', ')}.`);
+    const missing = def.required.filter((p) => !order.includes(p));
+    if (missing.length) problems.push(`"order" must list every required part. Missing: ${missing.join(', ')}.`);
   }
 
   const wide = Array.isArray(l.wide) ? l.wide : null;
@@ -120,6 +130,10 @@ export function layoutProblems(input: unknown): string[] {
     if (unknown.length) problems.push(`"wide" names parts this page does not have: ${unknown.join(', ')}.`);
     const repeated = wide.filter((p, i) => wide.indexOf(p) !== i);
     if (repeated.length) problems.push(`"wide" lists a part more than once: ${[...new Set(repeated)].join(', ')}.`);
+    if (order) {
+      const notShown = wide.filter((p) => def.parts.includes(p as string) && !order.includes(p));
+      if (notShown.length) problems.push(`"wide" names parts that are hidden: ${notShown.join(', ')}.`);
+    }
   }
 
   // A ready-made name promises that arrangement. A changed arrangement is a

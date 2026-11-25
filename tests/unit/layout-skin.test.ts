@@ -110,15 +110,30 @@ describe('one file for every page of a client on both products', () => {
     expect(problems(REPORT)[0]).toMatch(/names no page this product arranges/);
   });
 
-  it('has standard and side_by_side, the names shared with every ourSharedEvents page', () => {
-    expect(Object.keys(SURFACES.profile.skins)).toEqual(expect.arrayContaining(['standard', 'side_by_side']));
+  it('has its own ready-made skins, with the free standard look first', () => {
+    expect(Object.keys(SURFACES.profile.skins)[0]).toBe('standard');
   });
 });
 
 describe('a skin arranges, nothing else', () => {
-  it('must list every part, so nothing can be hidden', () => {
-    expect(problems(file(CUSTOM.replace('order: communities, stats, domains, voting', 'order: stats, domains'))).join(' '))
-      .toMatch(/Missing: voting, communities/);
+  it('must list every required part', () => {
+    expect(problems(file(CUSTOM.replace('order: communities, stats, domains, voting', 'order: communities, stats'))).join(' '))
+      .toMatch(/every required part\. Missing: domains, voting\./);
+  });
+
+  it('hides an optional part that is left out', () => {
+    const r = parseSkinMarkdown(file(CUSTOM.replace('order: communities, stats, domains, voting\nwide: communities', 'order: domains, voting\nwide: voting')));
+    expect(r.ok && r.layout.order).toEqual(['domains', 'voting']);
+  });
+
+  it('cannot make a hidden part wide', () => {
+    expect(problems(file(CUSTOM.replace('order: communities, stats, domains, voting', 'order: stats, domains, voting'))).join(' '))
+      .toMatch(/"wide" names parts that are hidden: communities/);
+  });
+
+  it('marks some parts required and the rest optional', () => {
+    expect(SURFACES.profile.required).toEqual(['domains', 'voting']);
+    for (const p of SURFACES.profile.required) expect(SURFACES.profile.parts).toContain(p);
   });
 
   it('cannot add a part or list one twice', () => {
@@ -176,7 +191,7 @@ describe('checking stored layouts', () => {
     }
   });
 
-  it('has ready-made skins that each list every part', () => {
+  it('has ready-made skins that each show every part', () => {
     for (const s of Object.values(SURFACES.profile.skins)) {
       expect([...s.order].sort()).toEqual([...SURFACES.profile.parts].sort());
     }

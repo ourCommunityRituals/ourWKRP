@@ -76,11 +76,22 @@ describe('profile skin', () => {
     expect(await stored(rig, me.id)).toBeNull();
   });
 
-  it('refuses a file that hides a part', async () => {
+  it('refuses a file that hides a required part', async () => {
     const me = await register(rig, 'Dee', 'contributor');
-    const res = await call(rig, 'PUT', '/api/profile/layout', { cookie: me.cookie, json: { markdown: SKIN.replace('communities, stats, domains, voting', 'stats, domains, voting') } });
+    const res = await call(rig, 'PUT', '/api/profile/layout', { cookie: me.cookie, json: { markdown: SKIN.replace('communities, stats, domains, voting', 'communities, stats, domains') } });
     expect(res.status).toBe(400);
-    expect(((await res.json()) as { problems: string[] }).problems.join(' ')).toMatch(/Missing: communities/);
+    expect(((await res.json()) as { problems: string[] }).problems.join(' ')).toMatch(/Missing: voting/);
+    expect(await stored(rig, me.id)).toBeNull();
+  });
+
+  it('lets an entitled person hide an optional part, and the public profile leaves it out', async () => {
+    const me = await register(rig, 'Dot', 'contributor');
+    const grant = await grantSkins(rig, me.id);
+    expect(grant.status).toBe(200);
+    const res = await call(rig, 'PUT', '/api/profile/layout', { cookie: me.cookie, json: { markdown: SKIN.replace('communities, stats, domains, voting\nwide: communities', 'domains, voting\nwide: voting') } });
+    expect(res.status).toBe(200);
+    const pub = (await (await call(rig, 'GET', `/api/contributors/${me.id}`)).json()) as { layout: { order: string[] } };
+    expect(pub.layout.order).toEqual(['domains', 'voting']);
   });
 
   it('needs a session, and a body with the file as text', async () => {

@@ -20,7 +20,7 @@
 
     <div id="editor" class="hidden" data-testid="look-editor">
       <div class="section">
-        <p>Choose how the parts of your public page are arranged. Your page always shows every part.
+        <p>Choose how the parts of your public page are arranged. Required parts always show; you can hide the optional ones.
           Colors and text size stay with the design system, so your page stays easy to read, and a count under 5 is never shown.</p>
       </div>
 
@@ -171,6 +171,17 @@
         changed();
       }
 
+      function required(part) {
+        return (options.required || []).indexOf(part) !== -1;
+      }
+
+      function setShown(part, on) {
+        layout.order = layout.order.filter(function(p) { return p !== part; });
+        layout.wide = layout.wide.filter(function(p) { return p !== part; });
+        if (on) layout.order.push(part);
+        changed();
+      }
+
       function toggleWide(part, on) {
         layout.wide = layout.wide.filter(function(p) { return p !== part; });
         if (on) layout.wide.push(part);
@@ -193,7 +204,7 @@
           row.setAttribute('data-testid', 'look-order-' + part);
           var name = document.createElement('span');
           name.className = 'grow';
-          name.textContent = label(part);
+          name.textContent = label(part) + (required(part) ? ' (always shown)' : '');
           row.appendChild(name);
 
           var up = document.createElement('button');
@@ -224,6 +235,19 @@
           wideLabel.appendChild(box);
           wideLabel.appendChild(document.createTextNode(' Full width'));
           row.appendChild(wideLabel);
+          if (!required(part)) row.appendChild(showButton(part, false));
+          list.appendChild(row);
+        });
+        options.parts.forEach(function(part) {
+          if (layout.order.indexOf(part) !== -1) return;
+          var row = document.createElement('div');
+          row.className = 'row list-item';
+          row.setAttribute('data-testid', 'look-hidden-' + part);
+          var name = document.createElement('span');
+          name.className = 'grow';
+          name.textContent = label(part) + ' (hidden)';
+          row.appendChild(name);
+          row.appendChild(showButton(part, true));
           list.appendChild(row);
         });
 
@@ -247,6 +271,17 @@
         var locked = !entitled && layout.skin !== baseSkin;
         saveBtn.disabled = locked;
         saveBtn.textContent = locked ? 'Save (add-on)' : 'Save';
+      }
+
+      function showButton(part, show) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn btn-secondary';
+        b.textContent = show ? 'Show' : 'Hide';
+        b.setAttribute('aria-label', (show ? 'Show ' : 'Hide ') + label(part));
+        b.setAttribute('data-testid', (show ? 'look-show-' : 'look-hide-') + part);
+        b.addEventListener('click', function() { setShown(part, show); });
+        return b;
       }
 
       // The profile block, in the same form the server writes (lib/layout-skin-md.ts).
