@@ -127,7 +127,7 @@ export function layoutProblems(input: unknown): string[] {
   if (problems.length === 0 && l.skin !== CUSTOM_SKIN) {
     const ready = readyMadeLayout(surface, l.skin as string)!;
     if (!sameArrangement(ready, l as unknown as Layout)) {
-      problems.push(`This is not the "${l.skin}" arrangement. Set "skin" to custom to keep your changes.`);
+      problems.push(`This differs from the ${l.skin} skin; set skin to custom to keep these changes.`);
     }
   }
 

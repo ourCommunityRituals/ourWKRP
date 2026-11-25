@@ -60,7 +60,7 @@ describe('reading a skin file', () => {
 
   it('needs surface, skin, columns and order, each once', () => {
     expect(problems(file('surface: profile'))).toEqual(['"skin" is required.', '"columns" is required.', '"order" is required.']);
-    expect(problems(file(`${CUSTOM}\ncolumns: 1`))).toContain('"columns" is set more than once.');
+    expect(problems(file(`${CUSTOM}\ncolumns: 1`))).toContain('line 7: "columns" is set more than once.');
   });
 
   it('takes columns of 1 or 2 only', () => {
@@ -95,32 +95,32 @@ describe('a skin arranges, nothing else', () => {
 
   it('holds a ready-made name to its arrangement', () => {
     const p = problems(file(CUSTOM.replace('skin: custom', 'skin: standard')));
-    expect(p[0]).toMatch(/not the "standard" arrangement. Set "skin" to custom/);
+    expect(p[0]).toMatch(/differs from the standard skin; set skin to custom to keep these changes/);
     expect(problems(file(CUSTOM.replace('skin: custom', 'skin: neon')))[0]).toMatch(/"skin" must be one of/);
   });
 
-  it.each(['color', 'colour', 'background', 'accent', 'theme', 'font', 'font_size', 'text_size', 'contrast', 'css', 'style'])(
+  it.each(['color', 'Color', 'colour', 'background', 'accent', 'theme', 'font', 'font_size', 'text_size', 'hex', 'contrast', 'css', 'style'])(
     'refuses "%s": colors and text size stay with the design system, so contrast holds',
     (key) => {
       const p = problems(file(`${CUSTOM}\n${key}: #ffff00`));
       expect(p).toHaveLength(1);
-      expect(p[0]).toMatch(/Skins arrange parts only: colors and text sizes come from the design system/);
+      expect(p[0]).toMatch(new RegExp(`^line 7: ${key} is not taken: colors, fonts and sizes come from the design system, which keeps contrast readable`));
     },
   );
 
-  it.each(['count', 'counts', 'votes', 'vote_counts', 'floor', 'min_count', 'show_counts', 'numbers'])(
+  it.each(['count', 'Counts', 'votes', 'vote_counts', 'floor', 'min_count', 'show_counts', 'numbers', 'total'])(
     'refuses "%s": a skin never shows counts, so never one under 5',
     (key) => {
       const p = problems(file(`${CUSTOM}\n${key}: 1`));
       expect(p).toHaveLength(1);
-      expect(p[0]).toMatch(/Skins never show counts, and a count under 5 is always withheld/);
+      expect(p[0]).toMatch(new RegExp(`^line 7: ${key} is not taken: a skin carries no numbers, and counts under 5 are never shown`));
     },
   );
 
   it('refuses any other key, and lines that are not key: value', () => {
-    expect(problems(file(`${CUSTOM}\nlink: https://example.com`))[0]).toMatch(/"link" is not a skin setting. Use only: surface, skin, columns, order, wide/);
-    expect(problems(file(`${CUSTOM}\n<script>alert(1)</script>`))[0]).toMatch(/not "key: value"/);
-    expect(problems(file(CUSTOM.replace('columns', 'Columns')))[0]).toMatch(/not "key: value"/);
+    expect(problems(file(`${CUSTOM}\nlink: https://example.com`))[0]).toMatch(/^line 7: link is not part of a layout. Use only: surface, skin, columns, order, wide/);
+    expect(problems(file(`${CUSTOM}\n<script>alert(1)</script>`))[0]).toMatch(/^line 7: this header line is not "key: value"/);
+    expect(problems(file(CUSTOM.replace('columns', 'Columns')))).toContain('"columns" is required.');
   });
 });
 

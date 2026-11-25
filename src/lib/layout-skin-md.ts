@@ -13,7 +13,8 @@
  *   Plain notes. The system ignores them and does not store them.
  *
  * Header rules: only the keys surface, skin, columns, order and wide; each at
- * most once; lowercase `key: value`; blank lines and lines starting with # are
+ * most once; lowercase `key: value` (any other key is refused, and its
+ * message is picked without regard to case, so `Color:` is told why); blank lines and lines starting with # are
  * skipped; lists are comma separated, and [a, b] is read too. The whole file is
  * at most 8192 bytes. The arrangement is then checked by lib/layout-skins.ts.
  */
@@ -27,8 +28,10 @@ const REQUIRED = ['surface', 'skin', 'columns', 'order'] as const;
  * Keys people may reach for that a skin will never take, with the reason in
  * plain words. Any other unknown key gets the general answer.
  */
-const LOOK_KEYS = /^(colou?rs?|background|bg|accent|theme|palette|font|fonts|font_size|text|text_size|size|contrast|css|style|styles)$/;
-const COUNT_KEYS = /^(counts?|votes?|vote_counts?|totals?|floor|min_count|show_counts?|numbers)$/;
+// Same patterns as ourSharedEvents (lib/layout-skins.ts notALayoutKey()),
+// matched without regard to case, plus a few look words of ourWKRP's own.
+const LOOK_KEYS = /colou?r|theme|font|size|hex|background|accent|palette|contrast|css|style/i;
+const COUNT_KEYS = /count|votes?|floor|total|number/i;
 
 export type SkinParse =
   | { ok: true; layout: Layout }
@@ -59,27 +62,28 @@ export function parseSkinMarkdown(text: unknown): SkinParse {
 
   const problems: string[] = [];
   const seen = new Map<string, string>();
-  for (const raw of lines.slice(start + 1, end)) {
+  for (const [i, raw] of lines.slice(start + 1, end).entries()) {
+    const at = `line ${start + 2 + i}: `;
     const line = raw.trim();
     if (line === '' || line.startsWith('#')) continue;
-    const m = line.match(/^([a-z_]+)\s*:\s*(.*)$/);
+    const m = line.match(/^([A-Za-z_]+)\s*:\s*(.*)$/);
     if (!m) {
-      problems.push(`This header line is not "key: value": ${line.slice(0, 60)}`);
+      problems.push(`${at}this header line is not "key: value": ${line.slice(0, 60)}`);
       continue;
     }
     const [, key, value] = m;
     if (!(KEYS as readonly string[]).includes(key)) {
       if (LOOK_KEYS.test(key)) {
-        problems.push(`"${key}" is not a skin setting. Skins arrange parts only: colors and text sizes come from the design system, so every page stays easy to read.`);
+        problems.push(`${at}${key} is not taken: colors, fonts and sizes come from the design system, which keeps contrast readable.`);
       } else if (COUNT_KEYS.test(key)) {
-        problems.push(`"${key}" is not a skin setting. Skins never show counts, and a count under 5 is always withheld.`);
+        problems.push(`${at}${key} is not taken: a skin carries no numbers, and counts under 5 are never shown.`);
       } else {
-        problems.push(`"${key}" is not a skin setting. Use only: ${KEYS.join(', ')}.`);
+        problems.push(`${at}${key} is not part of a layout. Use only: ${KEYS.join(', ')} (lowercase).`);
       }
       continue;
     }
     if (seen.has(key)) {
-      problems.push(`"${key}" is set more than once.`);
+      problems.push(`${at}"${key}" is set more than once.`);
       continue;
     }
     seen.set(key, value.trim());
