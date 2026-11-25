@@ -30,6 +30,9 @@
  *   POST /api/profile/slug            → claim/change own vanity slug (OW-122)
  *   POST /api/profile/type            → set/change/clear own profile type (artist | sports)
  *   POST /api/profile/votable         → opt in to / withdraw from "people may vote for me"
+ *   GET  /api/profile/layout          → own profile skin (arrangement + skin .md)
+ *   PUT  /api/profile/layout          → save own profile skin from a skin .md file
+ *   GET  /look                        → self-serve skin editor page (HTML)
  *   GET  /api/playlists/:id         → contributor playlists (by contributor) or single playlist (by UUID)
  *   GET  /api/stats                 → catalog statistics (contributor count floored, K = 5)
  *   GET  /api/brands                → all brands with counts (both counts floored, K = 5)
@@ -81,7 +84,8 @@
  * music route above answers the 404 at the bottom of this table. Kept on:
  * /health, /ui.css, /, sign-up, session, logout, the admin role grant,
  * profiles (/contributor/:id, /c/:slug, /api/contributors[/:id[/brands]],
- * /api/profile/* incl. votable), /api/brands, facets and erasure.
+ * /api/profile/* incl. votable and layout), the /look skin editor,
+ * /api/brands, facets and erasure.
  * tests/unit/music-switch.test.ts reads this table, so a new route here is
  * closed by the switch unless that test names it as kept.
  */
@@ -124,7 +128,7 @@ import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, 
 import { handleEraseIdentity } from './handlers/privacy';
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleAddPortfolioPlaylist, handleGetPortfolio, handleRemovePortfolioPlaylist } from './handlers/portfolio';
-import { handleClaimProfileSlug, handleSetProfileType, handleSetVotable } from './handlers/profile';
+import { handleClaimProfileSlug, handleSetProfileType, handleSetVotable, handleGetProfileLayout, handlePutProfileLayout } from './handlers/profile';
 import { handleDeclareFacet, handleRemoveFacet } from './handlers/facets';
 import { handleLastfmAuthStart, handleLastfmAuthCallback, handleLastfmSync, handleLastfmStatus } from './handlers/lastfm';
 import { handleStartSet, handleAddSetTrack, handleEndSet, handleCreateAttribution, handleGetDjStats, handleGetLiveSet } from './handlers/dj';
@@ -324,6 +328,16 @@ export async function route(request: Request, env: Env): Promise<Response> {
   // --- "People may vote for me" (profiles-and-voting launch, story 3) ---
   else if (method === 'POST' && path === '/api/profile/votable') {
     response = await handleSetVotable(request, env);
+  }
+  // --- Profile skin (self-serve skin editor; lib/layout-skins.ts) ---
+  else if (method === 'GET' && path === '/api/profile/layout') {
+    response = await handleGetProfileLayout(request, env);
+  }
+  else if (method === 'PUT' && path === '/api/profile/layout') {
+    response = await handlePutProfileLayout(request, env);
+  }
+  else if (method === 'GET' && path === '/look') {
+    response = await handlePages(request, env);
   }
 
   // --- Flag Facets (declared domains + depth) ---

@@ -77,6 +77,11 @@ export const setVotableBodySchema = z.object({
   votable: z.boolean({ message: 'votable must be true or false' }),
 });
 
+/** PUT /api/profile/layout: the skin file as text (lib/layout-skin-md.ts checks it). */
+export const layoutBodySchema = z.object({
+  markdown: z.string({ message: 'markdown must be the skin file as text' }).max(8192, 'The skin file must be at most 8192 bytes'),
+});
+
 export const registerBodySchema = z.object({
   name: nameSchema,
   profile_type: profileTypeSchema.optional(),

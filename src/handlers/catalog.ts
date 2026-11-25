@@ -7,6 +7,7 @@
  * GET /api/playlists/:contributorId — contributor's playlists
  */
 
+import { readProfileLayout } from './profile';
 import type { Env } from '../types';
 import { extractBrandId } from '../lib/brand';
 import { encodeCursor, decodeCursor, parsePaginationParams } from '../lib/cursor';
@@ -401,7 +402,7 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
     // `profile_type` (migration 0014) is public: it is what the profile is.
     // `votable` (migration 0015) is public as a yes/no only: whether the owner
     // lets people vote for them. The date they opted in stays private.
-    'SELECT id, name, generation, role, brand_id, status, slug, profile_type, CASE WHEN votable_since IS NULL THEN 0 ELSE 1 END AS votable, created_at FROM contributors WHERE id = ?'
+    'SELECT id, name, generation, role, brand_id, status, slug, profile_type, CASE WHEN votable_since IS NULL THEN 0 ELSE 1 END AS votable, profile_layout, created_at FROM contributors WHERE id = ?'
   ).bind(contributorId).first();
 
   if (!contributor) {
@@ -455,7 +456,10 @@ export async function handleGetContributorProfile(_request: Request, env: Env, c
 
   return Response.json({
     ok: true,
-    contributor: { ...contributor, votable: contributor.votable === 1 },
+    // `profile_layout` (migration 0016) leaves as `layout`: the checked
+    // arrangement only (lib/layout-skins.ts), never the stored text itself.
+    contributor: (({ profile_layout: _stored, ...rest }) => ({ ...rest, votable: contributor.votable === 1 }))(contributor as Record<string, unknown>),
+    layout: readProfileLayout(contributor.profile_layout),
     roles: allRoles,
     track_count: trackCount,
     playlist_count: playlistCount,

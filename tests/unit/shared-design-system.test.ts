@@ -16,10 +16,10 @@ const DIR = path.join(__dirname, '../../src/templates');
 const TEMPLATES = fs.readdirSync(DIR).filter((f) => f.endsWith('.html')).sort();
 
 describe('shared design system adoption', () => {
-  test('all nine WKRP pages are covered', () => {
+  test('all ten WKRP pages are covered', () => {
     expect(TEMPLATES).toEqual([
       'catalog.html', 'connect.html', 'create.html', 'dashboard.html', 'import.html',
-      'live.html', 'profile.html', 'qr-poster.html', 'stats.html',
+      'live.html', 'look.html', 'profile.html', 'qr-poster.html', 'stats.html',
     ]);
   });
 

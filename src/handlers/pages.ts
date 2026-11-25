@@ -6,6 +6,7 @@
  * GET /create        → create.html
  * GET /contributor/:id → profile.html (canonical UUID URL)
  * GET /c/:slug       → profile.html (vanity URL, OW-122)
+ * GET /look          → look.html (self-serve skin editor for your own profile)
  *
  * WHY THE PROFILE PAGE IS RENDERED SERVER-SIDE (OW-122)
  * profile.html is a static shell that fetches its data from /api/contributors
@@ -37,6 +38,7 @@ import liveHtml from '../templates/live.html';
 import qrPosterHtml from '../templates/qr-poster.html';
 import dashboardHtml from '../templates/dashboard.html';
 import statsHtml from '../templates/stats.html';
+import lookHtml from '../templates/look.html';
 
 const HTML_HEADERS = {
   'Content-Type': 'text/html;charset=UTF-8',
@@ -86,6 +88,8 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
     html = catalogHtml;
   } else if (path === '/create') {
     html = createHtml;
+  } else if (path === '/look') {
+    html = lookHtml;
   } else if (path === '/dashboard') {
     html = dashboardHtml;
   } else if (path === '/stats') {

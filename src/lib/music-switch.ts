@@ -32,9 +32,9 @@
  *   - the music pages: /catalog, /create, /import, /dashboard, /stats
  *
  * Kept on: sign-up by name, sessions, the admin role grant, profiles
- * (/contributor/:id, /c/:slug, /api/contributors[/:id[/brands]], slug, type and
- * votable), /api/brands, facets, erasure, /health and /ui.css. The router's
- * header comment lists every route; tests/unit/music-switch.test.ts reads it
+ * (/contributor/:id, /c/:slug, /api/contributors[/:id[/brands]], slug, type,
+ * votable and layout), the /look skin editor, /api/brands, facets, erasure,
+ * /health and /ui.css. The router's header comment lists every route; tests/unit/music-switch.test.ts reads it
  * and checks that each route is either closed here or named as kept.
  */
 

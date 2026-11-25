@@ -56,6 +56,7 @@ export async function eraseContributor(
             lastfm_username = NULL,
             slug = NULL,
             votable_since = NULL,
+            profile_layout = NULL,
             status = 'departed'
       WHERE id = ?`,
   )

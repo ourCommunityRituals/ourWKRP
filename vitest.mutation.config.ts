@@ -51,6 +51,7 @@ export const MUTATION_EXCLUDED_SPECS = [
   'tests/integration/playback-vote-link.test.ts',
   'tests/security/playback-authority.test.ts',
   'tests/contract/playback-contract.test.ts',
+  'tests/integration/profile-layout.test.ts',
 ];
 
 /**

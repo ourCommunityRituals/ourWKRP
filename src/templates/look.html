@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en" data-brand="ow">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>ourWKRP — Your page's look</title>
+  <link rel="stylesheet" href="/ui.css">
+  <style>.section{padding:16px 20px}.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.row .grow{flex:1}.btn[aria-pressed="true"]{outline:2px solid var(--accent)}#preview{gap:8px}@media(min-width:720px){.skin-cols-2{display:grid;grid-template-columns:1fr 1fr;column-gap:16px}.skin-cols-2>.skin-wide{grid-column:1/-1}}</style>
+</head>
+<body>
+  <div class="content-wrap" data-testid="look-page">
+    <div class="page-header">
+      <h1>Your page's look</h1>
+    </div>
+
+    <div id="signed-out" class="section hidden" data-testid="look-signed-out">
+      <p>Sign up first, then come back to arrange your page.</p>
+      <a href="/" class="btn btn-primary" data-testid="look-signup-link">Sign up</a>
+    </div>
+
+    <div id="editor" class="hidden" data-testid="look-editor">
+      <div class="section">
+        <p>Choose how the parts of your public page are arranged. Your page always shows every part.
+          Colors and text size stay with the design system, so your page stays easy to read, and a count under 5 is never shown.</p>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Start from</div>
+        <div class="row" id="skin-buttons" data-testid="look-skins"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Columns</div>
+        <div class="row">
+          <button type="button" class="btn btn-secondary" data-columns="1" data-testid="look-columns-1">One column</button>
+          <button type="button" class="btn btn-secondary" data-columns="2" data-testid="look-columns-2">Two columns</button>
+        </div>
+        <p class="form-hint">Phones always show one column.</p>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Order</div>
+        <div id="order-list" data-testid="look-order"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Preview</div>
+        <div id="preview" data-testid="look-preview"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Skin file</div>
+        <label for="skin-md">The same skin file ourSharedEvents uses. You can edit it here too; notes below the second --- line are not saved.</label>
+        <textarea id="skin-md" class="input" rows="9" spellcheck="false" data-testid="look-markdown"></textarea>
+      </div>
+
+      <div class="section">
+        <div class="row">
+          <button type="button" id="save-btn" class="btn btn-primary" data-testid="look-save">Save</button>
+          <a id="my-page" href="/" data-testid="look-my-page">See my page</a>
+        </div>
+        <p id="save-status" role="status" data-testid="look-status"></p>
+        <ul id="save-problems" class="form-error hidden" data-testid="look-problems"></ul>
+      </div>
+    </div>
+  </div>
+
+  <script nonce="__CSP_NONCE__">
+    (function() {
+      'use strict';
+
+      var options = null;
+      var layout = null;
+      var mdBox = document.getElementById('skin-md');
+
+      init();
+
+      async function init() {
+        try {
+          var me = await (await fetch('/auth/session/me', { credentials: 'same-origin' })).json();
+          if (!(me.ok && me.contributor)) return showSignedOut();
+          document.getElementById('my-page').href = '/contributor/' + encodeURIComponent(me.contributor.id);
+          var res = await fetch('/api/profile/layout', { credentials: 'same-origin' });
+          if (res.status === 401) return showSignedOut();
+          var data = await res.json();
+          if (!data.ok) throw new Error(data.error || 'failed');
+          options = data.options;
+          layout = data.layout;
+          mdBox.value = data.markdown;
+          document.getElementById('editor').classList.remove('hidden');
+          buildSkinButtons();
+          render(false);
+        } catch (e) {
+          setStatus('Could not load your page settings. Please try again.');
+        }
+      }
+
+      function showSignedOut() {
+        document.getElementById('signed-out').classList.remove('hidden');
+      }
+
+      function label(part) {
+        return options.labels[part] || part;
+      }
+
+      function skinName(name) {
+        return name.replace(/_/g, ' ').replace(/^./, function(c) { return c.toUpperCase(); });
+      }
+
+      function buildSkinButtons() {
+        var box = document.getElementById('skin-buttons');
+        Object.keys(options.skins).concat(['custom']).forEach(function(name) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn btn-secondary';
+          b.setAttribute('data-skin', name);
+          b.setAttribute('data-testid', 'look-skin-' + name);
+          b.textContent = skinName(name);
+          b.addEventListener('click', function() {
+            if (name === 'custom') {
+              layout.skin = 'custom';
+            } else {
+              var s = options.skins[name];
+              layout = { surface: 'profile', skin: name, columns: s.columns, order: s.order.slice(), wide: s.wide.slice() };
+            }
+            render(true);
+          });
+          box.appendChild(b);
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('[data-columns]'), function(b) {
+          b.addEventListener('click', function() {
+            layout.columns = Number(b.getAttribute('data-columns'));
+            changed();
+          });
+        });
+      }
+
+      // Any hand change makes the skin custom, unless it now matches a
+      // ready-made one exactly, so the name always says what the page shows.
+      function changed() {
+        layout.skin = 'custom';
+        Object.keys(options.skins).forEach(function(name) {
+          var s = options.skins[name];
+          if (s.columns === layout.columns && s.order.join() === layout.order.join() &&
+              s.wide.slice().sort().join() === layout.wide.slice().sort().join()) {
+            layout.skin = name;
+          }
+        });
+        render(true);
+      }
+
+      function move(i, by) {
+        var j = i + by;
+        if (j < 0 || j >= layout.order.length) return;
+        var t = layout.order[i];
+        layout.order[i] = layout.order[j];
+        layout.order[j] = t;
+        changed();
+      }
+
+      function toggleWide(part, on) {
+        layout.wide = layout.wide.filter(function(p) { return p !== part; });
+        if (on) layout.wide.push(part);
+        changed();
+      }
+
+      function render(writeFile) {
+        Array.prototype.forEach.call(document.querySelectorAll('[data-skin]'), function(b) {
+          b.setAttribute('aria-pressed', String(b.getAttribute('data-skin') === layout.skin));
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('[data-columns]'), function(b) {
+          b.setAttribute('aria-pressed', String(Number(b.getAttribute('data-columns')) === layout.columns));
+        });
+
+        var list = document.getElementById('order-list');
+        list.textContent = '';
+        layout.order.forEach(function(part, i) {
+          var row = document.createElement('div');
+          row.className = 'row list-item';
+          row.setAttribute('data-testid', 'look-order-' + part);
+          var name = document.createElement('span');
+          name.className = 'grow';
+          name.textContent = label(part);
+          row.appendChild(name);
+
+          var up = document.createElement('button');
+          up.type = 'button';
+          up.className = 'btn btn-secondary';
+          up.textContent = 'Up';
+          up.setAttribute('aria-label', 'Move ' + label(part) + ' up');
+          up.disabled = i === 0;
+          up.addEventListener('click', function() { move(i, -1); });
+          row.appendChild(up);
+
+          var down = document.createElement('button');
+          down.type = 'button';
+          down.className = 'btn btn-secondary';
+          down.textContent = 'Down';
+          down.setAttribute('aria-label', 'Move ' + label(part) + ' down');
+          down.disabled = i === layout.order.length - 1;
+          down.addEventListener('click', function() { move(i, 1); });
+          row.appendChild(down);
+
+          var wideLabel = document.createElement('label');
+          var box = document.createElement('input');
+          box.type = 'checkbox';
+          box.checked = layout.wide.indexOf(part) !== -1;
+          box.disabled = layout.columns !== 2;
+          box.setAttribute('data-testid', 'look-wide-' + part);
+          box.addEventListener('change', function() { toggleWide(part, box.checked); });
+          wideLabel.appendChild(box);
+          wideLabel.appendChild(document.createTextNode(' Full width'));
+          row.appendChild(wideLabel);
+          list.appendChild(row);
+        });
+
+        var preview = document.getElementById('preview');
+        preview.textContent = '';
+        preview.classList.toggle('skin-cols-2', layout.columns === 2);
+        layout.order.forEach(function(part) {
+          var card = document.createElement('div');
+          card.className = 'card';
+          card.textContent = label(part);
+          card.setAttribute('data-testid', 'look-preview-' + part);
+          card.classList.toggle('skin-wide', layout.columns === 2 && layout.wide.indexOf(part) !== -1);
+          preview.appendChild(card);
+        });
+
+        if (writeFile) mdBox.value = writeSkin(layout, notesOf(mdBox.value));
+      }
+
+      // The skin file, in the same form the server writes (lib/layout-skin-md.ts).
+      function writeSkin(l, notes) {
+        var head = ['---', 'surface: ' + l.surface, 'skin: ' + l.skin, 'columns: ' + l.columns,
+          'order: ' + l.order.join(', '), ('wide: ' + l.wide.join(', ')).trim(), '---'].join('\n');
+        return notes ? head + '\n' + notes + '\n' : head + '\n';
+      }
+
+      function notesOf(text) {
+        var lines = text.split(/\r?\n/);
+        var first = lines.findIndex(function(l) { return l.trim() === '---'; });
+        var second = first === -1 ? -1 : lines.findIndex(function(l, i) { return i > first && l.trim() === '---'; });
+        return second === -1 ? '' : lines.slice(second + 1).join('\n').trim();
+      }
+
+      function setStatus(text) {
+        document.getElementById('save-status').textContent = text;
+      }
+
+      document.getElementById('save-btn').addEventListener('click', async function() {
+        var btn = this;
+        var problemsEl = document.getElementById('save-problems');
+        btn.disabled = true;
+        problemsEl.classList.add('hidden');
+        problemsEl.textContent = '';
+        setStatus('Saving...');
+        try {
+          var res = await fetch('/api/profile/layout', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ markdown: mdBox.value }),
+          });
+          var data = await res.json();
+          if (data.ok) {
+            var notes = notesOf(mdBox.value);
+            layout = data.layout;
+            render(false);
+            mdBox.value = writeSkin(layout, notes);
+            setStatus('Saved. Your page now uses this look.');
+          } else {
+            setStatus('Not saved.');
+            (data.problems || [data.error || 'Please check the skin file.']).forEach(function(p) {
+              var li = document.createElement('li');
+              li.textContent = p;
+              problemsEl.appendChild(li);
+            });
+            problemsEl.classList.remove('hidden');
+          }
+        } catch (e) {
+          setStatus('Could not save that. Please try again.');
+        }
+        btn.disabled = false;
+      });
+    })();
+  </script>
+</body>
+</html>
