@@ -61,7 +61,7 @@ jobs:
     outputs:
       run: ${{ steps.scope.outputs.run }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           # 2, not the default 1: the scope step reads a pull request's changes
           # as the merge commit against its first parent (HEAD^1).
@@ -116,11 +116,11 @@ jobs:
             script: test:mutation:schemas
             report: reports/mutation-schemas/
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           # StrykerJS 10 needs Node 22 or later.
           node-version: '22'
@@ -137,7 +137,7 @@ jobs:
 
       - name: Upload the report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: mutation-report-${{ matrix.pass }}
           path: ${{ matrix.report }}
@@ -171,14 +171,14 @@ jobs:
             echo "::error::A mutation pass did not succeed ($PASS_RESULT)."; exit 1
           fi
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         if: needs.scope.outputs.run != 'false'
         with:
           persist-credentials: false
 
       - name: Download both reports
         if: needs.scope.outputs.run != 'false'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: mutation-report-*
           path: reports-in
@@ -217,10 +217,10 @@ jobs:
     # a time). 45 leaves room for a slow runner.
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
       - name: Stage @ocr/ui package
@@ -235,7 +235,7 @@ jobs:
         run: node scripts/ci/mutation-file-floor.mjs reports/mutation-integration/mutation.json --floors mutation-floors.integration.json
       - name: Upload the report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: nightly-mutation-integration
           path: reports/mutation-integration/
@@ -248,10 +248,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
       - name: Stage @ocr/ui package
@@ -262,7 +262,7 @@ jobs:
       # The same apt cache the E2E job keeps (ci.yml), so a stalled mirror
       # cannot hold this job (install-playwright-browsers.test.ts).
       - name: Restore Playwright system package cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/pw-apt-archives
           key: ${{ runner.os }}-pw-apt-chromium-${{ hashFiles('package-lock.json') }}
@@ -277,7 +277,7 @@ jobs:
         run: npm run test:mutation:e2e
       - name: Upload the report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: nightly-mutation-e2e
           path: reports/mutation-e2e/

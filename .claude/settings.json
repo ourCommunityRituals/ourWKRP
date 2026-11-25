@@ -6,18 +6,30 @@
       "Bash(npm run lint*)",
       "Bash(npm test)",
       "Bash(npx wrangler dev*)",
-      "Bash(npx wrangler d1*)",
-      "Bash(doppler run*)",
+      "Bash(npx wrangler d1 migrations list * --local*)",
+      "Bash(npx wrangler d1 migrations apply * --local*)",
+      "Bash(npx wrangler d1 execute * --local*)",
       "Bash(curl http://localhost:8787/*)",
       "Read",
       "Glob",
       "Grep"
     ],
+    "ask": [
+      "Bash(doppler *)",
+      "Bash(npx doppler *)"
+    ],
     "deny": [
       "Bash(npx wrangler deploy*)",
       "Bash(npx wrangler delete*)",
       "Bash(rm -rf*)",
-      "Bash(git push --force*)"
+      "Bash(git push --force*)",
+      "Bash(wrangler deploy*)",
+      "Bash(npx wrangler secret*)",
+      "Bash(wrangler secret*)",
+      "Bash(npx wrangler d1 * --remote*)",
+      "Bash(wrangler d1 * --remote*)",
+      "Bash(npx wrangler d1 * --env production*)",
+      "Bash(npx wrangler d1 * --env=production*)"
     ]
   },
   "hooks": {
