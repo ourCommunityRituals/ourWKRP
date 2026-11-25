@@ -44,6 +44,10 @@ LASTFM_SHARED_SECRET = ""
 # Local-only admin token so E2E can grant dj/curator via POST /admin/roles/grant
 # (F1). Production injects a real WKRP_ADMIN_TOKEN as a Doppler/Workers secret.
 WKRP_ADMIN_TOKEN = "e2e-admin-token"
+# Music switch (src/lib/music-switch.ts, OW-224): on here, so local dev and the
+# e2e journeys keep covering the music code. CI's music-off page smoke turns it
+# off for its own run with `--var MUSIC_ENABLED:off` (playwright.config.ts).
+MUSIC_ENABLED = "on"
 
 # KV Namespace for auth/session state (same id as wrangler.toml → shared local state)
 [[kv_namespaces]]

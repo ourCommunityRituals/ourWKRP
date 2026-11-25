@@ -141,7 +141,7 @@
               if (data.ok && data.contributor) {
                 document.getElementById('user-badge').textContent = data.contributor.name;
                 // Add DJ dashboard link if DJ role
-                /* spotify-dj:start */
+                /* music:start */
                 if (data.contributor.role === 'dj') {
                   var nav = document.querySelector('.bottom-nav');
                   var dashLink = document.createElement('a');
@@ -151,7 +151,7 @@
                   dashLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3"/></svg>Dashboard';
                   nav.appendChild(dashLink);
                 }
-                /* spotify-dj:end */
+                /* music:end */
               } else {
                 document.getElementById('user-badge').textContent = 'Join';
                 document.getElementById('user-badge').style.cursor = 'pointer';
