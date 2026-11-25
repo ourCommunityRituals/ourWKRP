@@ -91,7 +91,7 @@ function readBlock(lines: string[], block: Block): SkinParse {
       if (LOOK_KEYS.test(key)) {
         problems.push(`${at}${key} is not taken: colors, fonts and sizes come from the design system, which keeps contrast readable.`);
       } else if (COUNT_KEYS.test(key)) {
-        problems.push(`${at}${key} is not taken: a skin carries no numbers, and counts under 5 are never shown.`);
+        problems.push(`${at}${key} is not taken: a skin carries no numbers; counts keep the count floor, whatever the look.`);
       } else {
         problems.push(`${at}${key} is not part of a layout. Use only: ${KEYS.join(', ')} (lowercase).`);
       }

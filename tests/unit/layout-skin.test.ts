@@ -152,7 +152,7 @@ describe('a skin arranges, nothing else', () => {
     (key) => {
       const p = problems(file(`${CUSTOM}\n${key}: 1`));
       expect(p).toHaveLength(1);
-      expect(p[0]).toMatch(new RegExp(`^line 7: ${key} is not taken: a skin carries no numbers, and counts under 5 are never shown`));
+      expect(p[0]).toMatch(new RegExp(`^line 7: ${key} is not taken: a skin carries no numbers; counts keep the count floor, whatever the look`));
     },
   );
 
