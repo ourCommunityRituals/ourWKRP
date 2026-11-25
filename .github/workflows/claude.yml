@@ -24,6 +24,12 @@ jobs:
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    # `id-token: write` stays here on purpose (OW-227): @claude tag mode answers by
+    # commenting and pushing through the Claude GitHub App, which the action reaches
+    # by trading this OIDC token. That app token is not bounded by this block, so
+    # the guards are the trusted-actor `if:` above, the pinned action, and
+    # `--setting-sources user` below. The PR review workflow does not need
+    # the app and has no id-token.
     permissions:
       contents: read
       pull-requests: read
@@ -32,13 +38,14 @@ jobs:
       actions: read # Required for Claude to read CI results on PRs
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@fa2b2666b747000bf42767d1f332065b375e3c8f # v1
         with:
           # Auth = service-account API key (interim). Federation on-ramp (OSE-1109):
           # `id-token: write` is already granted above, so moving to Workload Identity
@@ -58,4 +65,11 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
           # claude_args: '--allowed-tools Bash(gh pr:*)'
+          #
+          # `--setting-sources user` (OW-227, sweep H1): on a PR the action checks out
+          # the PR branch itself, so a .claude/settings.json hook added on that branch
+          # would otherwise run inside this job next to the API key and the app token.
+          # Loading user settings only means no in-repo settings, hooks or CLAUDE.md
+          # are read here; give @claude the context it needs in the comment.
+          claude_args: '--setting-sources user'
 
