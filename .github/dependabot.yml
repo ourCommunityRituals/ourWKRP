@@ -1,0 +1,17 @@
+# Keeps every pinned action current (OW-228). Workflows pin actions by full
+# commit SHA with the tag as a comment; Dependabot proposes the new SHA when the
+# tag moves, so a pin is updated by a reviewed PR, never by a moved tag.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
