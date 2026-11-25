@@ -1,0 +1,15 @@
+{
+  "about": [
+    "Per-file mutation floors (percent) for the integration pass (stryker.integration.conf.mjs), checked by scripts/ci/mutation-file-floor.mjs --floors mutation-floors.integration.json.",
+    "The same ratchet as mutation-floors.json: raise a floor when the integration specs kill its survivors, never lower it.",
+    "Set 2026-11-24 at the scores of two local runs, which were identical file by file (373 mutants, 0 errors at concurrency 1, 26 and 27 minutes), rounded down. These are low because no mutation run had ever judged the handlers; each survivor in the report is a route behaviour the Miniflare specs do not check."
+  ],
+  "floors": {
+    "src/handlers/auth-register.ts": 60,
+    "src/handlers/facets.ts": 63.41,
+    "src/handlers/playlist.ts": 29.77,
+    "src/handlers/portfolio.ts": 60,
+    "src/handlers/profile.ts": 51.35,
+    "src/handlers/sponsor.ts": 77.14
+  }
+}
