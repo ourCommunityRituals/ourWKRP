@@ -1,0 +1,13 @@
+// Review canary: the clean handler. Same job as planted.ts.txt, done safely.
+interface Env { DB: D1Database }
+
+export async function contributorByName(request: Request, env: Env): Promise<Response> {
+  const name = new URL(request.url).searchParams.get('name') ?? '';
+  if (name.length === 0 || name.length > 80) {
+    return new Response('bad name', { status: 400 });
+  }
+  const row = await env.DB.prepare('SELECT id, display_name FROM contributors WHERE display_name = ?1')
+    .bind(name)
+    .first();
+  return Response.json(row ?? null);
+}
