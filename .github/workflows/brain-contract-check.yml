@@ -32,7 +32,26 @@ jobs:
           path: wkrp
           persist-credentials: false
 
+      # Dependabot PRs and fork PRs do not receive Actions secrets, so
+      # OCR_HUB_READ is empty there and the checkout below would stop with
+      # "Input required and not supplied: token". Name that cause instead.
+      # The job still fails: a check that cannot read the brain has not passed.
+      - name: Check the brain read token is available
+        env:
+          HAS_TOKEN: ${{ secrets.OCR_HUB_READ != '' }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          if [ "$HAS_TOKEN" != "true" ]; then
+            if [ "$PR_AUTHOR" = "dependabot[bot]" ]; then
+              echo "::error title=Brain token missing::OCR_HUB_READ is not available to Dependabot runs. Add it as a Dependabot secret (Settings > Secrets and variables > Dependabot), then re-run this check."
+            else
+              echo "::error title=Brain token missing::OCR_HUB_READ is not available to this run (fork PR, or the secret is unset), so the OCR-docs brain cannot be read."
+            fi
+            exit 1
+          fi
+
       - name: Checkout OCR-docs brain (read-only)
+        id: brain
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ourCommunityRituals/OCR-docs
@@ -89,8 +108,13 @@ jobs:
           name: conformance-report
           path: conformance-report.json
 
+      # Only real drift opens a ticket: the brain must have been checked out
+      # and the conformance step must have run and failed.
       - name: Open Linear ticket on drift
-        if: failure() && github.event_name == 'pull_request'
+        id: ticket
+        if: >-
+          failure() && github.event_name == 'pull_request' &&
+          steps.brain.outcome == 'success' && steps.conformance.outcome == 'failure'
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -111,28 +135,49 @@ jobs:
       - name: Comment on PR with drift summary
         if: failure() && github.event_name == 'pull_request'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BRAIN_OUTCOME: ${{ steps.brain.outcome }}
+          TICKET_OUTCOME: ${{ steps.ticket.outcome }}
         with:
           script: |
             const fs = require('fs');
-            let report;
-            try {
-              report = JSON.parse(fs.readFileSync('conformance-report.json', 'utf8'));
-            } catch (e) {
-              report = { failures: [{ check: 'report missing', detail: e.message }] };
+            const brainRead = process.env.BRAIN_OUTCOME === 'success';
+            const ticketOpened = process.env.TICKET_OUTCOME === 'success';
+            let body;
+            if (!brainRead) {
+              // Nothing was compared, so this is not drift: say what stopped it.
+              body = [
+                '### Brain contract check could not run',
+                '',
+                'The OCR-docs brain could not be checked out, so WKRP was not compared against it. This is not drift.',
+                '',
+                'Usual cause: the `OCR_HUB_READ` secret is not available to this run. Dependabot PRs need it added as a Dependabot secret; fork PRs never receive it.',
+                '',
+                'No Linear ticket was opened.',
+              ].join('\n');
+            } else {
+              let report;
+              try {
+                report = JSON.parse(fs.readFileSync('conformance-report.json', 'utf8'));
+              } catch (e) {
+                report = { failures: [{ check: 'report missing', detail: e.message }] };
+              }
+              const failures = report.failures || [];
+              body = [
+                '### Brain contract check failed',
+                '',
+                'The WKRP code drifted from the OCR-docs governance brain.',
+                '',
+                `Failures: **${failures.length}**`,
+                '',
+                ...failures.slice(0, 10).map(f => `- \`${f.check}\` — ${f.detail}`),
+                failures.length > 10 ? `- ... and ${failures.length - 10} more` : '',
+                '',
+                ticketOpened
+                  ? 'A Linear ticket has been opened. Resolve the drift or update the brain via a PR to `ourCommunityRituals/OCR-docs`.'
+                  : 'No Linear ticket was opened (the ticket step did not run or did not succeed; see the job log). Resolve the drift or update the brain via a PR to `ourCommunityRituals/OCR-docs`.',
+              ].filter(Boolean).join('\n');
             }
-            const failures = report.failures || [];
-            const body = [
-              '### Brain contract check failed',
-              '',
-              'The WKRP code drifted from the OCR-docs governance brain.',
-              '',
-              `Failures: **${failures.length}**`,
-              '',
-              ...failures.slice(0, 10).map(f => `- \`${f.check}\` — ${f.detail}`),
-              failures.length > 10 ? `- ... and ${failures.length - 10} more` : '',
-              '',
-              'A Linear ticket has been opened. Resolve the drift or update the brain via a PR to `ourCommunityRituals/OCR-docs`.',
-            ].filter(Boolean).join('\n');
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
