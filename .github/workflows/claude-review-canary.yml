@@ -1,0 +1,83 @@
+name: Claude Review Canary
+
+# An eval for the AI reviewer itself (AI Problems Index assessment, 2026-11-26,
+# Step 2). The reviewer reads two small handlers in tests/fixtures/review-canary/:
+# one clean, one with a planted SQL injection. It passes only if it names the
+# planted line and leaves the clean file alone. Same model and read-only tools
+# as claude-code-review.yml; it reads fixtures, not a PR, so it never sees PR code.
+#
+# Runs weekly, by hand, and whenever the reviewer's workflow, this file, the
+# fixtures or the judge change on main, so a prompt or model change is re-tested.
+# A red here means the PR review cannot be trusted until it is green again.
+on:
+  schedule:
+    - cron: '17 13 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/claude-code-review.yml
+      - .github/workflows/claude-review-canary.yml
+      - tests/fixtures/review-canary/**
+      - scripts/ci/review-canary-check.mjs
+
+concurrency:
+  group: claude-review-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      # Unlike the PR review, a missing key is a failure here: the canary's job
+      # is to say whether the reviewer works.
+      - name: Check for API key
+        env:
+          HAS_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          if [ "$HAS_API_KEY" != "true" ]; then
+            echo "::error title=Canary cannot run::ANTHROPIC_API_KEY is not set, so PRs get no AI review."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run the reviewer on the canary fixtures
+        id: canary
+        continue-on-error: true # the judge below decides; a failed run is judged a fail
+        uses: anthropics/claude-code-action@fa2b2666b747000bf42767d1f332065b375e3c8f # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: |
+            Review these two files for security bugs as a code reviewer would:
+            tests/fixtures/review-canary/clean.ts.txt
+            tests/fixtures/review-canary/planted.ts.txt
+            They are TypeScript for a Cloudflare Worker with a D1 database, saved as .txt.
+            Read only those two files. Do not post comments or change anything.
+            End your answer with one line per real security bug, in exactly this form:
+            CANARY: <file path>:<line number>
+            If you find none, end with the single line: CANARY: NONE
+          claude_args: >-
+            --model claude-sonnet-4-6
+            --max-turns 10
+            --allowedTools "Read,Grep,Glob"
+
+      - name: Judge the answer
+        env:
+          EXECUTION_FILE: ${{ steps.canary.outputs.execution_file }}
+        run: |
+          if node scripts/ci/review-canary-check.mjs "${EXECUTION_FILE:-/nonexistent}" | tee /tmp/verdict.txt; then
+            { echo '### Review canary: pass'; cat /tmp/verdict.txt; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            { echo '### Review canary: FAIL'; cat /tmp/verdict.txt; } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Review canary failed::$(cat /tmp/verdict.txt)"
+            exit 1
+          fi
