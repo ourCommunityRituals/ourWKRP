@@ -23,7 +23,7 @@
     "src/lib/roles.ts": 72,
     "src/lib/route-path.ts": 74.07,
     "src/lib/schemas.ts": 48.12,
-    "src/lib/security-headers.ts": 53.33,
+    "src/lib/security-headers.ts": 67.74,
     "src/lib/session-cookie.ts": 97.14,
     "src/lib/session.ts": 83.33,
     "src/lib/validate.ts": 51.42

@@ -5,6 +5,15 @@
  */
 
 /**
+ * Where page images may load from (CCR F6, LINDDUN Linkability): this site and
+ * Spotify's image CDNs, which serve the track and playlist art that sync and the
+ * Exportify CSV import store. `https:` used to allow any host, so an image URL
+ * in an imported CSV could act as a tracking pixel and tell a third party who
+ * viewed a catalog or live page. A new image host is added here, by PR.
+ */
+export const IMG_SRC = "img-src 'self' data: https://i.scdn.co https://mosaic.scdn.co https://*.spotifycdn.com";
+
+/**
  * Default CSP for non-HTML responses (JSON/CSV) — no inline scripts exist on
  * these, so script execution is fully disallowed. HTML pages set their own
  * nonce-based CSP in handlePages (see buildPageCsp); we never overwrite it.
@@ -15,7 +24,7 @@
  * attributes to classes — tracked as a follow-up, not a blocker.
  */
 const DEFAULT_CSP =
-  "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+  `default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; ${IMG_SRC}; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`;
 
 /**
  * CSP for an HTML page: inline scripts allowed only with this request's nonce.
@@ -25,7 +34,7 @@ const DEFAULT_CSP =
  * from framing us.
  */
 export function buildPageCsp(nonce: string): string {
-  return `default-src 'self'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' data:; connect-src 'self'; frame-src https://open.spotify.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`;
+  return `default-src 'self'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; ${IMG_SRC}; font-src 'self' data:; connect-src 'self'; frame-src https://open.spotify.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`;
 }
 
 export function addSecurityHeaders(response: Response): Response {
