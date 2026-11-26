@@ -97,4 +97,22 @@ describe('the real workflows', () => {
     const cfg = yaml.load(readFileSync(p, 'utf8')) as { updates?: { 'package-ecosystem'?: string }[] };
     expect((cfg.updates ?? []).map((u) => u['package-ecosystem'])).toContain('github-actions');
   });
+
+  // CCR F5 (2026-11-26): Dependabot waits at least 7 days after a release
+  // before proposing it, so a hijacked or broken release has time to be
+  // caught upstream before a PR offers it here.
+  it('every Dependabot entry waits at least 7 days after a release (cooldown)', () => {
+    const cfg = yaml.load(readFileSync(path.join(ROOT, '.github', 'dependabot.yml'), 'utf8')) as {
+      updates?: { 'package-ecosystem'?: string; cooldown?: { 'default-days'?: unknown } }[];
+    };
+    const updates = cfg.updates ?? [];
+    expect(updates.length).toBeGreaterThan(0);
+    const short = updates
+      .filter((u) => {
+        const d = u.cooldown?.['default-days'];
+        return typeof d !== 'number' || !Number.isInteger(d) || d < 7;
+      })
+      .map((u) => u['package-ecosystem']);
+    expect(short).toEqual([]);
+  });
 });
