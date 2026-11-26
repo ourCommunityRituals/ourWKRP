@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>ourWKRP — Contributor</title>
   <link rel="stylesheet" href="/ui.css">
-  <style>.stats-row{gap:12px;padding:20px}.section{padding:16px 20px;border-top:1px solid var(--border)}.section-title{font-size:.85rem}#portfolio-error{margin-bottom:10px;font-size:.85rem}</style>
+  <style>.stats-row{gap:12px;padding:20px}.section{padding:16px 20px;border-top:1px solid var(--border)}.section-title{font-size:.85rem}#portfolio-error{margin-bottom:10px;font-size:.85rem}@media(min-width:720px){.skin-cols-2{display:grid;grid-template-columns:1fr 1fr;column-gap:16px}.skin-cols-2>.skin-wide{grid-column:1/-1}}</style>
 </head>
 <body>
   <!-- Loading State -->
@@ -32,7 +32,9 @@
       <div class="profile-joined" id="profile-joined" data-testid="profile-joined"></div>
     </div>
 
-    <div class="stats-row" data-testid="stats-row">
+    <!-- The parts a skin arranges (lib/layout-skins.ts, surface "profile"). -->
+    <div id="skin-parts" data-testid="skin-parts">
+    <div class="stats-row" data-part="stats" data-testid="stats-row">
       <!-- music:start -->
       <div class="stat-card">
         <div class="stat-value" id="stat-tracks" data-testid="stat-tracks">0</div>
@@ -49,16 +51,23 @@
       </div>
     </div>
 
-    <div class="section" id="facets-section" data-testid="facets-section">
+    <div class="section" id="facets-section" data-part="domains" data-testid="facets-section">
       <div class="section-title">Declared Domains</div>
       <div class="genre-list" id="facet-list" data-testid="facet-list"></div>
     </div>
 
-    <div class="section hidden" id="vote-optin-section" data-testid="vote-optin-section">
+    <div class="section hidden" id="vote-optin-section" data-part="voting" data-testid="vote-optin-section">
       <div class="section-title">Voting</div>
       <p id="vote-optin-status" data-testid="vote-optin-status"></p>
       <button type="button" id="vote-optin-btn" data-testid="vote-optin-btn" class="btn btn-secondary"></button>
       <div id="vote-optin-error" data-testid="vote-optin-error" class="form-error hidden"></div>
+      <p><a href="/look" data-testid="arrange-link">Arrange my page</a></p>
+    </div>
+
+    <div class="section" id="brands-section" data-part="communities" data-testid="brands-section">
+      <div class="section-title">Communities</div>
+      <div id="brand-list" data-testid="brand-list"></div>
+    </div>
     </div>
 
     <!-- music:start -->
@@ -97,11 +106,6 @@
       <div class="source-list" id="source-list" data-testid="source-list"></div>
     </div>
     <!-- music:end -->
-
-    <div class="section" id="brands-section" data-testid="brands-section">
-      <div class="section-title">Communities</div>
-      <div id="brand-list" data-testid="brand-list"></div>
-    </div>
 
     <!-- music:start -->
     <nav class="bottom-nav" id="bottom-nav" data-testid="bottom-nav">
@@ -175,6 +179,7 @@
           }
 
           renderProfile(data);
+          applySkin(data.layout);
           /* music:start */
           loadPortfolio(id);
           /* music:end */
@@ -327,6 +332,32 @@
       }
 
       // --- "People may vote for me" (owner only; off by default) ---
+      // Arrange the parts as the owner's skin says (lib/layout-skins.ts). The
+      // server sends only a checked arrangement: required parts are always in
+      // it, and an optional part left out of it is hidden. A skin never adds
+      // anything. A phone always shows one column (the page style).
+      function applySkin(layout) {
+        var box = document.getElementById('skin-parts');
+        if (!layout || !Array.isArray(layout.order)) return;
+        var byPart = {};
+        Array.prototype.forEach.call(box.children, function(el) {
+          byPart[el.getAttribute('data-part')] = el;
+        });
+        Object.keys(byPart).forEach(function(part) {
+          byPart[part].hidden = layout.order.indexOf(part) === -1;
+        });
+        layout.order.forEach(function(part) {
+          if (Object.prototype.hasOwnProperty.call(byPart, part)) box.appendChild(byPart[part]);
+        });
+        var two = layout.columns === 2;
+        box.classList.toggle('skin-cols-2', two);
+        var wide = Array.isArray(layout.wide) ? layout.wide : [];
+        Array.prototype.forEach.call(box.children, function(el) {
+          el.classList.toggle('skin-wide', two && wide.indexOf(el.getAttribute('data-part')) !== -1);
+        });
+        box.setAttribute('data-skin', String(layout.skin || ''));
+      }
+
       async function loadVoteOptIn(id, votable) {
         try {
           var sres = await fetch('/auth/session/me', { credentials: 'same-origin' });

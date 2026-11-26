@@ -100,6 +100,7 @@ export const MUTATION_PATHS = Object.freeze([
   'tests/unit/roles.test.ts',
   'tests/unit/session-cookie.test.ts',
   'tests/unit/session.test.ts',
+  'tests/unit/skin-schemas.test.ts',
   'tests/unit/slug.test.ts',
   'tests/unit/validation.test.ts',
   'tests/unit/votable-schema.test.ts',
