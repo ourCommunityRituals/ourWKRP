@@ -553,7 +553,7 @@ jobs:
       # because dopplerhq/cli-action's installer failed there — Expand-Archive
       # rejected the extension-less temp download. On Linux the action works.)
       - name: Install Doppler CLI
-        uses: dopplerhq/cli-action@014df23b1329b615816a38eb5f473bb9000700b1 # v3
+        uses: dopplerhq/cli-action@4819d808ab99e5cde19a0637a16536a4038fad73 # v4.0.1
 
       # Fail with a named cause if the service token reads the wrong Doppler
       # config, or the config has no deploy token, instead of wrangler's generic
@@ -640,7 +640,7 @@ jobs:
         run: npm run preflight:prod
 
       - name: Install Doppler CLI
-        uses: dopplerhq/cli-action@014df23b1329b615816a38eb5f473bb9000700b1 # v3
+        uses: dopplerhq/cli-action@4819d808ab99e5cde19a0637a16536a4038fad73 # v4.0.1
 
       # Fail with a named cause if the service token reads the wrong Doppler
       # config, or the config has no deploy token, instead of wrangler's generic
