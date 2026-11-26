@@ -100,8 +100,9 @@ describe('linked accounts', () => {
   });
 
   it('keeps an existing user\'s tokens where they are, so sync still finds them', async () => {
+    (rig.env as { WKRP_ENCRYPTION_KEY?: string }).WKRP_ENCRYPTION_KEY = KEY;
     const tokens = { access_token: 'at-legacy', refresh_token: 'rt', expires_at: Date.now() + 3_600_000 };
-    await storeTokens(rig.env.WKRP_KV, 'c1', tokens);
+    await storeTokens(rig.env.WKRP_KV, 'c1', tokens, KEY);
     const r = await ensureSourceAccount(rig.env, 'c1', 'spotify', 'sp_personal', null);
     if (!r.ok) throw new Error('expected a source account');
 

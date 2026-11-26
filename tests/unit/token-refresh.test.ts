@@ -2,6 +2,7 @@
  * Unit tests — Token refresh logic
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+const TEST_KEY = Buffer.from('0123456789abcdef0123456789abcdef').toString('base64');
 
 // We test the refresh logic by mocking fetch and KV
 describe('Token Refresh', () => {
@@ -26,6 +27,7 @@ describe('Token Refresh', () => {
     const mockEnv = {
       WKRP_KV: mockKV,
       SPOTIFY_CLIENT_ID: 'test-client-id',
+      WKRP_ENCRYPTION_KEY: TEST_KEY,
     };
 
     // Dynamic import to allow mocking
@@ -44,6 +46,7 @@ describe('Token Refresh', () => {
     const mockEnv = {
       WKRP_KV: mockKV,
       SPOTIFY_CLIENT_ID: 'test-client-id',
+      WKRP_ENCRYPTION_KEY: TEST_KEY,
     };
 
     const { getValidAccessToken } = await import('../../src/auth/token-refresh');
@@ -68,6 +71,7 @@ describe('Token Refresh', () => {
     const mockEnv = {
       WKRP_KV: mockKV,
       SPOTIFY_CLIENT_ID: 'test-client-id',
+      WKRP_ENCRYPTION_KEY: TEST_KEY,
     };
 
     // Mock fetch for token refresh

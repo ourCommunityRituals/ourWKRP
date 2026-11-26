@@ -4,7 +4,7 @@
  */
 
 import type { AuthState, SessionData, StoredTokens } from '../types';
-import { sealJSON, openJSON } from './crypto';
+import { sealJSON, openAndUpgrade } from './crypto';
 import { log } from './logger';
 
 // Auth state (PKCE verifier + contributor info) — 10 min TTL
@@ -102,23 +102,19 @@ export async function deleteAllSessions(kv: KVNamespace, userId: string): Promis
   return tokens.length;
 }
 
-// Spotify tokens — no TTL (refresh handled in code). Encrypted at rest when an
-// encryption key is provided (F2); callers pass env.WKRP_ENCRYPTION_KEY.
+// Spotify tokens — no TTL (refresh handled in code). Always encrypted at rest:
+// storing without env.WKRP_ENCRYPTION_KEY throws (CCR F12).
 export async function storeTokens(kv: KVNamespace, userId: string, tokens: StoredTokens, keyB64?: string): Promise<void> {
   const key = `wkrp:tokens:${userId}`;
   await kv.put(key, await sealJSON(tokens, keyB64));
-  log('KV_WRITE', { key, expires_at: new Date(tokens.expires_at).toISOString(), encrypted: !!keyB64 });
+  log('KV_WRITE', { key, expires_at: new Date(tokens.expires_at).toISOString(), encrypted: true });
 }
 
 export async function getTokens(kv: KVNamespace, userId: string, keyB64?: string): Promise<StoredTokens | null> {
   const key = `wkrp:tokens:${userId}`;
-  const raw = await kv.get(key);
-  if (!raw) {
-    log('KV_MISS', { key });
-    return null;
-  }
-  log('KV_HIT', { key });
-  return openJSON<StoredTokens>(raw, keyB64);
+  const value = await openAndUpgrade<StoredTokens>(kv, key, keyB64);
+  log(value ? 'KV_HIT' : 'KV_MISS', { key });
+  return value;
 }
 
 // Right-to-erasure: purge a contributor's Spotify tokens.
@@ -128,23 +124,19 @@ export async function deleteTokens(kv: KVNamespace, userId: string): Promise<voi
   log('KV_DELETE', { key });
 }
 
-// Last.fm session keys — permanent (no expiry). Encrypted at rest when a key is
-// provided (F2); callers pass env.WKRP_ENCRYPTION_KEY.
+// Last.fm session keys — permanent (no expiry). Always encrypted at rest:
+// storing without env.WKRP_ENCRYPTION_KEY throws (CCR F12).
 export async function storeLastfmSession(kv: KVNamespace, contributorId: string, data: { username: string; session_key: string }, keyB64?: string): Promise<void> {
   const key = `wkrp:lastfm:${contributorId}`;
   await kv.put(key, await sealJSON(data, keyB64));
-  log('KV_WRITE', { key, encrypted: !!keyB64 });
+  log('KV_WRITE', { key, encrypted: true });
 }
 
 export async function getLastfmSession(kv: KVNamespace, contributorId: string, keyB64?: string): Promise<{ username: string; session_key: string } | null> {
   const key = `wkrp:lastfm:${contributorId}`;
-  const raw = await kv.get(key);
-  if (!raw) {
-    log('KV_MISS', { key });
-    return null;
-  }
-  log('KV_HIT', { key });
-  return openJSON<{ username: string; session_key: string }>(raw, keyB64);
+  const value = await openAndUpgrade<{ username: string; session_key: string }>(kv, key, keyB64);
+  log(value ? 'KV_HIT' : 'KV_MISS', { key });
+  return value;
 }
 
 // Right-to-erasure: purge a contributor's Last.fm session key.

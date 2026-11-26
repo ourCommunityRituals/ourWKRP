@@ -16,6 +16,7 @@ import {
   storeTokens,
   getTokens,
 } from '../../src/lib/kv-storage';
+const TEST_KEY = Buffer.from('0123456789abcdef0123456789abcdef').toString('base64');
 
 function createMockKV() {
   const store = new Map<string, string>();
@@ -65,7 +66,7 @@ describe('Auth Flow Integration', () => {
       access_token: 'spotify-access-token',
       refresh_token: 'spotify-refresh-token',
       expires_at: Date.now() + 3600000,
-    });
+    }, TEST_KEY);
 
     await storeSession(kv, sessionToken, {
       userId,
@@ -81,7 +82,7 @@ describe('Auth Flow Integration', () => {
     expect(session!.name).toBe('Matt');
 
     // Step 6: Verify tokens retrieval
-    const tokens = await getTokens(kv, userId);
+    const tokens = await getTokens(kv, userId, TEST_KEY);
     expect(tokens).toBeTruthy();
     expect(tokens!.access_token).toBe('spotify-access-token');
   });
