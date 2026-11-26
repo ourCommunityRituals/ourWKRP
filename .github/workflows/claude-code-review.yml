@@ -86,7 +86,7 @@ jobs:
         # SHA-pinned (supply-chain hardening): a mutable @v1 tag can be force-pushed to
         # run attacker code with this job's ANTHROPIC_API_KEY. Pin to the commit @v1
         # resolved to; bump via Dependabot.
-        uses: anthropics/claude-code-action@fa2b2666b747000bf42767d1f332065b375e3c8f # v1
+        uses: anthropics/claude-code-action@f431adaf77e0fecf918431e75a2b5b45b85af002 # v1
         with:
           # Auth = service-account API key (interim). Moving to Workload Identity
           # Federation later (OSE-1109) needs `id-token: write` back above, scoped to
