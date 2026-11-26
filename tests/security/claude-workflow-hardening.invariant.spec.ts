@@ -23,7 +23,10 @@
  *   5. a `pull_request` job has no `id-token: write` (the OIDC trade gives an
  *      app token that the job's `permissions:` block does not bound);
  *   6. a job that gives the action a `prompt` (agent mode) lists its tools with
- *      `--allowedTools`.
+ *      `--allowedTools`;
+ *   7. every plugin marketplace is a local path under ./.claude/ (CCR F11): a
+ *      git URL installs whatever upstream holds that day, next to the API key,
+ *      and a path outside .claude/ is not restored from the base branch.
  *
  * Born red: each rule is broken on purpose on a synthetic workflow below, next
  * to the real workflows passing.
@@ -94,6 +97,12 @@ export function claudeJobFindings(text: string): string[] {
     if (step.with?.prompt !== undefined && !/--allowedTools\s/.test(args)) {
       out.push(`${name}: agent mode without a tool allowlist`);
     }
+    const markets = String(step.with?.plugin_marketplaces ?? '').split('\n').map((m) => m.trim()).filter(Boolean);
+    for (const m of markets) {
+      if (!/^\.\/\.claude\/[A-Za-z0-9._/-]+$/.test(m) || m.includes('..', 2)) {
+        out.push(`${name}: plugin marketplace not a vendored path under .claude/`);
+      }
+    }
   }
   return out;
 }
@@ -114,6 +123,7 @@ function wf(o: {
   secretInRun?: boolean;
   args?: string;
   prompt?: boolean;
+  market?: string;
 }): string {
   return [
     `on: ${o.on ?? 'pull_request'}`,
@@ -132,6 +142,7 @@ function wf(o: {
     '        with:',
     ...(o.prompt === false ? [] : ["          prompt: 'review'"]),
     `          claude_args: '${o.args ?? '--allowedTools "Read"'}'`,
+    ...(o.market === undefined ? [] : [`          plugin_marketplaces: '${o.market}'`]),
   ].join('\n');
 }
 
@@ -167,6 +178,13 @@ describe('the rules: each fault is caught, the safe shape passes', () => {
   it('agent mode without --allowedTools is caught; tag mode needs none', () => {
     expect(claudeJobFindings(wf({ args: '--model x' }))).toEqual(['review: agent mode without a tool allowlist']);
     expect(claudeJobFindings(wf({ prompt: false, args: '--model x' }))).toEqual([]);
+  });
+  it('a git-URL plugin marketplace, or a local one outside .claude/, is caught; a vendored one passes', () => {
+    const f = 'review: plugin marketplace not a vendored path under .claude/';
+    expect(claudeJobFindings(wf({ market: 'https://github.com/anthropics/claude-code.git' }))).toEqual([f]);
+    expect(claudeJobFindings(wf({ market: './plugins/review' }))).toEqual([f]);
+    expect(claudeJobFindings(wf({ market: './.claude/../plugins' }))).toEqual([f]);
+    expect(claudeJobFindings(wf({ market: './.claude/review-marketplace' }))).toEqual([]);
   });
   it('an issue-only workflow is not held to the PR-code rule', () => {
     expect(claudeJobFindings(wf({ on: 'issues', restore: false }))).toEqual([]);
@@ -233,5 +251,34 @@ describe('the review restore step, run for real', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+// CCR F11: the review plugin is a vendored copy whose sources are all local, so
+// nothing is fetched from upstream at run time.
+describe('the vendored review marketplace', () => {
+  const dir = path.join(ROOT, '.claude', 'review-marketplace');
+  const market = JSON.parse(readFileSync(path.join(dir, '.claude-plugin', 'marketplace.json'), 'utf8')) as {
+    name: string;
+    plugins: { name: string; source: unknown }[];
+  };
+
+  it('is the marketplace the review job names', () => {
+    const text = readFileSync(path.join(WF_DIR, 'claude-code-review.yml'), 'utf8');
+    expect(text).toContain("plugin_marketplaces: './.claude/review-marketplace'");
+    expect(text).toContain(`plugins: 'code-review@${market.name}'`);
+  });
+
+  it('every plugin source is a local folder that exists (no git or URL source)', () => {
+    expect(market.plugins.length).toBeGreaterThan(0);
+    for (const p of market.plugins) {
+      expect(typeof p.source, `${p.name} source`).toBe('string');
+      expect(String(p.source)).toMatch(/^\.\/plugins\/[a-z0-9-]+$/);
+      expect(existsSync(path.join(dir, String(p.source), '.claude-plugin', 'plugin.json'))).toBe(true);
+    }
+  });
+
+  it('records the upstream commit it was copied from', () => {
+    expect(readFileSync(path.join(dir, 'UPSTREAM.md'), 'utf8')).toMatch(/`[0-9a-f]{40}`/);
   });
 });

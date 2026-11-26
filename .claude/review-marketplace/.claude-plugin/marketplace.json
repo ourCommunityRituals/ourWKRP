@@ -1,0 +1,11 @@
+{
+  "name": "ourwkrp-review",
+  "owner": { "name": "ourCommunityRituals" },
+  "plugins": [
+    {
+      "name": "code-review",
+      "description": "Vendored copy of Anthropic's code-review plugin (see UPSTREAM.md). Loaded by claude-code-review.yml from the base branch.",
+      "source": "./plugins/code-review"
+    }
+  ]
+}
