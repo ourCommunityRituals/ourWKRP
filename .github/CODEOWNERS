@@ -1,0 +1,7 @@
+# Files that control CI, agents and deploys need a person's review (OW-231).
+# Binds only when "Require review from Code Owners" is on for main.
+/.github/        @mzdano
+/.claude/        @mzdano
+/CLAUDE.md       @mzdano
+/scripts/ci/     @mzdano
+/wrangler.toml   @mzdano
