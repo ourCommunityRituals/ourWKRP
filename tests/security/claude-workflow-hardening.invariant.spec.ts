@@ -24,7 +24,7 @@
  *      app token that the job's `permissions:` block does not bound);
  *   6. a job that gives the action a `prompt` (agent mode) lists its tools with
  *      `--allowedTools`;
- *   7. a failed run cannot show green (AI Problems Index assessment, 2026-11-26):
+ *   7. a failed run cannot show green:
  *      no job-level `continue-on-error`, and when the action step itself has
  *      `continue-on-error`, it has an `id` and a later step reads that step and
  *      can `exit 1`. Before this, an invalid key gave a green review on every PR.

@@ -1,7 +1,6 @@
 name: Claude Review Canary
 
-# An eval for the AI reviewer itself (AI Problems Index assessment, 2026-11-26,
-# Step 2). The reviewer reads two small handlers in tests/fixtures/review-canary/:
+# An eval for the AI reviewer itself. The reviewer reads two small handlers in tests/fixtures/review-canary/:
 # one clean, one with a planted SQL injection. It passes only if it names the
 # planted line and leaves the clean file alone. Same model and read-only tools
 # as claude-code-review.yml; it reads fixtures, not a PR, so it never sees PR code.

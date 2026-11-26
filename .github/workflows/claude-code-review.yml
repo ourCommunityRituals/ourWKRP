@@ -20,13 +20,11 @@ jobs:
     # OSE-1194 — all CI now runs GitHub-hosted.)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # Honest, not blocking (AI Problems Index assessment, 2026-11-26). The review
-    # is a second opinion: it is not a required check, so a red here never stops a
-    # merge. But it must never show green when no review happened. Before this, a
-    # job-level continue-on-error turned an invalid key (HTTP 401, zero tokens)
-    # into a green check on every PR. Now the action step may fail without
-    # stopping the job, the diagnosis step says why, and the last step turns the
-    # job red. A missing key still skips with a notice, as before.
+    # Honest, not blocking. The review is a second opinion: it is not a required
+    # check, so a red here never stops a merge. But it must never show green when
+    # no review happened. The action step may fail without stopping the job, the
+    # diagnosis step says why, and the last step turns the job red. A missing key
+    # skips with a notice.
     # Least privilege (OW-227). No `id-token: write`: with it the action trades an
     # OIDC token for a Claude GitHub App token whose rights are NOT bounded by this
     # block. The action gets this job's own token instead (github_token below), so

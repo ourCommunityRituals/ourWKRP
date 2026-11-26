@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Review canary check (AI Problems Index assessment, 2026-11-26, Step 2).
+ * Review canary check.
  *
  * Reads the execution file that anthropics/claude-code-action writes (a JSON
  * array of Claude Code messages) and decides whether the reviewer caught the

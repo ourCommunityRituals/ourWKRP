@@ -1,5 +1,5 @@
 /**
- * The review canary's judge (AI Problems Index assessment, 2026-11-26, Step 2).
+ * The review canary's judge.
  * Born red: every way the reviewer can fail is a case that must fail, next to
  * the one answer that passes. The fixture line range is checked against the
  * real fixture, so moving the flaw without moving the range goes red.
