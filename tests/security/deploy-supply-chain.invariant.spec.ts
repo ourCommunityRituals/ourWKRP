@@ -1,13 +1,10 @@
 /**
  * Deploy jobs install packages without running their install scripts, and the
  * files that control CI, agents and deploys have a named human reviewer
- * (OW-231; CCR security re-sweep 2026-11-26, findings L3 and M2).
+ * (OW-231).
  *
- * `npm ci` runs every dependency's install scripts. In a deploy job a later
- * step holds the Doppler token that unlocks the Cloudflare deploy token, so an
- * install script from a compromised package could change files that step runs.
- * `--ignore-scripts` stops that; wrangler needs no install script to deploy
- * (checked with `wrangler deploy --dry-run`).
+ * Deploy jobs install with `--ignore-scripts`; wrangler needs no install
+ * script to deploy (checked with `wrangler deploy --dry-run`).
  *
  * CODEOWNERS binds only when the owner turns on "Require review from Code
  * Owners" for `main`. Until then it names who should review.

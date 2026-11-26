@@ -540,8 +540,7 @@ jobs:
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
           OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
-      # --ignore-scripts (OW-231): no dependency install script runs in a job
-      # that later holds the Doppler deploy token. wrangler needs none.
+      # --ignore-scripts (OW-231): wrangler needs no install script.
       - run: npm ci --ignore-scripts
 
       # Preflight: refuse to deploy if security wiring is missing from
@@ -636,8 +635,7 @@ jobs:
         run: bash scripts/ci-stage-ocr-workspace.sh
         env:
           OCR_HUB_READ: ${{ secrets.OCR_HUB_READ }}
-      # --ignore-scripts (OW-231): no dependency install script runs in a job
-      # that later holds the Doppler deploy token. wrangler needs none.
+      # --ignore-scripts (OW-231): wrangler needs no install script.
       - run: npm ci --ignore-scripts
 
       - name: Preflight — security wiring present
