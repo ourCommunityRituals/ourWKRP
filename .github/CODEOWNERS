@@ -1,0 +1,10 @@
+# Files that control CI, agents and deploys need a person's review (OW-231;
+# CCR security re-sweep 2026-11-26, M2). An agent session opens PRs under the
+# owner's login, and GitHub does not count an author's own review, so these
+# paths name the separate human reviewer account, as OCR-docs does.
+# Binds only when "Require review from Code Owners" is on for main.
+/.github/        @mzdano
+/.claude/        @mzdano
+/CLAUDE.md       @mzdano
+/scripts/ci/     @mzdano
+/wrangler.toml   @mzdano
