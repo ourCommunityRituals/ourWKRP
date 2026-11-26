@@ -11,7 +11,10 @@
 
 import type { Env } from '../types';
 import { requireSession } from '../lib/require-session';
-import { claimSlugBodySchema, setProfileTypeBodySchema, setVotableBodySchema } from '../lib/schemas';
+import { claimSlugBodySchema, setProfileTypeBodySchema, setVotableBodySchema, layoutBodySchema } from '../lib/schemas';
+import { parseSkinMarkdown, writeSkinMarkdown } from '../lib/layout-skin-md';
+import { SURFACES, cleanLayout, defaultLayout, type Layout } from '../lib/layout-skins';
+import { ADD_ON_MESSAGE, BASE_SKIN, hasCustomSkins } from '../lib/skin-entitlement';
 import { validateBody } from '../lib/validate';
 import { recordAudit } from '../lib/audit';
 import { log } from '../lib/logger';
@@ -217,4 +220,126 @@ export async function handleSetVotable(request: Request, env: Env): Promise<Resp
   log('PROFILE_VOTABLE_SET', { contributorId: auth.userId, votable });
 
   return Response.json({ ok: true, votable });
+}
+
+/**
+ * The stored profile layout, checked again on the way out, or the standard
+ * skin when there is none (or what is stored no longer passes the checks).
+ * Used by the public profile read too (handlers/catalog.ts).
+ *
+ * Without the custom-looks add-on (lib/skin-entitlement.ts) this is always
+ * the standard skin, so taking the add-on away puts the base look back.
+ */
+export function readProfileLayout(stored: unknown, entitled: boolean): Layout {
+  if (entitled && typeof stored === 'string' && stored) {
+    try {
+      const layout = cleanLayout(JSON.parse(stored));
+      if (layout && layout.surface === 'profile') return layout;
+    } catch {
+      // Unreadable JSON falls back to the standard skin.
+    }
+  }
+  return defaultLayout('profile');
+}
+
+/** What the editor needs to draw its controls. */
+function editorOptions() {
+  const def = SURFACES.profile;
+  return { parts: def.parts, required: def.required, labels: def.labels, skins: def.skins };
+}
+
+/**
+ * GET /api/profile/layout — the signed-in contributor's own profile skin.
+ *
+ * Status contract:
+ *   200 — { ok, layout, markdown, options }
+ *   401 — no session
+ *   404 — session points at a contributor row that no longer exists
+ */
+export async function handleGetProfileLayout(request: Request, env: Env): Promise<Response> {
+  const auth = await requireSession(request, env);
+  if (auth instanceof Response) return auth;
+
+  const row = await env.WKRP_DB.prepare(
+    'SELECT profile_layout FROM contributors WHERE id = ?',
+  ).bind(auth.userId).first<{ profile_layout: string | null }>();
+  if (!row) {
+    return Response.json({ ok: false, error: 'Contributor not found' }, { status: 404 });
+  }
+
+  const entitled = await hasCustomSkins(env, auth.userId);
+  const layout = readProfileLayout(row.profile_layout, entitled);
+  return Response.json({
+    ok: true, layout, markdown: writeSkinMarkdown(layout), options: editorOptions(),
+    entitled, base_skin: BASE_SKIN, add_on_message: ADD_ON_MESSAGE,
+  });
+}
+
+/**
+ * PUT /api/profile/layout — body { markdown }: save the signed-in
+ * contributor's profile skin from a skin file (lib/layout-skin-md.ts).
+ *
+ * Only the arrangement is stored; the file's notes are not. A skin cannot
+ * carry colors, sizes, markup, links or counts, so it cannot lower contrast
+ * or show a count under the floor of 5.
+ *
+ * Status contract:
+ *   200 — { ok, layout, markdown }
+ *   400 — not a valid skin file: { ok: false, error, problems: string[] }
+ *   401 — no session
+ *   403 — a skin other than standard without the custom-looks add-on
+ *   404 — session points at a contributor row that no longer exists
+ */
+export async function handlePutProfileLayout(request: Request, env: Env): Promise<Response> {
+  const auth = await requireSession(request, env);
+  if (auth instanceof Response) return auth;
+
+  const parsed = await validateBody(request, layoutBodySchema);
+  if (parsed instanceof Response) return parsed;
+
+  const skin = parseSkinMarkdown(parsed.markdown);
+  if (!skin.ok) {
+    return Response.json(
+      { ok: false, error: 'That skin file cannot be used', problems: skin.problems },
+      { status: 400 },
+    );
+  }
+  if (skin.layout.surface !== 'profile') {
+    return Response.json(
+      { ok: false, error: 'That skin file cannot be used', problems: ['"surface" must be profile for your profile page.'] },
+      { status: 400 },
+    );
+  }
+
+  const layout = skin.layout;
+  // The base skin is free for everyone; anything else is the add-on.
+  if (layout.skin !== BASE_SKIN && !(await hasCustomSkins(env, auth.userId))) {
+    await recordAudit(env, request, {
+      action: 'profile.layout.set', resourceType: 'contributor', resourceId: auth.userId,
+      outcome: 'denied', actorId: auth.userId, meta: { reason: 'no_custom_skins', skin: layout.skin },
+    });
+    return Response.json(
+      { ok: false, error: ADD_ON_MESSAGE, problems: [ADD_ON_MESSAGE], entitled: false },
+      { status: 403 },
+    );
+  }
+  const result = await env.WKRP_DB.prepare(
+    'UPDATE contributors SET profile_layout = ? WHERE id = ?',
+  ).bind(JSON.stringify(layout), auth.userId).run();
+
+  if (!result.meta?.changes) {
+    return Response.json({ ok: false, error: 'Contributor not found' }, { status: 404 });
+  }
+
+  await recordAudit(env, request, {
+    action: 'profile.layout.set',
+    resourceType: 'contributor',
+    resourceId: auth.userId,
+    outcome: 'success',
+    actorId: auth.userId,
+    meta: { skin: layout.skin, columns: layout.columns },
+  });
+  log('PROFILE_LAYOUT_SET', { contributorId: auth.userId, skin: layout.skin });
+
+  return Response.json({ ok: true, layout, markdown: writeSkinMarkdown(layout) });
 }

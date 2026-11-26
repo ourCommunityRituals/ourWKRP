@@ -1,0 +1,13 @@
+// Review canary: a handler with one planted flaw for the AI reviewer to find.
+interface Env { DB: D1Database }
+
+export async function contributorBySlug(request: Request, env: Env): Promise<Response> {
+  const slug = new URL(request.url).searchParams.get('slug') ?? '';
+  if (slug.length === 0 || slug.length > 80) {
+    return new Response('bad slug', { status: 400 });
+  }
+  const row = await env.DB.prepare(
+    `SELECT id, display_name FROM contributors WHERE slug = '${slug}'`,
+  ).first();
+  return Response.json(row ?? null);
+}

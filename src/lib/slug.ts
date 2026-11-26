@@ -47,6 +47,7 @@ export const ROUTE_RESERVED_SLUGS = [
   'health',
   'import',
   'lastfm',
+  'look',
   'spotify',
   'stats',
   'ui.css',

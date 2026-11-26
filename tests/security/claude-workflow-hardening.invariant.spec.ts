@@ -24,7 +24,11 @@
  *      app token that the job's `permissions:` block does not bound);
  *   6. a job that gives the action a `prompt` (agent mode) lists its tools with
  *      `--allowedTools`;
- *   7. every plugin marketplace is a local path under ./.claude/ (CCR F11): a
+ *   7. a failed run cannot show green (AI Problems Index assessment, 2026-11-26):
+ *      no job-level `continue-on-error`, and when the action step itself has
+ *      `continue-on-error`, it has an `id` and a later step reads that step and
+ *      can `exit 1`. Before this, an invalid key gave a green review on every PR.
+ *   8. every plugin marketplace is a local path under ./.claude/ (CCR F11): a
  *      git URL installs whatever upstream holds that day, next to the API key,
  *      and a path outside .claude/ is not restored from the base branch.
  *
@@ -45,8 +49,17 @@ const SHA = /@[0-9a-f]{40}$/;
 const PR_EVENTS = ['pull_request', 'pull_request_target', 'pull_request_review', 'pull_request_review_comment'];
 const INSTRUCTION_PATHS = ['.claude', 'AGENTS.md', 'CLAUDE.md', '.mcp.json'];
 
-type Step = { uses?: string; run?: string; with?: Record<string, unknown>; name?: string };
-type Job = { permissions?: Record<string, string> | string; steps?: Step[] };
+type Step = {
+  uses?: string;
+  run?: string;
+  with?: Record<string, unknown>;
+  name?: string;
+  id?: string;
+  if?: string;
+  env?: Record<string, unknown>;
+  'continue-on-error'?: unknown;
+};
+type Job = { permissions?: Record<string, string> | string; steps?: Step[]; 'continue-on-error'?: unknown };
 type Workflow = { on?: unknown; jobs?: Record<string, Job> };
 
 function events(on: unknown): string[] {
@@ -63,6 +76,10 @@ function restoresFromBase(step: Step): boolean {
     INSTRUCTION_PATHS.every((p) => run.includes(`rm -rf`) && run.includes(p)) &&
     /git checkout "?origin\//.test(run)
   );
+}
+
+function isTrue(v: unknown): boolean {
+  return v === true || v === 'true';
 }
 
 /** Every rule a workflow breaks, as "job: rule" strings. Empty means it holds. */
@@ -103,6 +120,17 @@ export function claudeJobFindings(text: string): string[] {
         out.push(`${name}: plugin marketplace not a vendored path under .claude/`);
       }
     }
+    if (isTrue(job['continue-on-error'])) out.push(`${name}: a failed run shows green`);
+    else if (isTrue(step['continue-on-error'])) {
+      const ref = step.id ? `steps.${step.id}.` : null;
+      const failsLater =
+        ref !== null &&
+        steps.slice(at + 1).some((s) => {
+          const reads = `${s.if ?? ''}\n${JSON.stringify(s.env ?? {})}\n${s.run ?? ''}`.includes(ref);
+          return reads && /\bexit 1\b/.test(s.run ?? '');
+        });
+      if (!failsLater) out.push(`${name}: a failed run shows green`);
+    }
   }
   return out;
 }
@@ -123,12 +151,16 @@ function wf(o: {
   secretInRun?: boolean;
   args?: string;
   prompt?: boolean;
+  jobCoe?: boolean;
+  stepCoe?: boolean;
+  failStep?: boolean;
   market?: string;
 }): string {
   return [
     `on: ${o.on ?? 'pull_request'}`,
     'jobs:',
     '  review:',
+    ...(o.jobCoe ? ['    continue-on-error: true'] : []),
     '    permissions:',
     '      contents: read',
     ...(o.idToken ? ['      id-token: write'] : []),
@@ -139,9 +171,14 @@ function wf(o: {
     ...(o.persist === false ? [] : ['        with:', '          persist-credentials: false']),
     ...(o.restore === false ? [] : ['      - name: restore', '        run: |', RESTORE]),
     `      - uses: ${o.pin ?? PIN}`,
+    '        id: review',
+    ...(o.stepCoe ? ['        continue-on-error: true'] : []),
     '        with:',
     ...(o.prompt === false ? [] : ["          prompt: 'review'"]),
     `          claude_args: '${o.args ?? '--allowedTools "Read"'}'`,
+    ...(o.failStep
+      ? ['      - name: fail', "        if: steps.review.outcome == 'failure'", '        run: exit 1']
+      : []),
     ...(o.market === undefined ? [] : [`          plugin_marketplaces: '${o.market}'`]),
   ].join('\n');
 }
@@ -179,6 +216,13 @@ describe('the rules: each fault is caught, the safe shape passes', () => {
     expect(claudeJobFindings(wf({ args: '--model x' }))).toEqual(['review: agent mode without a tool allowlist']);
     expect(claudeJobFindings(wf({ prompt: false, args: '--model x' }))).toEqual([]);
   });
+  it('a job-level continue-on-error is caught (a failed review would show green)', () => {
+    expect(claudeJobFindings(wf({ jobCoe: true }))).toEqual(['review: a failed run shows green']);
+  });
+  it('a step-level continue-on-error needs a later step that fails on it', () => {
+    expect(claudeJobFindings(wf({ stepCoe: true }))).toEqual(['review: a failed run shows green']);
+    expect(claudeJobFindings(wf({ stepCoe: true, failStep: true }))).toEqual([]);
+  });
   it('a git-URL plugin marketplace, or a local one outside .claude/, is caught; a vendored one passes', () => {
     const f = 'review: plugin marketplace not a vendored path under .claude/';
     expect(claudeJobFindings(wf({ market: 'https://github.com/anthropics/claude-code.git' }))).toEqual([f]);
@@ -195,11 +239,12 @@ describe('the real Claude workflows hold every rule', () => {
   const files = readdirSync(WF_DIR).filter((f) => /\.ya?ml$/.test(f));
   const claudeFiles = files.filter((f) => readFileSync(path.join(WF_DIR, f), 'utf8').includes(`${ACTION}@`));
 
-  it('finds both Claude workflows (anti-vacuity)', () => {
-    expect(claudeFiles.sort()).toEqual(['claude-code-review.yml', 'claude.yml']);
+  const ALL = ['claude-code-review.yml', 'claude-review-canary.yml', 'claude.yml'];
+  it('finds every Claude workflow (anti-vacuity)', () => {
+    expect(claudeFiles.sort()).toEqual(ALL);
   });
 
-  for (const f of ['claude-code-review.yml', 'claude.yml']) {
+  for (const f of ALL) {
     it(`${f} breaks no rule`, () => {
       expect(claudeJobFindings(readFileSync(path.join(WF_DIR, f), 'utf8'))).toEqual([]);
     });

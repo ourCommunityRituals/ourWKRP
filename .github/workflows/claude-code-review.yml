@@ -20,14 +20,13 @@ jobs:
     # OSE-1194 — all CI now runs GitHub-hosted.)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # ADVISORY gate (adopted from OSE). Claude review is a second opinion, not a test:
-    # an API outage, rate-limit, marketplace-clone failure, or model rollout must never
-    # red an honest PR. The deterministic gates (unit/integration/security/E2E) are what
-    # protect the branch. If this is ever promoted to a REQUIRED check, it must first
-    # grow a born-red proof that it actually produced a review — otherwise "advisory in
-    # the file" is undone by "required in branch protection" (that gap caused the
-    # original bot-crash-as-code-red).
-    continue-on-error: true
+    # Honest, not blocking (AI Problems Index assessment, 2026-11-26). The review
+    # is a second opinion: it is not a required check, so a red here never stops a
+    # merge. But it must never show green when no review happened. Before this, a
+    # job-level continue-on-error turned an invalid key (HTTP 401, zero tokens)
+    # into a green check on every PR. Now the action step may fail without
+    # stopping the job, the diagnosis step says why, and the last step turns the
+    # job red. A missing key still skips with a notice, as before.
     # Least privilege (OW-227). No `id-token: write`: with it the action trades an
     # OIDC token for a Claude GitHub App token whose rights are NOT bounded by this
     # block. The action gets this job's own token instead (github_token below), so
@@ -55,7 +54,7 @@ jobs:
 
       - name: Checkout repository
         if: steps.check-key.outputs.skip != 'true'
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -133,3 +132,11 @@ jobs:
           echo "::warning title=Claude review did not run::HTTP ${code} ${why}"
           { echo '### Claude review did not run'; echo; echo "API answered HTTP ${code}: ${why}"; } >> "$GITHUB_STEP_SUMMARY"
           rm -f /tmp/probe.json
+
+      # The check goes red when the review did not run (see the job comment).
+      # Locked by tests/security/claude-workflow-hardening.invariant.spec.ts.
+      - name: Fail when the review did not run
+        if: steps.claude-review.outcome == 'failure'
+        run: |
+          echo "::error title=Claude review did not run::No review was produced for this PR. See the step above for the API's answer."
+          exit 1

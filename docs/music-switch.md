@@ -59,7 +59,9 @@ Kept on:
 - The admin role grant (`POST /admin/roles/grant`)
 - Profiles: `/contributor/:id`, `/c/:slug`, `/api/contributors`,
   `/api/contributors/:id`, `/api/contributors/:id/brands`,
-  `POST /api/profile/slug`, `POST /api/profile/type`, `POST /api/profile/votable`
+  `POST /api/profile/slug`, `POST /api/profile/type`, `POST /api/profile/votable`,
+  `GET` and `PUT /api/profile/layout`, the `/look` skin editor page,
+  `POST /admin/skins/grant`
 - `/api/brands`
 - Facets: `POST /api/facets`, `DELETE /api/facets/:id`
 - Erasure: `DELETE /api/contributors/:id/identity`
