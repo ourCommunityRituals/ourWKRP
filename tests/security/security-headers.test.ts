@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
-import { addSecurityHeaders } from '../../src/lib/security-headers';
+import { addSecurityHeaders, buildPageCsp } from '../../src/lib/security-headers';
 
 describe('Security Headers', () => {
   describe('Source code audit', () => {
@@ -50,6 +50,29 @@ describe('Security Headers', () => {
       expect(source).toContain('Permissions-Policy');
       expect(source).toContain('camera=()');
       expect(source).toContain('microphone=()');
+    });
+  });
+
+  // CCR F6 (LINDDUN Linkability): images load only from this site and Spotify's
+  // image CDNs. A bare `https:` or `*` lets an imported image URL track viewers.
+  describe('img-src allowlist', () => {
+    const imgSrc = (csp: string) => (csp.split(';').map((d) => d.trim()).find((d) => d.startsWith('img-src')) ?? '').split(/\s+/).slice(1);
+    const ALLOWED = ["'self'", 'data:', 'https://i.scdn.co', 'https://mosaic.scdn.co', 'https://*.spotifycdn.com'];
+    const json = addSecurityHeaders(new Response('{}', { headers: { 'Content-Type': 'application/json' } }));
+
+    it.each([
+      ['an HTML page', buildPageCsp('n0nce')],
+      ['a JSON response', json.headers.get('Content-Security-Policy') ?? ''],
+    ])('%s allows only the listed image hosts', (_label, csp) => {
+      const sources = imgSrc(csp);
+      expect(sources.length).toBeGreaterThan(0);
+      expect(sources.filter((s) => !ALLOWED.includes(s))).toEqual([]);
+    });
+
+    it('no source is a scheme or wildcard on its own', () => {
+      for (const s of [...imgSrc(buildPageCsp('n')), ...imgSrc(json.headers.get('Content-Security-Policy') ?? '')]) {
+        expect(['https:', 'http:', '*', 'https://*', 'blob:']).not.toContain(s);
+      }
     });
   });
 
