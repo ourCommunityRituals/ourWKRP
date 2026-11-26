@@ -97,8 +97,10 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # This job's own token, bounded by `permissions:` (OW-227).
           github_token: ${{ github.token }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
+          # A reviewed, vendored copy (CCR F11), restored from the base branch
+          # with the rest of .claude/ above. See .claude/review-marketplace/UPSTREAM.md.
+          plugin_marketplaces: './.claude/review-marketplace'
+          plugins: 'code-review@ourwkrp-review'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
           # Pin the model explicitly. Previously unpinned → rode claude-code-action's
           # rolling default, which resolved to a nonexistent model id and returned
