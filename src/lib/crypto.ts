@@ -7,12 +7,22 @@
  * in AES-256-GCM using a key from `env.WKRP_ENCRYPTION_KEY` (a base64 32-byte
  * secret), mirroring OSE's data-at-rest doctrine.
  *
- * Rollout is non-breaking:
- *   - write: encrypt only when the key is set; otherwise store plaintext (no
- *     worse than today). Provisioning the secret activates encryption.
+ * Since CCR F12 (2026-11-26) the key is mandatory:
+ *   - write: always encrypted. With no key, sealJSON throws
+ *     MissingEncryptionKeyError and nothing is stored: a credential is never
+ *     written to KV in plain text.
  *   - read:  values are self-describing via the `enc:v1:` prefix — decrypt when
- *     prefixed (key required), pass through when not (legacy plaintext).
+ *     prefixed (key required). A legacy plaintext value is still readable, and
+ *     the kv-storage getters re-seal it the first time it is read with a key.
  */
+
+/** Thrown when a credential would be stored without WKRP_ENCRYPTION_KEY. */
+export class MissingEncryptionKeyError extends Error {
+  constructor() {
+    super('WKRP_ENCRYPTION_KEY is not set; refusing to store a credential in plain text (CCR F12)');
+    this.name = 'MissingEncryptionKeyError';
+  }
+}
 
 const ENC_PREFIX = 'enc:v1:';
 const IV_BYTES = 12; // AES-GCM standard nonce length
@@ -69,12 +79,32 @@ export async function decryptString(stored: string, keyB64: string): Promise<str
 }
 
 /**
- * Serialize + encrypt-if-key. Used on the write path: with a key the value is
- * ciphertext, without one it stays plaintext JSON (non-breaking rollout).
+ * Serialize + encrypt. Used on every credential write path. Throws
+ * MissingEncryptionKeyError when no key is set (CCR F12), so a missing secret
+ * stops the write instead of leaving a plaintext credential in KV.
  */
 export async function sealJSON(value: unknown, keyB64: string | undefined): Promise<string> {
-  const json = JSON.stringify(value);
-  return keyB64 ? encryptString(json, keyB64) : json;
+  if (!keyB64 || !keyB64.trim()) throw new MissingEncryptionKeyError();
+  return encryptString(JSON.stringify(value), keyB64);
+}
+
+/**
+ * Read a stored value, and re-seal it in place when it is legacy plaintext and
+ * a key is available (CCR F12 migration: each credential is upgraded the first
+ * time it is read after the key is set). Returns null for a missing value.
+ */
+export async function openAndUpgrade<T>(
+  kv: KVNamespace,
+  kvKey: string,
+  keyB64: string | undefined,
+): Promise<T | null> {
+  const raw = await kv.get(kvKey);
+  if (!raw) return null;
+  const value = await openJSON<T>(raw, keyB64);
+  if (!isEncrypted(raw) && keyB64) {
+    await kv.put(kvKey, await sealJSON(value, keyB64));
+  }
+  return value;
 }
 
 /**

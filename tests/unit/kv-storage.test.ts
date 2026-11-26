@@ -14,6 +14,7 @@ import {
   getLastSync,
 } from '../../src/lib/kv-storage';
 import type { AuthState, SessionData, StoredTokens } from '../../src/types';
+const TEST_KEY = Buffer.from('0123456789abcdef0123456789abcdef').toString('base64');
 
 function createMockKV() {
   const store = new Map<string, string>();
@@ -113,8 +114,8 @@ describe('KV Storage', () => {
     };
 
     it('stores and retrieves tokens', async () => {
-      await storeTokens(kv, userId, tokens);
-      const result = await getTokens(kv, userId);
+      await storeTokens(kv, userId, tokens, TEST_KEY);
+      const result = await getTokens(kv, userId, TEST_KEY);
       expect(result).toEqual(tokens);
     });
 

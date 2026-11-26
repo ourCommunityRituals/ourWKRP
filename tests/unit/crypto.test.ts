@@ -6,7 +6,7 @@
  * behavior when a value is encrypted but no key is available.
  */
 import { describe, it, expect } from 'vitest';
-import { encryptString, decryptString, isEncrypted, sealJSON, openJSON } from '../../src/lib/crypto';
+import { encryptString, decryptString, isEncrypted, sealJSON, openJSON, MissingEncryptionKeyError } from '../../src/lib/crypto';
 
 // A deterministic 32-byte (AES-256) key, base64-encoded.
 const KEY = Buffer.from('0123456789abcdef0123456789abcdef').toString('base64');
@@ -46,10 +46,10 @@ describe('crypto (data-at-rest)', () => {
       expect(await openJSON(sealed, KEY)).toEqual(value);
     });
 
-    it('stores plaintext JSON when no key is provided (non-breaking rollout)', async () => {
-      const sealed = await sealJSON(value, undefined);
-      expect(isEncrypted(sealed)).toBe(false);
-      expect(JSON.parse(sealed)).toEqual(value);
+    it('refuses to seal a credential when no key is provided (CCR F12)', async () => {
+      await expect(sealJSON(value, undefined)).rejects.toThrow(MissingEncryptionKeyError);
+      await expect(sealJSON(value, '')).rejects.toThrow(MissingEncryptionKeyError);
+      await expect(sealJSON(value, '   ')).rejects.toThrow(/plain text/);
     });
 
     it('reads legacy plaintext JSON even when a key is provided (back-compat)', async () => {

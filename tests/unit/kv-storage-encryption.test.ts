@@ -45,11 +45,37 @@ describe('token encryption at rest', () => {
     expect(await getLastfmSession(kv, 'c1', KEY)).toEqual({ username: 'mz', session_key: 'sk_secret' });
   });
 
-  it('falls back to plaintext when no key is provided (non-breaking)', async () => {
+  it('refuses to store Spotify tokens or a Last.fm key without a key, and writes nothing (CCR F12)', async () => {
     const kv = fakeKV();
-    await storeTokens(kv, 'u1', tokens); // no key
-    expect(isEncrypted(kv.store.get('wkrp:tokens:u1')!)).toBe(false);
+    await expect(storeTokens(kv, 'u1', tokens)).rejects.toThrow(/plain text/);
+    await expect(storeLastfmSession(kv, 'c1', { username: 'mz', session_key: 'sk_secret' })).rejects.toThrow(/plain text/);
+    expect(kv.store.size).toBe(0);
+  });
+
+  it('re-seals a legacy plaintext token the first time it is read with a key (CCR F12)', async () => {
+    const kv = fakeKV();
+    kv.store.set('wkrp:tokens:u1', JSON.stringify(tokens));
+    kv.store.set('wkrp:lastfm:c1', JSON.stringify({ username: 'mz', session_key: 'sk_secret' }));
+    expect(await getTokens(kv, 'u1', KEY)).toEqual(tokens);
+    expect(await getLastfmSession(kv, 'c1', KEY)).toEqual({ username: 'mz', session_key: 'sk_secret' });
+    expect(isEncrypted(kv.store.get('wkrp:tokens:u1')!)).toBe(true);
+    expect(kv.store.get('wkrp:lastfm:c1')).not.toContain('sk_secret');
+    expect(await getTokens(kv, 'u1', KEY)).toEqual(tokens);
+  });
+
+  it('does not rewrite a value that is already encrypted', async () => {
+    const kv = fakeKV();
+    await storeTokens(kv, 'u1', tokens, KEY);
+    const sealed = kv.store.get('wkrp:tokens:u1');
+    expect(await getTokens(kv, 'u1', KEY)).toEqual(tokens);
+    expect(kv.store.get('wkrp:tokens:u1')).toBe(sealed); // a re-seal would change the random IV
+  });
+
+  it('leaves a legacy plaintext token as it is when read without a key', async () => {
+    const kv = fakeKV();
+    kv.store.set('wkrp:tokens:u1', JSON.stringify(tokens));
     expect(await getTokens(kv, 'u1')).toEqual(tokens);
+    expect(isEncrypted(kv.store.get('wkrp:tokens:u1')!)).toBe(false);
   });
 
   it('reads a pre-existing plaintext token even after the key is introduced (rollout)', async () => {

@@ -13,7 +13,7 @@
  */
 
 import type { Env, StoredTokens } from '../types';
-import { sealJSON, openJSON } from './crypto';
+import { sealJSON, openAndUpgrade } from './crypto';
 import { log } from './logger';
 
 export type LinkedPlatform = 'spotify' | 'apple_music';
@@ -109,8 +109,7 @@ export async function storeAccountTokens(env: Env, account: LinkedAccount, token
 }
 
 export async function getAccountTokens(env: Env, account: LinkedAccount): Promise<StoredTokens | null> {
-  const raw = await env.WKRP_KV.get(tokenKeyFor(account));
-  return raw ? openJSON<StoredTokens>(raw, env.WKRP_ENCRYPTION_KEY) : null;
+  return openAndUpgrade<StoredTokens>(env.WKRP_KV, tokenKeyFor(account), env.WKRP_ENCRYPTION_KEY);
 }
 
 /**
