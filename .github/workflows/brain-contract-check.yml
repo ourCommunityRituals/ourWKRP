@@ -57,10 +57,27 @@ jobs:
           repository: ourCommunityRituals/OCR-docs
           path: ocr-docs
           ref: main
+          # Full history, so the pin step can prove the pin is on main.
+          fetch-depth: 0
           token: ${{ secrets.OCR_HUB_READ }}
           # The token is used for this fetch only and never written into
           # ocr-docs/.git/config (OCR-230 sweep L1; OW CLAUDE.md "transient").
           persist-credentials: false
+
+      # The brain is read at the commit in .ocr-brain-ref, not at OCR-docs main
+      # (CCR F3). The pin must be on main and may not move back from the base
+      # branch's pin. A brain change reaches WKRP through a PR that bumps it.
+      - name: Move the brain to the pinned commit
+        id: brain-pin
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          base_pin=""
+          if [ -n "$BASE_REF" ]; then
+            git -C wkrp fetch --no-tags --depth=1 origin "refs/heads/${BASE_REF}"
+            base_pin="$(git -C wkrp show FETCH_HEAD:.ocr-brain-ref 2>/dev/null | tr -d '[:space:]' || true)"
+          fi
+          bash wkrp/scripts/ci/brain-pin.sh ocr-docs wkrp/.ocr-brain-ref "$base_pin"
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
