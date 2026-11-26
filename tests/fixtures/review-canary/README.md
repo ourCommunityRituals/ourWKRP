@@ -8,6 +8,5 @@ plain text (`.txt`), never imported, built or deployed.
   (lines 9 to 11). The AI reviewer must name that file and a line in that range,
   and must not flag the clean file.
 
-The canary is an eval for the reviewer itself (AI Problems Index assessment,
-2026-11-26, Step 2). If you change these files, change the expected range in
+The canary is an eval for the reviewer itself. If you change these files, change the expected range in
 `scripts/ci/review-canary-check.mjs` in the same commit.
