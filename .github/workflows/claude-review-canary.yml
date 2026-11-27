@@ -5,20 +5,14 @@ name: Claude Review Canary
 # planted line and leaves the clean file alone. Same model and read-only tools
 # as claude-code-review.yml; it reads fixtures, not a PR, so it never sees PR code.
 #
-# Runs weekly, by hand, and whenever the reviewer's workflow, this file, the
-# fixtures or the judge change on main, so a prompt or model change is re-tested.
+# Runs weekly and by hand. Not on push: claude-code-action refuses that event
+# ("Unsupported event type: push"), so a push run only ever scored a fail. After
+# changing the reviewer, the fixtures or the judge, run it by hand.
 # A red here means the PR review cannot be trusted until it is green again.
 on:
   schedule:
     - cron: '17 13 * * 1'
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/claude-code-review.yml
-      - .github/workflows/claude-review-canary.yml
-      - tests/fixtures/review-canary/**
-      - scripts/ci/review-canary-check.mjs
 
 concurrency:
   group: claude-review-canary
@@ -73,9 +67,13 @@ jobs:
         env:
           EXECUTION_FILE: ${{ steps.canary.outputs.execution_file }}
         run: |
-          if node scripts/ci/review-canary-check.mjs "${EXECUTION_FILE:-/nonexistent}" | tee /tmp/verdict.txt; then
+          # No pipe here: GitHub runs this as `bash -e` without pipefail, so
+          # `judge | tee` took tee's exit code and a FAIL showed green.
+          if node scripts/ci/review-canary-check.mjs "${EXECUTION_FILE:-/nonexistent}" > /tmp/verdict.txt; then
+            cat /tmp/verdict.txt
             { echo '### Review canary: pass'; cat /tmp/verdict.txt; } >> "$GITHUB_STEP_SUMMARY"
           else
+            cat /tmp/verdict.txt
             { echo '### Review canary: FAIL'; cat /tmp/verdict.txt; } >> "$GITHUB_STEP_SUMMARY"
             echo "::error title=Review canary failed::$(cat /tmp/verdict.txt)"
             exit 1

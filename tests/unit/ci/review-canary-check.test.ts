@@ -5,8 +5,11 @@
  * real fixture, so moving the flaw without moving the range goes red.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
+import yaml from 'js-yaml';
 // @ts-expect-error -- plain .mjs script, no types
 import { judge, PLANTED_LINES } from '../../../scripts/ci/review-canary-check.mjs';
 
@@ -43,5 +46,39 @@ describe('review canary judge', () => {
     const at = lines.findIndex((l) => l.includes("slug = '${slug}'")) + 1;
     expect(at).toBeGreaterThanOrEqual(PLANTED_LINES[0]);
     expect(at).toBeLessThanOrEqual(PLANTED_LINES[1]);
+  });
+});
+
+describe('review canary workflow', () => {
+  const root = path.resolve(__dirname, '../../..');
+  const wf = yaml.load(readFileSync(path.join(root, '.github/workflows/claude-review-canary.yml'), 'utf8')) as {
+    on: Record<string, unknown>;
+    jobs: { canary: { steps: { name?: string; run?: string }[] } };
+  };
+
+  it('only uses triggers claude-code-action supports (it refuses push)', () => {
+    expect(Object.keys(wf.on).sort()).toEqual(['schedule', 'workflow_dispatch']);
+  });
+
+  it('the judge step fails the job on a failing answer (the exit code is not swallowed)', () => {
+    const step = wf.jobs.canary.steps.find((s) => s.name === 'Judge the answer');
+    const dir = mkdtempSync(path.join(tmpdir(), 'ow-canary-'));
+    try {
+      const run = (answer: string) => {
+        const exec = path.join(dir, 'exec.json');
+        writeFileSync(exec, JSON.stringify(result(answer)));
+        writeFileSync(path.join(dir, 'summary.md'), '');
+        // GitHub runs a run step as `bash -e {0}`, without pipefail.
+        return spawnSync('bash', ['-e', '-c', step!.run!], {
+          cwd: root,
+          encoding: 'utf8',
+          env: { PATH: process.env.PATH, EXECUTION_FILE: exec, GITHUB_STEP_SUMMARY: path.join(dir, 'summary.md') },
+        });
+      };
+      expect(run('CANARY: NONE').status).not.toBe(0);
+      expect(run('CANARY: planted.ts.txt:10').status).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
