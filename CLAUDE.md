@@ -236,6 +236,14 @@ A standing order from the owner (2026-11-14) for every session.
 - **One exception: a private showcase instance.** Its data file and built pages stay private. They are never committed, loaded into staging or published until the owner says the people named in them have agreed.
 - **This grants nothing else.** Staging changes only through CI after a merge to `main`. Who merges, who deploys and who holds credentials are unchanged, and production is not staging.
 
+## 8. Thread limits: budget, three tries, one owner per PR
+
+A standing order from the owner (2026-11-27) for every session.
+
+- **Budget.** At the start, write a rough budget on the checklist (for example 1 hour, or 3 CI runs). At twice the budget, stop and report what is done and what is left. Go on only when the owner says so.
+- **Three tries, then stop.** After 3 failed tries at the same thing (the same failing test, check, command or fix), stop and report what was tried, the exact error, and the next idea. No fourth try without the owner's word.
+- **One owner per PR.** Only the session that opened a PR pushes to it. Any other session sends its finding to that session or to the owner, and does not push. The owner can hand a PR to a new session in words.
+
 ---
 
 *Doc status: corrected for drift 2026-08-28 (OCR-111 — register-first auth, route/template/test counts, session semantics, dead branch removed); test counts re-measured + invariant-enforcement / brain-conformance / #22-gate mechanisms documented 2026-09-10 (OSE-1292 / F14). Source of truth remains the code: `src/router.ts` header for routes, `migrations/` for schema, and the suites themselves for the authoritative test count.*
