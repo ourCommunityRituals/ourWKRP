@@ -23,29 +23,32 @@ jobs:
     # Honest, not blocking. The review is a second opinion: it is not a required
     # check, so a red here never stops a merge. But it must never show green when
     # no review happened. The action step may fail without stopping the job, the
-    # diagnosis step says why, and the last step turns the job red. A missing key
-    # skips with a notice.
-    # Least privilege (OW-227). No `id-token: write`: with it the action trades an
-    # OIDC token for a Claude GitHub App token whose rights are NOT bounded by this
-    # block. The action gets this job's own token instead (github_token below), so
-    # what it can do is exactly what is listed here. pull-requests: write lets the
-    # review post its comment.
+    # diagnosis step says why, and the last step turns the job red. Missing
+    # federation settings skip with a notice.
+    # Least privilege (OW-227). The action gets this job's own token
+    # (github_token below), so it never trades for a Claude GitHub App token and
+    # what it can do on GitHub is exactly what is listed here. pull-requests:
+    # write lets the review post its comment.
+    # `id-token: write` is for Claude API sign-in only (workload identity
+    # federation): the action swaps a short-lived GitHub OIDC token for a
+    # short-lived Claude API token. No API key is stored anywhere.
     permissions:
       contents: read
       pull-requests: write
       issues: read
+      id-token: write
 
     steps:
-      # Skip cleanly when the key is absent (adopted from OSE) instead of failing the run.
-      # The secret never appears inside a script: only whether it is set does (OW-227).
-      - name: Check for API key
+      # Skip cleanly when federation is not set up yet, instead of failing the run.
+      # The values are identifiers, not credentials (repository variables).
+      - name: Check Claude sign-in settings
         id: check-key
         env:
-          HAS_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+          HAS_RULE: ${{ vars.ANTHROPIC_WIF_RULE_PR != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
         run: |
-          if [ "$HAS_API_KEY" != "true" ]; then
+          if [ "$HAS_RULE" != "true" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::ANTHROPIC_API_KEY not configured — skipping Claude review"
+            echo "::notice::Claude sign-in (ANTHROPIC_WIF_RULE_PR, ANTHROPIC_ORGANIZATION_ID) not configured — skipping Claude review"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -61,7 +64,7 @@ jobs:
       # ourSharedEvents claude-review.yml). Claude Code loads CLAUDE.md, AGENTS.md
       # and .claude/ (settings, hooks, skills, agents) from the working tree, and
       # claude-code-action loads project settings by default, so a hook added on
-      # the PR branch would run inside this job next to the API key. These come
+      # the PR branch would run inside this job next to its Claude sign-in. These come
       # from the BASE branch instead; the PR's changes to them are still reviewed
       # through the diff. The repo is public, so this fetch needs no token.
       - name: Reviewer instructions from base branch
@@ -84,15 +87,15 @@ jobs:
         if: steps.check-key.outputs.skip != 'true'
         continue-on-error: true # advisory — API/model failures must not block PRs
         # SHA-pinned (supply-chain hardening): a mutable @v1 tag can be force-pushed to
-        # run attacker code with this job's ANTHROPIC_API_KEY. Pin to the commit @v1
+        # run attacker code with this job's Claude sign-in. Pin to the commit @v1
         # resolved to; bump via Dependabot.
         uses: anthropics/claude-code-action@f431adaf77e0fecf918431e75a2b5b45b85af002 # v1
         with:
-          # Auth = service-account API key (interim). Moving to Workload Identity
-          # Federation later (OSE-1109) needs `id-token: write` back above, scoped to
-          # that change, and DELETE the ANTHROPIC_API_KEY secret (even empty, it
-          # shadows federation — precedence).
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Auth = workload identity federation (OSE-1109). No stored key: never add
+          # anthropic_api_key or claude_code_oauth_token here, since either one
+          # silently takes precedence over federation.
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_WIF_RULE_PR }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           # This job's own token, bounded by `permissions:` (OW-227).
           github_token: ${{ github.token }}
           # A reviewed, vendored copy (CCR F11), restored from the base branch
@@ -114,23 +117,16 @@ jobs:
 
       # The review step is advisory, so a refused run used to look green
       # (sweep 2026-11-25: is_error, zero tokens, 0.2 s on every PR). When it
-      # fails, ask the API once why, with the same key and model, and print only
-      # the HTTP status and the API's error type and message, never the key.
-      - name: Why the review failed (auth, credit or model)
+      # fails, try the federation sign-in once by hand, then one tiny request with
+      # the same model, and print only the HTTP status and the API's error type
+      # and message, never a token.
+      - name: Why the review failed (sign-in, credit or model)
         if: steps.claude-review.outcome == 'failure'
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RULE_ID: ${{ vars.ANTHROPIC_WIF_RULE_PR }}
+          ORG_ID: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           MODEL: claude-sonnet-4-6
-        run: |
-          code=$(curl -sS -o /tmp/probe.json -w '%{http_code}' https://api.anthropic.com/v1/messages \
-            -H "x-api-key: ${ANTHROPIC_API_KEY}" -H 'anthropic-version: 2023-06-01' -H 'content-type: application/json' \
-            -d "{\"model\":\"${MODEL}\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"ok\"}]}") || code=000
-          why=$(jq -r '.error | "\(.type): \(.message)"' /tmp/probe.json 2>/dev/null || echo 'no error body')
-          [ "$code" = 200 ] && why='the key and model work; the failure is elsewhere'
-          echo "::warning title=Claude review did not run::HTTP ${code} ${why}"
-          { echo '### Claude review did not run'; echo; echo "API answered HTTP ${code}: ${why}"; } >> "$GITHUB_STEP_SUMMARY"
-          rm -f /tmp/probe.json
-
+        run: bash scripts/ci/claude-wif-probe.sh
       # The check goes red when the review did not run (see the job comment).
       # Locked by tests/security/claude-workflow-hardening.invariant.spec.ts.
       - name: Fail when the review did not run

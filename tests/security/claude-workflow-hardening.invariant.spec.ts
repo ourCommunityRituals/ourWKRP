@@ -20,8 +20,10 @@
  *      AGENTS.md, .mcp.json and .claude/ from the base branch before the action,
  *      or passes `--setting-sources user` (tag mode checks out the PR branch by
  *      itself, so only the flag holds there);
- *   5. a `pull_request` job has no `id-token: write` (the OIDC trade gives an
- *      app token that the job's `permissions:` block does not bound);
+ *   5. a `pull_request` job with `id-token: write` passes its own
+ *      `github_token` (without one, the action trades the OIDC token for a
+ *      Claude GitHub App token that the job's `permissions:` block does not
+ *      bound; with one it skips that trade, src/github/token.ts at the pin);
  *   6. a job that gives the action a `prompt` (agent mode) lists its tools with
  *      `--allowedTools`;
  *   7. a failed run cannot show green:
@@ -31,6 +33,13 @@
  *   8. every plugin marketplace is a local path under ./.claude/ (CCR F11): a
  *      git URL installs whatever upstream holds that day, next to the API key,
  *      and a path outside .claude/ is not restored from the base branch.
+ *   9. no stored Claude credential (OSE-1109): no `anthropic_api_key` or
+ *      `claude_code_oauth_token` input and no ANTHROPIC_API_KEY or
+ *      CLAUDE_CODE_OAUTH_TOKEN secret anywhere in the file. Either one also
+ *      silently wins over federation (base-action/src/workload-identity.ts).
+ *  10. the job signs in by workload identity federation: the rule id and the
+ *      organization id come from repository variables (`vars.`), and the job
+ *      has `id-token: write` so the action can fetch its OIDC token.
  *
  * Born red: each rule is broken on purpose on a synthetic workflow below, next
  * to the real workflows passing.
@@ -48,6 +57,10 @@ const ACTION = 'anthropics/claude-code-action';
 const SHA = /@[0-9a-f]{40}$/;
 const PR_EVENTS = ['pull_request', 'pull_request_target', 'pull_request_review', 'pull_request_review_comment'];
 const INSTRUCTION_PATHS = ['.claude', 'AGENTS.md', 'CLAUDE.md', '.mcp.json'];
+
+const STORED_CLAUDE_CRED = /secrets\.(ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN)\b/;
+const FED_VAR = /^\$\{\{[^}]*\bvars\.ANTHROPIC_WIF_RULE_(PR|MAIN)\b[^}]*\}\}$/;
+const ORG_VAR = /^\$\{\{\s*vars\.ANTHROPIC_ORGANIZATION_ID\s*\}\}$/;
 
 type Step = {
   uses?: string;
@@ -108,8 +121,22 @@ export function claudeJobFindings(text: string): string[] {
       if (!restored && !userOnly) out.push(`${name}: reads instructions from PR code`);
     }
     const perms = typeof job.permissions === 'object' ? job.permissions : {};
-    if (ev.includes('pull_request') && perms['id-token'] === 'write') {
+    if (ev.includes('pull_request') && perms['id-token'] === 'write' && step.with?.github_token === undefined) {
       out.push(`${name}: id-token write on a pull_request job`);
+    }
+    if (
+      step.with?.anthropic_api_key !== undefined ||
+      step.with?.claude_code_oauth_token !== undefined ||
+      STORED_CLAUDE_CRED.test(text)
+    ) {
+      out.push(`${name}: stored Claude credential`);
+    }
+    if (
+      !FED_VAR.test(String(step.with?.anthropic_federation_rule_id ?? '')) ||
+      !ORG_VAR.test(String(step.with?.anthropic_organization_id ?? '')) ||
+      perms['id-token'] !== 'write'
+    ) {
+      out.push(`${name}: not signed in by federation`);
     }
     if (step.with?.prompt !== undefined && !/--allowedTools\s/.test(args)) {
       out.push(`${name}: agent mode without a tool allowlist`);
@@ -155,6 +182,9 @@ function wf(o: {
   stepCoe?: boolean;
   failStep?: boolean;
   market?: string;
+  ghToken?: boolean;
+  apiKey?: boolean;
+  fed?: string;
 }): string {
   return [
     `on: ${o.on ?? 'pull_request'}`,
@@ -163,10 +193,10 @@ function wf(o: {
     ...(o.jobCoe ? ['    continue-on-error: true'] : []),
     '    permissions:',
     '      contents: read',
-    ...(o.idToken ? ['      id-token: write'] : []),
+    ...(o.idToken === false ? [] : ['      id-token: write']),
     '    steps:',
     '      - name: key',
-    `        run: echo ${o.secretInRun ? '${{ secrets.ANTHROPIC_API_KEY }}' : '"$HAS_KEY"'}`,
+    `        run: echo ${o.secretInRun ? '${{ secrets.OTHER_TOKEN }}' : '"$HAS_KEY"'}`,
     '      - uses: actions/checkout@' + 'b'.repeat(40),
     ...(o.persist === false ? [] : ['        with:', '          persist-credentials: false']),
     ...(o.restore === false ? [] : ['      - name: restore', '        run: |', RESTORE]),
@@ -176,6 +206,10 @@ function wf(o: {
     '        with:',
     ...(o.prompt === false ? [] : ["          prompt: 'review'"]),
     `          claude_args: '${o.args ?? '--allowedTools "Read"'}'`,
+    ...(o.ghToken === false ? [] : ['          github_token: ${{ github.token }}']),
+    ...(o.apiKey ? ['          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}'] : []),
+    ...(o.fed === '' ? [] : [`          anthropic_federation_rule_id: ${o.fed ?? '${{ vars.ANTHROPIC_WIF_RULE_PR }}'}`]),
+    '          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}',
     ...(o.failStep
       ? ['      - name: fail', "        if: steps.review.outcome == 'failure'", '        run: exit 1']
       : []),
@@ -184,7 +218,7 @@ function wf(o: {
 }
 
 describe('the rules: each fault is caught, the safe shape passes', () => {
-  it('a pinned, restored, allowlisted pull_request job passes', () => {
+  it('a pinned, restored, allowlisted, federated pull_request job passes', () => {
     expect(claudeJobFindings(wf({}))).toEqual([]);
   });
   it('a tag-pinned action is caught', () => {
@@ -209,8 +243,20 @@ describe('the rules: each fault is caught, the safe shape passes', () => {
     const partial = wf({}).replace('rm -rf .claude AGENTS.md', 'rm -rf AGENTS.md').replace('for p in .claude ', 'for p in ');
     expect(claudeJobFindings(partial)).toEqual(['review: reads instructions from PR code']);
   });
-  it('id-token write on a pull_request job is caught', () => {
-    expect(claudeJobFindings(wf({ idToken: true }))).toEqual(['review: id-token write on a pull_request job']);
+  it('id-token write on a pull_request job without its own github_token is caught', () => {
+    expect(claudeJobFindings(wf({ ghToken: false }))).toEqual(['review: id-token write on a pull_request job']);
+  });
+  it('a stored Claude key, as an input or anywhere in the file, is caught', () => {
+    expect(claudeJobFindings(wf({ apiKey: true }))).toEqual(['review: stored Claude credential']);
+    const elsewhere = wf({}).replace('"$HAS_KEY"', '"$HAS_KEY"\n        env:\n          K: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}');
+    expect(claudeJobFindings(elsewhere)).toEqual(['review: stored Claude credential']);
+  });
+  it('a job not signed in by federation is caught (no rule, a literal rule, or no id-token)', () => {
+    const f = 'review: not signed in by federation';
+    expect(claudeJobFindings(wf({ fed: '' }))).toEqual([f]);
+    expect(claudeJobFindings(wf({ fed: 'fdrl_literal' }))).toEqual([f]);
+    expect(claudeJobFindings(wf({ fed: '${{ secrets.RULE }}' }))).toEqual([f]);
+    expect(claudeJobFindings(wf({ idToken: false }))).toEqual([f]);
   });
   it('agent mode without --allowedTools is caught; tag mode needs none', () => {
     expect(claudeJobFindings(wf({ args: '--model x' }))).toEqual(['review: agent mode without a tool allowlist']);
@@ -249,6 +295,25 @@ describe('the real Claude workflows hold every rule', () => {
       expect(claudeJobFindings(readFileSync(path.join(WF_DIR, f), 'utf8'))).toEqual([]);
     });
   }
+});
+
+describe('no workflow in this repo holds a stored Claude credential (OSE-1109)', () => {
+  it('no ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN secret in any workflow', () => {
+    const hits = readdirSync(WF_DIR)
+      .filter((f) => /\.ya?ml$/.test(f))
+      .filter((f) => STORED_CLAUDE_CRED.test(readFileSync(path.join(WF_DIR, f), 'utf8')));
+    expect(hits).toEqual([]);
+  });
+  it('the failure probe masks every token it holds and the review runs it', () => {
+    const probe = readFileSync(path.join(ROOT, 'scripts', 'ci', 'claude-wif-probe.sh'), 'utf8');
+    expect(probe).toContain('::add-mask::${jwt}');
+    expect(probe).toContain('::add-mask::${access}');
+    const printsToken = probe
+      .split('\n')
+      .filter((l) => /\becho\b/.test(l) && /\$\{?(jwt|access)\b/.test(l) && !l.includes('::add-mask::'));
+    expect(printsToken).toEqual([]);
+    expect(readFileSync(path.join(WF_DIR, 'claude-code-review.yml'), 'utf8')).toContain('run: bash scripts/ci/claude-wif-probe.sh');
+  });
 });
 
 // Behavioral: run the real restore step in a throwaway repository where the
