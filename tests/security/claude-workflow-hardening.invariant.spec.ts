@@ -31,6 +31,10 @@
  *   8. every plugin marketplace is a local path under ./.claude/ (CCR F11): a
  *      git URL installs whatever upstream holds that day, next to the API key,
  *      and a path outside .claude/ is not restored from the base branch.
+ *   9. the job's first step is a commit-pinned harden-runner with
+ *      `egress-policy: block` and a non-empty `allowed-endpoints` list of plain
+ *      host:port entries (no wildcards), so the job can reach only the hosts
+ *      the Claude action needs.
  *
  * Born red: each rule is broken on purpose on a synthetic workflow below, next
  * to the real workflows passing.
@@ -78,6 +82,21 @@ function restoresFromBase(step: Step): boolean {
   );
 }
 
+const HARDEN = /^step-security\/harden-runner@[0-9a-f]{40}$/;
+const PLAIN_HOST = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+:\d+$/;
+
+/** Why the job's first step does not block unlisted hosts, or null when it does. */
+function egressGap(steps: Step[]): string | null {
+  const first = steps[0];
+  if (!first || !HARDEN.test(first.uses ?? '')) return 'first step is not a commit-pinned harden-runner';
+  const policy = first.with?.['egress-policy'];
+  if (policy !== 'block') return `egress-policy is ${String(policy)}, not block`;
+  const list = String(first.with?.['allowed-endpoints'] ?? '').split(/\s+/).filter(Boolean);
+  if (list.length === 0) return 'block has no allowed-endpoints';
+  const bad = list.find((e) => !PLAIN_HOST.test(e));
+  return bad ? `allowed-endpoints entry ${bad} is not a plain host:port` : null;
+}
+
 function isTrue(v: unknown): boolean {
   return v === true || v === 'true';
 }
@@ -120,6 +139,8 @@ export function claudeJobFindings(text: string): string[] {
         out.push(`${name}: plugin marketplace not a vendored path under .claude/`);
       }
     }
+    const gap = egressGap(steps);
+    if (gap) out.push(`${name}: ${gap}`);
     if (isTrue(job['continue-on-error'])) out.push(`${name}: a failed run shows green`);
     else if (isTrue(step['continue-on-error'])) {
       const ref = step.id ? `steps.${step.id}.` : null;
@@ -155,6 +176,7 @@ function wf(o: {
   stepCoe?: boolean;
   failStep?: boolean;
   market?: string;
+  harden?: string[];
 }): string {
   return [
     `on: ${o.on ?? 'pull_request'}`,
@@ -165,6 +187,12 @@ function wf(o: {
     '      contents: read',
     ...(o.idToken ? ['      id-token: write'] : []),
     '    steps:',
+    ...(o.harden ?? [
+      `      - uses: step-security/harden-runner@${'c'.repeat(40)}`,
+      '        with:',
+      '          egress-policy: block',
+      "          allowed-endpoints: 'api.anthropic.com:443 github.com:443'",
+    ]),
     '      - name: key',
     `        run: echo ${o.secretInRun ? '${{ secrets.ANTHROPIC_API_KEY }}' : '"$HAS_KEY"'}`,
     '      - uses: actions/checkout@' + 'b'.repeat(40),
@@ -229,6 +257,20 @@ describe('the rules: each fault is caught, the safe shape passes', () => {
     expect(claudeJobFindings(wf({ market: './plugins/review' }))).toEqual([f]);
     expect(claudeJobFindings(wf({ market: './.claude/../plugins' }))).toEqual([f]);
     expect(claudeJobFindings(wf({ market: './.claude/review-marketplace' }))).toEqual([]);
+  });
+  it('a job that can reach any host is caught; a blocking allow-list passes', () => {
+    const h = (w: string[]) => claudeJobFindings(wf({ harden: w }));
+    const pin = `      - uses: step-security/harden-runner@${'c'.repeat(40)}`;
+    expect(h([])).toEqual(['review: first step is not a commit-pinned harden-runner']);
+    expect(h(['      - uses: step-security/harden-runner@v2', '        with:', '          egress-policy: block', "          allowed-endpoints: 'github.com:443'"])).toEqual([
+      'review: first step is not a commit-pinned harden-runner',
+    ]);
+    expect(h([pin, '        with:', '          egress-policy: audit'])).toEqual(['review: egress-policy is audit, not block']);
+    expect(h([pin, '        with:', '          egress-policy: block'])).toEqual(['review: block has no allowed-endpoints']);
+    expect(h([pin, '        with:', '          egress-policy: block', "          allowed-endpoints: '*.github.com:443'"])).toEqual([
+      'review: allowed-endpoints entry *.github.com:443 is not a plain host:port',
+    ]);
+    expect(h([pin, '        with:', '          egress-policy: block', "          allowed-endpoints: 'github.com:443'"])).toEqual([]);
   });
   it('an issue-only workflow is not held to the PR-code rule', () => {
     expect(claudeJobFindings(wf({ on: 'issues', restore: false }))).toEqual([]);
