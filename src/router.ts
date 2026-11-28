@@ -11,6 +11,7 @@
  *   GET  /import                    → CSV import page
  *   GET  /dashboard                 → DJ dashboard page
  *   GET  /stats                     → catalog stats page
+ *   GET  /privacy                   → privacy page (what we keep, cookies, your rights)
  *   POST /auth/register             → sign up by name (no Spotify) → contributor + session
  *   GET  /auth/start                → initiate Spotify OAuth + PKCE
  *   GET  /auth/callback             → Spotify redirect handler
@@ -40,6 +41,7 @@
  *   GET  /api/layers                → track counts per layer
  *   GET  /api/export/tracks         → export the catalog's tracks (WKRP-29)
  *   DELETE /api/contributors/:id/identity → right to erasure (lib/erasure.ts)
+ *   GET  /api/me/export             → download my data, self only (handlers/privacy.ts)
  *
  *   --- Playlist Builder (WKRP-7 MVP) ---
  *   POST   /api/playlists              → create curated playlist
@@ -126,7 +128,7 @@ import { handleSync } from './handlers/sync';
 import { handlePages } from './handlers/pages';
 import { handleImport } from './handlers/import';
 import { handleGetTracks, handleGetContributors, handleGetContributorPlaylists, handleGetContributorProfile, handleGetStats, handleGetBrands, handleGetContributorBrands, handleGetLayers } from './handlers/catalog';
-import { handleEraseIdentity } from './handlers/privacy';
+import { handleEraseIdentity, handleExportMyData } from './handlers/privacy';
 import { handleCreatePlaylist, handleGetPlaylist, handleAddPlaylistTracks, handleRemovePlaylistTracks, handleExportPlaylist } from './handlers/playlist';
 import { handleAddPortfolioPlaylist, handleGetPortfolio, handleRemovePortfolioPlaylist } from './handlers/portfolio';
 import { handleClaimProfileSlug, handleSetProfileType, handleSetVotable, handleGetProfileLayout, handlePutProfileLayout } from './handlers/profile';
@@ -229,6 +231,9 @@ export async function route(request: Request, env: Env): Promise<Response> {
   // --- Catalog API (WKRP-6) ---
   else if (method === 'GET' && path === '/api/tracks') {
     response = await handleGetTracks(request, env);
+  }
+  else if (method === 'GET' && path === '/api/me/export') {
+    response = await handleExportMyData(request, env);
   }
   else if (method === 'DELETE' && path.startsWith('/api/contributors/') && path.endsWith('/identity')) {
     const contributorId = extractUuid(path, '/api/contributors/', '/identity');
@@ -429,7 +434,7 @@ export async function route(request: Request, env: Env): Promise<Response> {
   else if (method === 'GET' && path.startsWith('/c/')) {
     response = await handlePages(request, env);
   }
-  else if (method === 'GET' && ['/', '/catalog', '/create', '/import', '/dashboard', '/stats'].includes(path)) {
+  else if (method === 'GET' && ['/', '/catalog', '/create', '/import', '/dashboard', '/stats', '/privacy'].includes(path)) {
     response = await handlePages(request, env);
   }
   // 404

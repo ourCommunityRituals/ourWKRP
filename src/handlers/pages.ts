@@ -39,6 +39,7 @@ import qrPosterHtml from '../templates/qr-poster.html';
 import dashboardHtml from '../templates/dashboard.html';
 import statsHtml from '../templates/stats.html';
 import lookHtml from '../templates/look.html';
+import privacyHtml from '../templates/privacy.html';
 
 const HTML_HEADERS = {
   'Content-Type': 'text/html;charset=UTF-8',
@@ -94,6 +95,8 @@ export async function handlePages(request: Request, env: Env): Promise<Response>
     html = dashboardHtml;
   } else if (path === '/stats') {
     html = statsHtml;
+  } else if (path === '/privacy') {
+    html = privacyHtml;
   } else if (path === '/import') {
     html = importHtml;
   } else if (path.startsWith('/dj/') && path.endsWith('/poster')) {

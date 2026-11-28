@@ -50,11 +50,20 @@ export interface RateLimitResult {
   retryAfterSec: number;
 }
 
-/** Derive the caller identity for bucketing — Cloudflare-provided client IP. */
-function clientId(request: Request): string {
-  return request.headers.get('CF-Connecting-IP')
+/**
+ * Derive the caller identity for bucketing from the Cloudflare-provided client
+ * IP. The IP itself is never stored: the bucket key is a SHA-256 of the IP and
+ * the current UTC day, cut to 32 hex characters. The day in the hash means a
+ * stored key cannot be matched to the same address on another day. Exported
+ * for tests.
+ */
+export async function clientId(request: Request, now: Date = new Date()): Promise<string> {
+  const ip = request.headers.get('CF-Connecting-IP')
     ?? request.headers.get('X-Forwarded-For')
     ?? 'unknown';
+  const day = now.toISOString().slice(0, 10);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`wkrp-rl:${day}:${ip}`));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
 }
 
 /** Map a request to a rate-limit bucket, or null if the route is unthrottled. */
@@ -144,7 +153,7 @@ export async function enforceRateLimit(
   const bucket = bucketFor(method, path);
   if (!bucket) return null;
 
-  const id = clientId(request);
+  const id = await clientId(request);
   let result: RateLimitResult;
   try {
     if (DURABLE_BUCKETS.has(bucket) && env.RATE_LIMITER) {

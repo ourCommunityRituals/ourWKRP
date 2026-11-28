@@ -39,6 +39,7 @@ const wkrpFiles: Record<string, string> = {
   'live set (public attribution)': 'live.html',
   'qr poster': 'qr-poster.html',
   'contributor profile': 'profile.html',
+  privacy: 'privacy.html',
 };
 
 function anchorPresent(html: string, anchor: string): boolean {

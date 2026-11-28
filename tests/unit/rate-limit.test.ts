@@ -148,3 +148,17 @@ describe('enforceRateLimit | KV expirationTtl contract (regression)', () => {
     expect(blocked!.status).toBe(429);
   });
 });
+
+describe('the rate-limit key never holds the raw IP', () => {
+  it('hashes the IP with the day, so the stored key is not the address', async () => {
+    const { clientId } = await import('../../src/lib/rate-limit');
+    const r = new Request('http://localhost/api/x', { headers: { 'CF-Connecting-IP': '203.0.113.9' } });
+    const day1 = await clientId(r, new Date('2026-11-28T10:00:00Z'));
+    const sameDay = await clientId(r, new Date('2026-11-28T23:59:00Z'));
+    const day2 = await clientId(r, new Date('2026-11-29T00:00:00Z'));
+    expect(day1).toMatch(/^[0-9a-f]{32}$/);
+    expect(day1).not.toContain('203.0.113.9');
+    expect(day1).toBe(sameDay);
+    expect(day2).not.toBe(day1);
+  });
+});
