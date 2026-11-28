@@ -70,6 +70,14 @@
     </div>
     </div>
 
+    <div class="section hidden" id="mydata-section" data-testid="mydata-section">
+      <div class="section-title">Your data</div>
+      <p>Download everything we keep about you, or delete your profile. <a href="/privacy" data-testid="mydata-privacy-link">How we use your data</a></p>
+      <p><a href="/api/me/export" class="btn btn-secondary" data-testid="mydata-download" download>Download my data</a></p>
+      <button type="button" id="mydata-delete" data-testid="mydata-delete" class="btn btn-danger">Delete my profile</button>
+      <div id="mydata-error" data-testid="mydata-error" class="form-error hidden"></div>
+    </div>
+
     <!-- music:start -->
     <div class="section" id="genres-section" data-testid="genres-section">
       <div class="section-title">Top Genres</div>
@@ -184,6 +192,7 @@
           loadPortfolio(id);
           /* music:end */
           loadVoteOptIn(id, data.contributor.votable === true);
+          loadMyData(id);
         } catch (err) {
           console.error('[WKRP] Profile load error:', err);
           showNotFound();
@@ -356,6 +365,36 @@
           el.classList.toggle('skin-wide', two && wide.indexOf(el.getAttribute('data-part')) !== -1);
         });
         box.setAttribute('data-skin', String(layout.skin || ''));
+      }
+
+      // --- "Your data" (owner only): download, and delete with a confirm ---
+      async function loadMyData(id) {
+        try {
+          var sres = await fetch('/auth/session/me', { credentials: 'same-origin' });
+          var sdata = await sres.json();
+          if (!(sdata.ok && sdata.contributor && sdata.contributor.id === id)) return;
+        } catch (e) { return; }
+        document.getElementById('mydata-section').classList.remove('hidden');
+        var del = document.getElementById('mydata-delete');
+        var errEl = document.getElementById('mydata-error');
+        del.addEventListener('click', async function() {
+          var sure = window.confirm('Delete your profile? Your name and page address are removed and you are signed out. This cannot be undone.');
+          if (!sure) return;
+          del.disabled = true;
+          errEl.classList.add('hidden');
+          try {
+            var res = await fetch('/api/contributors/' + encodeURIComponent(id) + '/identity', {
+              method: 'DELETE',
+              credentials: 'same-origin',
+            });
+            if (!res.ok) throw new Error('status ' + res.status);
+            window.location.href = '/';
+          } catch (e) {
+            errEl.textContent = 'Your profile could not be deleted. Please try again, or email privacy@oursharedevents.com.';
+            errEl.classList.remove('hidden');
+            del.disabled = false;
+          }
+        });
       }
 
       async function loadVoteOptIn(id, votable) {

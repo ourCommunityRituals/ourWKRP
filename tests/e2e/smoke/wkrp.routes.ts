@@ -3,7 +3,7 @@ import type { AppManifest } from './types';
 /**
  * WKRP page surfaces — paths verified against src/handlers/pages.ts dispatch:
  *   /            → connect (redirects to /catalog when session cookie present)
- *   /catalog /create /dashboard /stats /import
+ *   /catalog /create /dashboard /stats /import /privacy
  *   /dj/{id}/poster → qr-poster,  /dj/{id}(…) → live,  /contributor/{id} → profile
  *
  * dashboard/create are role-gated client-side: they render a loading view then
@@ -34,5 +34,6 @@ export const wkrpManifest: AppManifest = {
       fixtureEnv: 'SMOKE_DJ_ID', allowHScroll: true, sharedSheet: true, music: true },
     { path: '/contributor/{id}', name: 'contributor profile', anchor: 'body',
       fixtureEnv: 'SMOKE_CONTRIBUTOR_ID', sharedSheet: true },
+    { path: '/privacy', name: 'privacy', anchor: '[data-testid="privacy-content"]', sharedSheet: true },
   ],
 };

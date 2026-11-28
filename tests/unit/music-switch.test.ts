@@ -72,6 +72,8 @@ const KEPT = new Set([
   'GET /api/contributors/:id',
   'GET /api/contributors/:id/brands',
   'DELETE /api/contributors/:id/identity',
+  'GET /api/me/export',
+  'GET /privacy',
   'GET /contributor/:id',
   'GET /c/:slug',
   'POST /api/profile/slug',

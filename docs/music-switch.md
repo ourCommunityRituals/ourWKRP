@@ -65,6 +65,7 @@ Kept on:
 - `/api/brands`
 - Facets: `POST /api/facets`, `DELETE /api/facets/:id`
 - Erasure: `DELETE /api/contributors/:id/identity`
+- Download my data: `GET /api/me/export`, and the privacy page `GET /privacy`
 
 Nothing is deleted. Every music file, test and table stays, so the mutation
 floors (`mutation-floors.json`, a ratchet) and the brain's `identity_contract`
@@ -102,7 +103,7 @@ The words on the front door are the next story's (OW-225).
 | `tests/unit/music-switch.test.ts` | Reads the route table in the header comment of `src/router.ts`. With music off, every route not named as kept answers the 404, so a music route left out of the switch fails here. With music on or unset, none of them is closed. Pages swap their blocks, and no template leaves a marker behind. |
 | `tests/integration/music-off.test.ts` | With music off, on real D1 and KV (Miniflare): sign-up, session, profile, slug, profile type, facets and erasure work, and music routes on the same rig answer 404. |
 | `tests/security/music-switch.invariant.spec.ts` | Staging and production say `"off"`, the e2e config says `"on"`, `SPOTIFY_AND_DJ` is gone, the router and the page handler consult the switch, and CI runs the page smoke both ways. |
-| CI, E2E job | The Tier-1 page smoke runs twice: music on (all nine pages) and music off (the kept pages get every check; each music page must answer 404). The e2e journeys run with music on. |
+| CI, E2E job | The Tier-1 page smoke runs twice: music on (all ten pages) and music off (the kept pages get every check; each music page must answer 404). The e2e journeys run with music on. |
 
 A new route added to the router's header comment is closed by the switch
 unless `tests/unit/music-switch.test.ts` names it as kept, and the switch
