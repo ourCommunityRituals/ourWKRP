@@ -28,8 +28,8 @@ jobs:
     # commenting and pushing through the Claude GitHub App, which the action reaches
     # by trading this OIDC token. That app token is not bounded by this block, so
     # the guards are the trusted-actor `if:` above, the pinned action, and
-    # `--setting-sources user` below. The PR review workflow does not need
-    # the app and has no id-token.
+    # `--setting-sources user` below. The same OIDC token also signs in to the
+    # Claude API (workload identity federation), so no API key is stored.
     permissions:
       contents: read
       pull-requests: read
@@ -47,12 +47,12 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@f431adaf77e0fecf918431e75a2b5b45b85af002 # v1
         with:
-          # Auth = service-account API key (interim). Federation on-ramp (OSE-1109):
-          # `id-token: write` is already granted above, so moving to Workload Identity
-          # Federation later = add ANTHROPIC_FEDERATION_RULE_ID + ANTHROPIC_ORGANIZATION_ID
-          # + ANTHROPIC_SERVICE_ACCOUNT_ID + the OIDC token, and DELETE the
-          # ANTHROPIC_API_KEY secret (even empty, it shadows federation — precedence).
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Auth = workload identity federation (OSE-1109). No stored key: never add
+          # anthropic_api_key or claude_code_oauth_token, since either one silently
+          # takes precedence over federation. Issue events run on main (main rule);
+          # PR review events run as the pull request (PR rule).
+          anthropic_federation_rule_id: ${{ (github.event_name == 'issue_comment' || github.event_name == 'issues') && vars.ANTHROPIC_WIF_RULE_MAIN || vars.ANTHROPIC_WIF_RULE_PR }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
 
           # This is an optional setting that allows Claude to read CI results on PRs
           additional_permissions: |
@@ -68,7 +68,7 @@ jobs:
           #
           # `--setting-sources user` (OW-227, sweep H1): on a PR the action checks out
           # the PR branch itself, so a .claude/settings.json hook added on that branch
-          # would otherwise run inside this job next to the API key and the app token.
+          # would otherwise run inside this job next to the Claude sign-in and the app token.
           # Loading user settings only means no in-repo settings, hooks or CLAUDE.md
           # are read here; give @claude the context it needs in the comment.
           claude_args: '--setting-sources user'

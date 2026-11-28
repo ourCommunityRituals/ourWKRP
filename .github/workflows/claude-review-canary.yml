@@ -28,17 +28,20 @@ jobs:
   canary:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # id-token: write is for Claude API sign-in only (workload identity
+    # federation). Runs on main, so it uses the main-branch rule.
     permissions:
       contents: read
+      id-token: write
     steps:
-      # Unlike the PR review, a missing key is a failure here: the canary's job
-      # is to say whether the reviewer works.
-      - name: Check for API key
+      # Unlike the PR review, missing sign-in settings are a failure here: the
+      # canary's job is to say whether the reviewer works.
+      - name: Check Claude sign-in settings
         env:
-          HAS_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+          HAS_RULE: ${{ vars.ANTHROPIC_WIF_RULE_MAIN != '' && vars.ANTHROPIC_ORGANIZATION_ID != '' }}
         run: |
-          if [ "$HAS_API_KEY" != "true" ]; then
-            echo "::error title=Canary cannot run::ANTHROPIC_API_KEY is not set, so PRs get no AI review."
+          if [ "$HAS_RULE" != "true" ]; then
+            echo "::error title=Canary cannot run::ANTHROPIC_WIF_RULE_MAIN or ANTHROPIC_ORGANIZATION_ID is not set, so PRs get no AI review."
             exit 1
           fi
 
@@ -53,7 +56,9 @@ jobs:
         continue-on-error: true # the judge below decides; a failed run is judged a fail
         uses: anthropics/claude-code-action@f431adaf77e0fecf918431e75a2b5b45b85af002 # v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Workload identity federation: no stored key (OSE-1109).
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_WIF_RULE_MAIN }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           github_token: ${{ github.token }}
           prompt: |
             Review these two files for security bugs as a code reviewer would:
